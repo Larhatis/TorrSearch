@@ -1,0 +1,11 @@
+services:
+  torsearch:
+    build: .
+    container_name: torsearch
+    ports:
+      - "8080:8000"
+    volumes:
+      - ./config:/config        # placer config.yaml dans ./config/
+    env_file:
+      - .env
+    restart: unless-stopped

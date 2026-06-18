@@ -1,0 +1,23 @@
+transmission:
+  host: localhost      # hote de Transmission (ex: nom du service docker)
+  port: 9091
+  username: ""
+  password: ""
+  https: false
+
+search:
+  timeout_seconds: 10
+
+indexers:
+  - name: torr9
+    type: torznab
+    url: https://api.torr9.net/api/v1/torznab
+    api_key: ${TORR9_API_KEY}
+    auth: query          # query (defaut) | bearer
+    enabled: true
+  - name: c411
+    type: torznab
+    url: https://c411.org/api
+    api_key: ${C411_API_KEY}
+    auth: query
+    enabled: true
