@@ -4,7 +4,10 @@ import logging
 from email.utils import parsedate_to_datetime
 
 import defusedxml.ElementTree as ET
+import httpx
 
+from torsearch.config import AuthMode, IndexerConfig
+from torsearch.indexers.base import Indexer
 from torsearch.models import Category, SearchResult
 
 logger = logging.getLogger(__name__)
@@ -104,3 +107,61 @@ def parse_response(xml_bytes: bytes, source: str) -> list[SearchResult]:
             )
         )
     return results
+
+
+class TorznabIndexer(Indexer):
+    def __init__(
+        self,
+        config: IndexerConfig,
+        client: httpx.AsyncClient | None = None,
+        timeout: float = 10.0,
+    ):
+        self.name = config.name
+        self.enabled = config.enabled
+        self._url = config.url
+        self._api_key = config.api_key
+        self._auth = config.auth
+        self._timeout = timeout
+        self._client = client
+        self._category_ids = self._build_category_ids(config)
+
+    @staticmethod
+    def _build_category_ids(config: IndexerConfig) -> dict[Category, list[int]]:
+        ids = dict(DEFAULT_CATEGORY_IDS)
+        for key, values in config.categories.items():
+            try:
+                ids[Category(key)] = values
+            except ValueError:
+                continue
+        return ids
+
+    def _build_params(self, query: str, category: Category) -> dict[str, str]:
+        params: dict[str, str] = {"t": "search", "q": query}
+        if self._auth == AuthMode.QUERY:
+            params["apikey"] = self._api_key
+        if category != Category.ALL:
+            cat_ids = self._category_ids.get(category, [])
+            if cat_ids:
+                params["cat"] = ",".join(str(c) for c in cat_ids)
+        return params
+
+    def _build_headers(self) -> dict[str, str]:
+        if self._auth == AuthMode.BEARER:
+            return {"Authorization": f"Bearer {self._api_key}"}
+        return {}
+
+    async def search(self, query: str, category: Category) -> list[SearchResult]:
+        params = self._build_params(query, category)
+        headers = self._build_headers()
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        try:
+            response = await client.get(self._url, params=params, headers=headers)
+            response.raise_for_status()
+            return parse_response(response.content, self.name)
+        except Exception as exc:  # resilience: never raise to the orchestrator
+            logger.warning("Indexer %s failed: %s", self.name, exc)
+            return []
+        finally:
+            if owns_client:
+                await client.aclose()
