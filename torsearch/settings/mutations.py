@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from torsearch.config import Config, IndexerConfig, SearchConfig, TransmissionConfig
+from torsearch.config import Config, IndexerConfig, MonitorConfig, SavedSearch, SearchConfig, TransmissionConfig
 
 
 class SettingsError(Exception):
@@ -49,3 +49,37 @@ def set_indexer_enabled(config: Config, name: str, enabled: bool) -> Config:
 
 def set_general(config: Config, transmission: TransmissionConfig, search: SearchConfig) -> Config:
     return config.model_copy(update={"transmission": transmission, "search": search})
+
+
+def _saved_index(config: Config, name: str) -> int:
+    for i, ss in enumerate(config.saved_searches):
+        if ss.name == name:
+            return i
+    return -1
+
+
+def add_saved_search(config: Config, saved_search: SavedSearch) -> Config:
+    if _saved_index(config, saved_search.name) != -1:
+        raise SettingsError(f"Une recherche nommée « {saved_search.name} » existe déjà.")
+    return config.model_copy(update={"saved_searches": [*config.saved_searches, saved_search]})
+
+
+def remove_saved_search(config: Config, name: str) -> Config:
+    if _saved_index(config, name) == -1:
+        raise SettingsError(f"Recherche introuvable : « {name} ».")
+    return config.model_copy(
+        update={"saved_searches": [s for s in config.saved_searches if s.name != name]}
+    )
+
+
+def set_saved_search_enabled(config: Config, name: str, enabled: bool) -> Config:
+    idx = _saved_index(config, name)
+    if idx == -1:
+        raise SettingsError(f"Recherche introuvable : « {name} ».")
+    new = list(config.saved_searches)
+    new[idx] = new[idx].model_copy(update={"enabled": enabled})
+    return config.model_copy(update={"saved_searches": new})
+
+
+def set_monitor(config: Config, monitor: MonitorConfig) -> Config:
+    return config.model_copy(update={"monitor": monitor})
