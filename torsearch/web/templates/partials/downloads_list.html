@@ -1,0 +1,38 @@
+<div id="downloads-list" hx-get="/downloads/list" hx-trigger="every 3s" hx-swap="outerHTML">
+  {% if error %}<div class="rounded bg-red-600 px-3 py-2 text-sm mb-3">{{ error }}</div>{% endif %}
+  {% if not torrents %}
+    <p class="text-slate-400">Aucun telechargement en cours.</p>
+  {% else %}
+  <table class="w-full text-sm">
+    <thead class="text-left text-slate-400 border-b border-slate-700">
+      <tr>
+        <th class="py-2">Nom</th><th class="text-right">Avancement</th><th>Statut</th>
+        <th class="text-right">Down</th><th class="text-right">Up</th><th class="text-right">Taille</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for t in torrents %}
+      <tr class="border-b border-slate-800">
+        <td class="py-2 pr-3">{{ t.name }}</td>
+        <td class="text-right">{{ t.percent | round(1) }} %</td>
+        <td class="text-slate-400">{{ t.status }}</td>
+        <td class="text-right whitespace-nowrap">{{ (t.down_rate / 1024) | round(0) | int }} Ko/s</td>
+        <td class="text-right whitespace-nowrap">{{ (t.up_rate / 1024) | round(0) | int }} Ko/s</td>
+        <td class="text-right whitespace-nowrap">{{ (t.size / 1073741824) | round(2) }} Go</td>
+        <td class="text-right whitespace-nowrap">
+          {% if t.status == 'stopped' %}
+          <button hx-post="/downloads/{{ t.id }}/resume" hx-target="#downloads-list" hx-swap="outerHTML"
+                  class="rounded bg-emerald-600 hover:bg-emerald-500 px-2 py-1 text-xs">Reprendre</button>
+          {% else %}
+          <button hx-post="/downloads/{{ t.id }}/pause" hx-target="#downloads-list" hx-swap="outerHTML"
+                  class="rounded bg-amber-600 hover:bg-amber-500 px-2 py-1 text-xs">Pause</button>
+          {% endif %}
+          <button hx-post="/downloads/{{ t.id }}/delete" hx-target="#downloads-list" hx-swap="outerHTML"
+                  class="rounded bg-red-700 hover:bg-red-600 px-2 py-1 text-xs">Supprimer</button>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>

@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 from torsearch.context import AppContext
 from torsearch.models import Category
 from torsearch.search.filters import VALID_DIRECTIONS, VALID_SORTS, ResultFilters, apply
+from torsearch.web.downloads_routes import downloads_router
 from torsearch.web.settings_routes import settings_router
 from torsearch.web.templating import templates
 
@@ -91,4 +92,5 @@ def create_app(ctx: AppContext) -> FastAPI:
     app.state.ctx = ctx
     app.include_router(router)
     app.include_router(settings_router)
+    app.include_router(downloads_router)
     return app

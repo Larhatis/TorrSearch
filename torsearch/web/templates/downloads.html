@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-lg font-semibold mb-4">Telechargements</h1>
+<div id="downloads-list" hx-get="/downloads/list" hx-trigger="load, every 3s" hx-swap="outerHTML"></div>
+{% endblock %}
