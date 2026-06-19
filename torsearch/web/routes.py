@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse
@@ -87,9 +88,20 @@ async def download(request: Request, download_url: str = Form(...)):
     return templates.TemplateResponse(request, "partials/toast.html", {"ok": ok, "message": message})
 
 
-def create_app(ctx: AppContext) -> FastAPI:
-    app = FastAPI(title="TorSearch")
+def create_app(ctx: AppContext, history=None, monitor=None) -> FastAPI:
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        if monitor is not None:
+            await monitor.start()
+        try:
+            yield
+        finally:
+            if monitor is not None:
+                await monitor.stop()
+
+    app = FastAPI(title="TorSearch", lifespan=lifespan)
     app.state.ctx = ctx
+    app.state.history = history
     app.include_router(router)
     app.include_router(settings_router)
     app.include_router(downloads_router)

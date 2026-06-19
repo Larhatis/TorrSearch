@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from torsearch import main
 
 
-def test_build_app_wires_context_and_bootstraps(tmp_path, monkeypatch):
+def test_build_app_wires_context_history_and_bootstraps(tmp_path, monkeypatch):
     monkeypatch.setenv("TORR9_API_KEY", "secret")
     config = tmp_path / "config.yaml"
     config.write_text(
@@ -15,7 +15,12 @@ def test_build_app_wires_context_and_bootstraps(tmp_path, monkeypatch):
         "    enabled: true\n"
     )
     settings = tmp_path / "data" / "settings.json"
-    app = main.build_app(settings_path=str(settings), bootstrap_config_path=str(config))
-    assert isinstance(app, FastAPI)
+    app = main.build_app(
+        settings_path=str(settings),
+        bootstrap_config_path=str(config),
+        monitor_path=str(tmp_path / "data" / "monitor.json"),
+    )
     assert [ix.name for ix in app.state.ctx.search_service.indexers] == ["torr9"]
     assert settings.exists()
+    assert app.state.history is not None
+    assert app.state.history.records() == []
