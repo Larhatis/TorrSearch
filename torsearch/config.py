@@ -6,7 +6,7 @@ from enum import Enum
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AuthMode(str, Enum):
@@ -15,6 +15,8 @@ class AuthMode(str, Enum):
 
 
 class IndexerConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     name: str
     type: str = "torznab"
     url: str
@@ -25,6 +27,8 @@ class IndexerConfig(BaseModel):
 
 
 class TransmissionConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     host: str = "localhost"
     port: int = 9091
     username: str = ""
@@ -33,10 +37,14 @@ class TransmissionConfig(BaseModel):
 
 
 class SearchConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     timeout_seconds: float = 10.0
 
 
 class Config(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     transmission: TransmissionConfig = Field(default_factory=TransmissionConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)
     indexers: list[IndexerConfig] = Field(default_factory=list)
