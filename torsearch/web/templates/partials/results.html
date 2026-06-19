@@ -1,11 +1,24 @@
+{% macro sorth(col, label, extra='') %}
+  {%- set next_dir = 'desc' if (sort == col and dir == 'asc') else 'asc' -%}
+  <th class="{{ extra }} cursor-pointer select-none hover:text-slate-200"
+      hx-get="/search" hx-include="#search-form" hx-target="#results"
+      hx-vals='{"sort": "{{ col }}", "dir": "{{ next_dir }}"}'>
+    {{ label }}{% if sort == col %}{{ ' ▲' if dir == 'asc' else ' ▼' }}{% endif %}
+  </th>
+{% endmacro %}
 {% if not results %}
   <p class="text-slate-400">Aucun resultat{% if query %} pour "{{ query }}"{% endif %}.</p>
 {% else %}
 <table class="w-full text-sm">
   <thead class="text-left text-slate-400 border-b border-slate-700">
     <tr>
-      <th class="py-2">Nom</th><th>Source</th><th class="text-right">Taille</th>
-      <th class="text-right">Seed</th><th class="text-right">Leech</th><th></th>
+      {{ sorth('title', 'Nom') }}
+      <th>Source</th>
+      {{ sorth('size', 'Taille', 'text-right') }}
+      {{ sorth('seeders', 'Seed', 'text-right') }}
+      {{ sorth('leechers', 'Leech', 'text-right') }}
+      {{ sorth('date', 'Date', 'text-right') }}
+      <th></th>
     </tr>
   </thead>
   <tbody>
@@ -16,6 +29,7 @@
       <td class="text-right whitespace-nowrap">{{ (r.size / 1073741824) | round(2) }} Go</td>
       <td class="text-right text-emerald-400">{{ r.seeders }}</td>
       <td class="text-right text-slate-400">{{ r.leechers }}</td>
+      <td class="text-right text-slate-400 whitespace-nowrap">{{ r.publish_date.strftime('%Y-%m-%d') if r.publish_date else '-' }}</td>
       <td class="text-right whitespace-nowrap">
         <form hx-post="/download" hx-target="#toast" class="inline">
           <input type="hidden" name="download_url" value="{{ r.download_url }}">

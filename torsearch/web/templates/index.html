@@ -1,17 +1,38 @@
 {% extends "base.html" %}
 {% block content %}
-<form hx-get="/search" hx-target="#results" hx-indicator="#spinner" class="flex flex-wrap gap-3 mb-6">
-  <input type="text" name="q" placeholder="Rechercher un film, une serie..." autofocus
-         class="flex-1 min-w-[240px] rounded bg-slate-800 border border-slate-700 px-4 py-2">
-  <select name="cat" class="rounded bg-slate-800 border border-slate-700 px-3 py-2">
-    {% for c in categories %}
-    <option value="{{ c.value }}">{{ c.value | capitalize }}</option>
-    {% endfor %}
-  </select>
-  <button type="submit" class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-5 py-2">
-    Chercher
-  </button>
-  <span id="spinner" class="htmx-indicator self-center text-slate-400">Recherche...</span>
+<form id="search-form" hx-get="/search" hx-target="#results" hx-indicator="#spinner" class="mb-6">
+  <div class="flex flex-wrap gap-3">
+    <input type="text" name="q" placeholder="Rechercher un film, une serie..." autofocus
+           class="flex-1 min-w-[240px] rounded bg-slate-800 border border-slate-700 px-4 py-2">
+    <select name="cat" class="rounded bg-slate-800 border border-slate-700 px-3 py-2">
+      {% for c in categories %}
+      <option value="{{ c.value }}">{{ c.value | capitalize }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-5 py-2">Chercher</button>
+    <span id="spinner" class="htmx-indicator self-center text-slate-400">Recherche...</span>
+  </div>
+  <details class="mt-3 text-sm">
+    <summary class="cursor-pointer text-slate-400 hover:text-slate-200">Filtres</summary>
+    <div class="mt-3 flex flex-wrap items-end gap-4">
+      <label class="text-xs text-slate-400">Seeders min<br>
+        <input type="number" name="min_seeders" value="0" min="0" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+      <label class="text-xs text-slate-400">Taille min (Go)<br>
+        <input type="number" name="min_size_gb" step="0.1" min="0" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+      <label class="text-xs text-slate-400">Taille max (Go)<br>
+        <input type="number" name="max_size_gb" step="0.1" min="0" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+      <fieldset class="text-xs text-slate-400">
+        <legend>Qualite</legend>
+        <div class="flex gap-2">
+          {% for qv in ["2160p", "1080p", "720p", "480p", "other"] %}
+          <label class="flex items-center gap-1"><input type="checkbox" name="quality" value="{{ qv }}"> {{ qv }}</label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <label class="text-xs text-slate-400">Exclure ces mots<br>
+        <input type="text" name="exclude" placeholder="cam, ts, multi" class="w-48 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    </div>
+  </details>
 </form>
 <div id="results"></div>
 {% endblock %}
