@@ -5,7 +5,10 @@ services:
     ports:
       - "8080:8000"
     volumes:
-      - ./config:/config        # placer config.yaml dans ./config/
+      - ./config:/config        # placer config.yaml dans ./config/ (amorcage initial)
+      - ./data:/data            # settings.json persistant (gere par l'UI)
+    environment:
+      - TORSEARCH_SETTINGS=/data/settings.json
     env_file:
       - .env
     restart: unless-stopped

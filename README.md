@@ -35,6 +35,9 @@ python -m pytest
 
 ## Configuration
 
-- `config.yaml` : trackers (Torznab) + connexion Transmission.
-- Les passkeys sont injectees via `${VAR}` depuis l'environnement / `.env`.
-- Ajouter un tracker Torznab = une entree dans `indexers:` (aucun code).
+- Au **premier** demarrage, l'app lit `config.yaml` (amorcage) et ecrit `data/settings.json`.
+- Ensuite, **toute la configuration se fait depuis la page Reglages** (http://localhost:8000/settings) :
+  trackers, connexion Transmission, timeout. Chaque sauvegarde s'applique immediatement (pas de redemarrage).
+- `data/settings.json` est la source de verite (gitignore). `config.yaml` ne sert qu'a l'amorcage initial
+  et reste optionnel : sans lui, l'app demarre vide et tu ajoutes tout via l'UI.
+- Bouton **Tester** sur chaque tracker pour verifier URL + passkey.

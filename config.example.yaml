@@ -1,3 +1,5 @@
+# Fichier d'AMORCAGE uniquement (1er demarrage). Ensuite, edite la config via la page Reglages de l'UI.
+# La source de verite runtime est data/settings.json (gere par l'app).
 transmission:
   host: localhost      # hote de Transmission (ex: nom du service docker)
   port: 9091

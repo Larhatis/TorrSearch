@@ -1,6 +1,7 @@
 # Secrets / config locale
 .env
 config.yaml
+data/
 
 # Python
 __pycache__/
