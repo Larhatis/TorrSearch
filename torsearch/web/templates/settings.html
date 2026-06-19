@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-lg font-semibold mb-6">Reglages</h1>
+
+<section class="mb-10">
+  <h2 class="font-semibold mb-2">Transmission &amp; recherche</h2>
+  <form hx-post="/settings/general" hx-target="#toast" class="flex flex-wrap items-end gap-3">
+    <label class="text-xs text-slate-400">Hote<br>
+      <input name="host" value="{{ config.transmission.host }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400">Port<br>
+      <input name="port" value="{{ config.transmission.port }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-24"></label>
+    <label class="text-xs text-slate-400">Utilisateur<br>
+      <input name="username" value="{{ config.transmission.username }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400">Mot de passe<br>
+      <input name="password" type="password" value="{{ config.transmission.password }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400 flex items-center gap-1">
+      <input type="checkbox" name="https" {% if config.transmission.https %}checked{% endif %}> https</label>
+    <label class="text-xs text-slate-400">Timeout (s)<br>
+      <input name="timeout_seconds" value="{{ config.search.timeout_seconds }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-24"></label>
+    <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+  </form>
+</section>
+
+<section>
+  <h2 class="font-semibold mb-2">Trackers</h2>
+  <form hx-post="/settings/indexers" hx-target="#indexer-list" hx-swap="outerHTML"
+        class="flex flex-wrap items-end gap-2 mb-4">
+    <label class="text-xs text-slate-400">Nom<br>
+      <input name="name" placeholder="ex: torr9" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400">URL Torznab<br>
+      <input name="url" placeholder="https://.../api" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-72"></label>
+    <label class="text-xs text-slate-400">Passkey<br>
+      <input name="api_key" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400">Auth<br>
+      <select name="auth" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
+        <option value="query">query</option><option value="bearer">bearer</option>
+      </select></label>
+    <button class="rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1 text-sm">Ajouter</button>
+  </form>
+  {% include "partials/indexer_list.html" %}
+</section>
+{% endblock %}

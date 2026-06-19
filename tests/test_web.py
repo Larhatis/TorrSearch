@@ -75,10 +75,3 @@ def test_download_sends_to_transmission():
     assert resp.status_code == 200
     assert transmission.added == ["magnet:?xt=urn:btih:XYZ"]
     assert "Transmission" in resp.text
-
-
-def test_trackers_page_lists_indexer_names():
-    client, _ = _make()
-    resp = client.get("/trackers")
-    assert resp.status_code == 200
-    assert "t1" in resp.text

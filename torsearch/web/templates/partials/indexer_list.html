@@ -1,0 +1,9 @@
+<div id="indexer-list">
+  {% if error %}<div class="mb-3 rounded bg-red-600 px-3 py-2 text-sm">{{ error }}</div>{% endif %}
+  {% if notice %}<div class="mb-3 rounded bg-emerald-600 px-3 py-2 text-sm">{{ notice }}</div>{% endif %}
+  {% for ix in indexers %}
+    {% include "partials/indexer_row.html" %}
+  {% else %}
+    <p class="text-slate-400">Aucun tracker. Ajoute-en un ci-dessus.</p>
+  {% endfor %}
+</div>

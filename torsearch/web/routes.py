@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 
 from torsearch.context import AppContext
 from torsearch.models import Category
+from torsearch.web.settings_routes import settings_router
 from torsearch.web.templating import templates
 
 router = APIRouter()
@@ -37,14 +38,9 @@ async def download(request: Request, download_url: str = Form(...)):
     return templates.TemplateResponse(request, "partials/toast.html", {"ok": ok, "message": message})
 
 
-@router.get("/trackers", response_class=HTMLResponse)
-async def trackers(request: Request):
-    ctx: AppContext = request.app.state.ctx
-    return templates.TemplateResponse(request, "trackers.html", {"indexers": ctx.config.indexers})
-
-
 def create_app(ctx: AppContext) -> FastAPI:
     app = FastAPI(title="TorSearch")
     app.state.ctx = ctx
     app.include_router(router)
+    app.include_router(settings_router)
     return app
