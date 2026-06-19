@@ -125,3 +125,19 @@ def test_search_renders_sortable_headers():
     resp = client.get("/search", params={"q": "x"})
     assert "hx-vals" in resp.text
     assert "Seed" in resp.text
+
+
+def test_index_shows_onboarding_when_no_trackers():
+    service = SearchService([])
+    ctx = FakeContext(service, FakeTransmission(), Config())  # no indexers
+    client = TestClient(create_app(ctx))
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "Aucun tracker configure" in resp.text
+    assert "/settings" in resp.text
+
+
+def test_index_hides_onboarding_when_trackers_present():
+    client, _ = _make()  # _make() seeds one indexer "t1"
+    resp = client.get("/")
+    assert "Aucun tracker configure" not in resp.text

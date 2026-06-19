@@ -36,7 +36,12 @@ def _to_size_bytes(value: str) -> int | None:
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse(request, "index.html", {"categories": list(Category)})
+    ctx: AppContext = request.app.state.ctx
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {"categories": list(Category), "has_trackers": bool(ctx.config.indexers)},
+    )
 
 
 @router.get("/search", response_class=HTMLResponse)

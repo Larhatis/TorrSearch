@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
+{% if not has_trackers %}
+<div class="mb-4 rounded border border-amber-600/40 bg-amber-600/10 px-4 py-3 text-sm">
+  👉 Aucun tracker configure. <a href="/settings" class="underline text-amber-300 hover:text-amber-200">Ajoute tes trackers dans Reglages</a> pour commencer.
+</div>
+{% endif %}
 <form id="search-form" hx-get="/search" hx-target="#results" hx-indicator="#spinner" class="mb-6">
   <div class="flex flex-wrap gap-3">
     <input type="text" name="q" placeholder="Rechercher un film, une serie..." autofocus
