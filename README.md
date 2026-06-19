@@ -1,4 +1,4 @@
-# TorSearch
+# TorrSearch
 
 ![CI](https://github.com/Larhatis/TorrSearch/actions/workflows/ci.yml/badge.svg)
 
@@ -49,7 +49,7 @@ uvicorn torsearch.main:get_app --factory --reload   # http://localhost:8000
 
 ## Avertissement
 
-TorSearch est un outil de **recherche et d'agregation** (comme Prowlarr/Jackett). Il ne fournit
+TorrSearch est un outil de **recherche et d'agregation** (comme Prowlarr/Jackett). Il ne fournit
 aucun contenu. L'usage que tu en fais, le respect du droit d'auteur et des regles des trackers
 relevent de **ta** responsabilite et des lois de ton pays.
 

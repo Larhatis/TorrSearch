@@ -105,7 +105,7 @@ def create_app(ctx: AppContext, history=None, monitor=None) -> FastAPI:
             if monitor is not None:
                 await monitor.stop()
 
-    app = FastAPI(title="TorSearch", lifespan=lifespan)
+    app = FastAPI(title="TorrSearch", lifespan=lifespan)
     app.state.ctx = ctx
     app.state.history = history
     app.include_router(router)
