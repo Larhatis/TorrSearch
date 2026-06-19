@@ -1,0 +1,84 @@
+<div id="surveillance-body">
+  {% if error %}<div class="mb-3 rounded bg-red-600 px-3 py-2 text-sm">{{ error }}</div>{% endif %}
+  {% if notice %}<div class="mb-3 rounded bg-emerald-600 px-3 py-2 text-sm">{{ notice }}</div>{% endif %}
+
+  <section class="mb-8">
+    <h2 class="font-semibold mb-2">Surveillance globale</h2>
+    <form hx-post="/surveillance/monitor" hx-target="#surveillance-body" hx-swap="outerHTML" class="flex items-end gap-3">
+      <label class="text-xs text-slate-400 flex items-center gap-1">
+        <input type="checkbox" name="enabled" {% if monitor.enabled %}checked{% endif %}> activee</label>
+      <label class="text-xs text-slate-400">Intervalle (min)<br>
+        <input name="interval_minutes" value="{{ monitor.interval_minutes }}" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+      <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+    </form>
+  </section>
+
+  <section class="mb-8">
+    <h2 class="font-semibold mb-2">Nouvelle recherche surveillee</h2>
+    <form hx-post="/surveillance/searches" hx-target="#surveillance-body" hx-swap="outerHTML" class="flex flex-wrap items-end gap-2">
+      <input name="name" placeholder="Nom" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
+      <input name="query" placeholder="Recherche (ex: ma serie s02)" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-64">
+      <select name="cat" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
+        {% for c in categories %}<option value="{{ c.value }}">{{ c.value | capitalize }}</option>{% endfor %}
+      </select>
+      <select name="mode" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
+        <option value="auto">auto (envoi)</option><option value="notify">notify (signaler)</option>
+      </select>
+      <label class="text-xs text-slate-400">Seeders min<br>
+        <input type="number" name="min_seeders" value="0" min="0" class="w-20 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+      <label class="text-xs text-slate-400">Taille min (Go)<br>
+        <input type="number" name="min_size_gb" step="0.1" min="0" class="w-20 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+      <label class="text-xs text-slate-400">Taille max (Go)<br>
+        <input type="number" name="max_size_gb" step="0.1" min="0" class="w-20 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+      <fieldset class="text-xs text-slate-400"><legend>Qualite</legend>
+        <div class="flex gap-2">
+          {% for qv in ["2160p", "1080p", "720p", "480p", "other"] %}
+          <label class="flex items-center gap-1"><input type="checkbox" name="quality" value="{{ qv }}"> {{ qv }}</label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <label class="text-xs text-slate-400">Exclure<br>
+        <input name="exclude" placeholder="cam, ts" class="w-40 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+      <button class="rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1 text-sm">Ajouter</button>
+    </form>
+  </section>
+
+  <section class="mb-8">
+    <h2 class="font-semibold mb-2">Recherches surveillees</h2>
+    {% for s in searches %}
+    <div class="flex items-center gap-3 border-b border-slate-800 py-2 text-sm">
+      <span class="font-medium">{{ s.name }}</span>
+      <span class="text-slate-400">{{ s.query }}</span>
+      <span class="rounded bg-slate-700 px-2 py-0.5 text-xs">{{ s.mode }}</span>
+      <span class="ml-auto"></span>
+      <button hx-post="/surveillance/searches/{{ s.name }}/toggle" hx-target="#surveillance-body" hx-swap="outerHTML"
+              class="rounded {% if s.enabled %}bg-amber-600{% else %}bg-slate-600{% endif %} px-2 py-1 text-xs">
+        {{ "Desactiver" if s.enabled else "Activer" }}</button>
+      <button hx-post="/surveillance/searches/{{ s.name }}/delete" hx-target="#surveillance-body" hx-swap="outerHTML"
+              class="rounded bg-red-700 px-2 py-1 text-xs">Supprimer</button>
+    </div>
+    {% else %}
+    <p class="text-slate-400 text-sm">Aucune recherche surveillee.</p>
+    {% endfor %}
+  </section>
+
+  <section>
+    <h2 class="font-semibold mb-2">Historique</h2>
+    {% for r in records %}
+    <div class="flex items-center gap-3 border-b border-slate-800 py-2 text-sm">
+      <span class="rounded px-2 py-0.5 text-xs {% if r.kind == 'grabbed' %}bg-emerald-700{% else %}bg-sky-700{% endif %}">{{ 'grabbe' if r.kind == 'grabbed' else 'trouve' }}</span>
+      <span class="text-slate-400">{{ r.search }}</span>
+      <span>{{ r.title }}</span>
+      <span class="ml-auto text-slate-500 text-xs">{{ r.at.strftime('%Y-%m-%d %H:%M') }}</span>
+      {% if r.kind == 'found' %}
+      <form hx-post="/download" hx-target="#toast" class="inline">
+        <input type="hidden" name="download_url" value="{{ r.download_url }}">
+        <button class="rounded bg-emerald-600 hover:bg-emerald-500 px-2 py-1 text-xs">Envoyer</button>
+      </form>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="text-slate-400 text-sm">Aucune detection pour le moment.</p>
+    {% endfor %}
+  </section>
+</div>
