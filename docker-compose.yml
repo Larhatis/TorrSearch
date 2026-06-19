@@ -4,11 +4,29 @@ services:
     container_name: torsearch
     ports:
       - "8080:8000"
-    volumes:
-      - ./config:/config        # placer config.yaml dans ./config/ (amorcage initial)
-      - ./data:/data            # settings.json persistant (gere par l'UI)
     environment:
       - TORSEARCH_SETTINGS=/data/settings.json
-    env_file:
-      - .env
+      - TORSEARCH_MONITOR=/data/monitor.json
+      - TORSEARCH_CONFIG=/bootstrap/bootstrap.yaml
+    volumes:
+      - ./data:/data
+      - ./deploy/bootstrap.yaml:/bootstrap/bootstrap.yaml:ro
+    depends_on:
+      - transmission
+    restart: unless-stopped
+
+  transmission:
+    image: lscr.io/linuxserver/transmission:latest
+    container_name: transmission
+    ports:
+      - "9091:9091"
+      - "51413:51413"
+      - "51413:51413/udp"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./transmission/config:/config
+      - ./transmission/downloads:/downloads
     restart: unless-stopped

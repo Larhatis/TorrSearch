@@ -2,6 +2,7 @@
 .env
 config.yaml
 data/
+transmission/
 
 # Python
 __pycache__/

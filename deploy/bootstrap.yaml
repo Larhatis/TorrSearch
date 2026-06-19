@@ -1,0 +1,5 @@
+# Amorcage au premier demarrage uniquement : pre-cable TorSearch sur le service Transmission
+# du docker-compose. Ensuite, toute la config se fait dans /settings (data/settings.json).
+transmission:
+  host: transmission
+  port: 9091
