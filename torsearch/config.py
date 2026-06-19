@@ -8,6 +8,8 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from torsearch.models import Category
+
 
 class AuthMode(str, Enum):
     QUERY = "query"
@@ -42,12 +44,34 @@ class SearchConfig(BaseModel):
     timeout_seconds: float = 10.0
 
 
+class SavedSearch(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    name: str
+    query: str
+    category: Category = Category.ALL
+    min_seeders: int = 0
+    min_size: int | None = None
+    max_size: int | None = None
+    qualities: list[str] = Field(default_factory=list)
+    exclude: list[str] = Field(default_factory=list)
+    mode: str = "auto"
+    enabled: bool = True
+
+
+class MonitorConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    enabled: bool = False
+    interval_minutes: int = 30
+
+
 class Config(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     transmission: TransmissionConfig = Field(default_factory=TransmissionConfig)
     search: SearchConfig = Field(default_factory=SearchConfig)
     indexers: list[IndexerConfig] = Field(default_factory=list)
+    saved_searches: list[SavedSearch] = Field(default_factory=list)
+    monitor: MonitorConfig = Field(default_factory=MonitorConfig)
 
 
 _ENV_PATTERN = re.compile(r"\$\{([^}]+)\}")

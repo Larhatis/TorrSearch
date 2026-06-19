@@ -63,3 +63,33 @@ def test_load_config_rejects_missing_url(tmp_path):
     path.write_text(INVALID_YAML)
     with pytest.raises(ValidationError):
         load_config(path)
+
+
+def test_saved_search_defaults():
+    from torsearch.config import SavedSearch
+    ss = SavedSearch(name="x", query="q")
+    assert ss.category.value == "all"
+    assert ss.mode == "auto"
+    assert ss.enabled is True
+    assert ss.min_seeders == 0
+
+
+def test_config_round_trips_saved_searches_and_monitor():
+    from torsearch.config import Config, MonitorConfig, SavedSearch
+    cfg = Config(
+        saved_searches=[SavedSearch(name="s1", query="dune", mode="notify")],
+        monitor=MonitorConfig(enabled=True, interval_minutes=15),
+    )
+    again = Config.model_validate_json(cfg.model_dump_json())
+    assert again.saved_searches[0].name == "s1"
+    assert again.saved_searches[0].mode == "notify"
+    assert again.monitor.enabled is True
+    assert again.monitor.interval_minutes == 15
+
+
+def test_monitor_defaults_off():
+    from torsearch.config import Config
+    cfg = Config()
+    assert cfg.monitor.enabled is False
+    assert cfg.monitor.interval_minutes == 30
+    assert cfg.saved_searches == []
