@@ -165,3 +165,29 @@ class TorznabIndexer(Indexer):
         finally:
             if owns_client:
                 await client.aclose()
+
+    async def test(self) -> tuple[bool, str]:
+        params: dict[str, str] = {"t": "caps"}
+        if self._auth == AuthMode.QUERY:
+            params["apikey"] = self._api_key
+        headers = self._build_headers()
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        try:
+            response = await client.get(self._url, params=params, headers=headers)
+            if response.status_code in (401, 403):
+                return False, "Clé API refusée (401/403)."
+            response.raise_for_status()
+            root = ET.fromstring(response.content)
+            if root.tag != "caps":
+                return False, "Réponse inattendue (pas un flux Torznab)."
+            return True, "OK"
+        except httpx.TimeoutException:
+            return False, "Pas de réponse (timeout)."
+        except httpx.HTTPError as exc:
+            return False, f"Erreur réseau : {exc}."
+        except ET.ParseError:
+            return False, "Réponse invalide (XML illisible)."
+        finally:
+            if owns_client:
+                await client.aclose()
