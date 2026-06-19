@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from torsearch.config import Config, IndexerConfig
 from torsearch.models import Category, SearchResult
 from torsearch.search.service import SearchService
 from torsearch.web.routes import create_app
@@ -24,22 +25,25 @@ class FakeTransmission:
         return 7
 
 
+class FakeContext:
+    def __init__(self, search_service, transmission, config):
+        self.search_service = search_service
+        self.transmission = transmission
+        self.config = config
+
+
 def _make(results=None):
     service = SearchService([FakeIndexer("t1", results or [])])
     transmission = FakeTransmission()
-    client = TestClient(create_app(service, transmission))
+    config = Config(indexers=[IndexerConfig(name="t1", url="https://t1/api", api_key="k")])
+    client = TestClient(create_app(FakeContext(service, transmission, config)))
     return client, transmission
 
 
 def _movie():
     return SearchResult(
-        title="Cool.Movie.2024",
-        size=2147483648,
-        seeders=99,
-        leechers=3,
-        source="t1",
-        category=Category.MOVIES,
-        download_url="magnet:?xt=urn:btih:ABC",
+        title="Cool.Movie.2024", size=2147483648, seeders=99, leechers=3,
+        source="t1", category=Category.MOVIES, download_url="magnet:?xt=urn:btih:ABC",
     )
 
 

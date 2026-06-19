@@ -4,21 +4,21 @@ import os
 
 from fastapi import FastAPI
 
-from torsearch.config import load_config
-from torsearch.indexers.registry import build_indexers
-from torsearch.search.service import SearchService
-from torsearch.transmission.client import TransmissionClient
+from torsearch.context import AppContext
+from torsearch.settings.store import SettingsStore
 from torsearch.web.routes import create_app
 
+DEFAULT_SETTINGS_PATH = os.environ.get("TORSEARCH_SETTINGS", "data/settings.json")
 DEFAULT_CONFIG_PATH = os.environ.get("TORSEARCH_CONFIG", "config.yaml")
 
 
-def build_app(config_path: str = DEFAULT_CONFIG_PATH) -> FastAPI:
-    config = load_config(config_path)
-    indexers = build_indexers(config)
-    service = SearchService(indexers, timeout=config.search.timeout_seconds)
-    transmission = TransmissionClient(config.transmission)
-    return create_app(service, transmission)
+def build_app(
+    settings_path: str = DEFAULT_SETTINGS_PATH,
+    bootstrap_config_path: str = DEFAULT_CONFIG_PATH,
+) -> FastAPI:
+    store = SettingsStore(settings_path, bootstrap_config_path=bootstrap_config_path)
+    ctx = AppContext(store)
+    return create_app(ctx)
 
 
 def get_app() -> FastAPI:
