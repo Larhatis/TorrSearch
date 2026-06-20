@@ -80,6 +80,13 @@ class MetadataConfig(BaseModel):
     tmdb_api_key: str = ""
 
 
+class LibraryConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    qualities: list[str] = Field(default_factory=lambda: ["2160p", "1080p"])
+    min_seeders: int = 1
+
+
 class Config(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -90,6 +97,7 @@ class Config(BaseModel):
     monitor: MonitorConfig = Field(default_factory=MonitorConfig)
     notifications: list[NotificationChannel] = Field(default_factory=list)
     metadata: MetadataConfig = Field(default_factory=MetadataConfig)
+    library: LibraryConfig = Field(default_factory=LibraryConfig)
 
 
 _ENV_PATTERN = re.compile(r"\$\{([^}]+)\}")

@@ -127,3 +127,23 @@ def test_metadata_defaults_to_empty(tmp_path):
     from torsearch.config import load_config
 
     assert load_config(p).metadata.tmdb_api_key == ""
+
+
+def test_library_profile_defaults(tmp_path):
+    from torsearch.config import load_config
+
+    p = tmp_path / "c.yaml"
+    p.write_text("{}\n")
+    cfg = load_config(p)
+    assert cfg.library.qualities == ["2160p", "1080p"]
+    assert cfg.library.min_seeders == 1
+
+
+def test_library_profile_loaded(tmp_path):
+    from torsearch.config import load_config
+
+    p = tmp_path / "c.yaml"
+    p.write_text("library:\n  qualities: [1080p]\n  min_seeders: 5\n")
+    cfg = load_config(p)
+    assert cfg.library.qualities == ["1080p"]
+    assert cfg.library.min_seeders == 5
