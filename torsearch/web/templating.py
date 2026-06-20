@@ -4,6 +4,8 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
+from torsearch.search.filters import detect_quality
+
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 
@@ -13,3 +15,4 @@ def _auth_context(request):
 
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR), context_processors=[_auth_context])
+templates.env.globals["detect_quality"] = detect_quality
