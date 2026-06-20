@@ -122,11 +122,11 @@ def test_search_invalid_filter_params_do_not_500():
     assert "KeepMe" in resp.text
 
 
-def test_search_renders_sortable_headers():
+def test_search_renders_sort_control():
     client, _ = _make([_result("Anything")])
     resp = client.get("/search", params={"q": "x"})
     assert "hx-vals" in resp.text
-    assert "Seed" in resp.text
+    assert "Seeders" in resp.text
 
 
 def test_index_shows_onboarding_when_no_trackers():
@@ -173,3 +173,29 @@ def test_index_has_filter_panel_fields():
 def test_index_defines_clear_filter_helper():
     client, _ = _make()
     assert "function clearFilter" in client.get("/").text
+
+
+def test_search_renders_quality_badge():
+    client, _ = _make([_result("Film.2024.1080p.WEB")])
+    resp = client.get("/search", params={"q": "x"})
+    assert 'data-quality="1080p"' in resp.text
+
+
+def test_search_renders_seeder_health():
+    client, _ = _make([_result("Healthy", seeders=150), _result("Weak", seeders=5)])
+    resp = client.get("/search", params={"q": "x"})
+    assert 'data-health="good"' in resp.text
+    assert 'data-health="low"' in resp.text
+
+
+def test_search_shows_result_count():
+    client, _ = _make([_result("One"), _result("Two")])
+    resp = client.get("/search", params={"q": "x"})
+    assert "2 resultat" in resp.text.lower()
+
+
+def test_search_renders_active_filter_chip():
+    client, _ = _make([_result("KeepMe", seeders=80)])
+    resp = client.get("/search", params={"q": "x", "min_seeders": "10"})
+    assert 'data-filter="min_seeders"' in resp.text
+    assert "clearFilter('min_seeders')" in resp.text

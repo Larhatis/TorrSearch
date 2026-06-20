@@ -47,6 +47,21 @@ async def index(request: Request):
     )
 
 
+def _active_filters(filters: ResultFilters) -> list[dict]:
+    chips: list[dict] = []
+    if filters.min_seeders > 0:
+        chips.append({"label": f"Seeders ≥ {filters.min_seeders}", "name": "min_seeders"})
+    if filters.min_size is not None:
+        chips.append({"label": f"≥ {round(filters.min_size / _GB, 1)} Go", "name": "min_size_gb"})
+    if filters.max_size is not None:
+        chips.append({"label": f"≤ {round(filters.max_size / _GB, 1)} Go", "name": "max_size_gb"})
+    for q in filters.qualities:
+        chips.append({"label": q, "name": "quality", "value": q})
+    if filters.exclude:
+        chips.append({"label": "exclut : " + ", ".join(filters.exclude), "name": "exclude"})
+    return chips
+
+
 @router.get("/search", response_class=HTMLResponse)
 async def search(
     request: Request,
@@ -79,10 +94,18 @@ async def search(
         direction=effective_dir,
     )
     results = apply(raw, filters)
+    sources = [ix.name for ix in ctx.config.indexers if ix.enabled]
     return templates.TemplateResponse(
         request,
         "partials/results.html",
-        {"results": results, "query": q, "sort": effective_sort, "dir": effective_dir},
+        {
+            "results": results,
+            "query": q,
+            "sort": effective_sort,
+            "dir": effective_dir,
+            "active_filters": _active_filters(filters),
+            "sources": sources,
+        },
     )
 
 

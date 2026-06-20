@@ -1,45 +1,53 @@
-{% macro sorth(col, label, extra='') %}
-  {%- set next_dir = 'desc' if (sort == col and dir == 'asc') else 'asc' -%}
-  <th class="{{ extra }} cursor-pointer select-none hover:text-slate-200"
-      hx-get="/search" hx-include="#search-form" hx-target="#results"
-      hx-vals='{"sort": "{{ col }}", "dir": "{{ next_dir }}"}'>
-    {{ label }}{% if sort == col %}{{ ' ▲' if dir == 'asc' else ' ▼' }}{% endif %}
-  </th>
-{% endmacro %}
+{% from "partials/components.html" import badge_quality, health, source_chip %}
 {% if not results %}
   <p class="text-slate-400">Aucun resultat{% if query %} pour "{{ query }}"{% endif %}.</p>
 {% else %}
-<table class="w-full text-sm">
-  <thead class="text-left text-slate-400 border-b border-slate-700">
-    <tr>
-      {{ sorth('title', 'Nom') }}
-      <th>Source</th>
-      {{ sorth('size', 'Taille', 'text-right') }}
-      {{ sorth('seeders', 'Seed', 'text-right') }}
-      {{ sorth('leechers', 'Leech', 'text-right') }}
-      {{ sorth('date', 'Date', 'text-right') }}
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-  {% for r in results %}
-    <tr class="border-b border-slate-800 hover:bg-slate-800/50">
-      <td class="py-2 pr-3">{{ r.title }}</td>
-      <td><span class="rounded bg-slate-700 px-2 py-0.5 text-xs">{{ r.source }}</span></td>
-      <td class="text-right whitespace-nowrap">{{ (r.size / 1073741824) | round(2) }} Go</td>
-      <td class="text-right text-emerald-400">{{ r.seeders }}</td>
-      <td class="text-right text-slate-400">{{ r.leechers }}</td>
-      <td class="text-right text-slate-400 whitespace-nowrap">{{ r.publish_date.strftime('%Y-%m-%d') if r.publish_date else '-' }}</td>
-      <td class="text-right whitespace-nowrap">
-        <form hx-post="/download" hx-target="#toast" class="inline">
-          <input type="hidden" name="download_url" value="{{ r.download_url }}">
-          <button class="rounded bg-emerald-600 hover:bg-emerald-500 px-2 py-1 text-xs">+ Transmission</button>
-        </form>
-        <button class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs"
-                onclick="navigator.clipboard.writeText('{{ r.download_url }}')">Copier</button>
-      </td>
-    </tr>
+<div class="mb-3 flex items-center justify-between text-sm">
+  <span class="text-slate-400"><span class="text-slate-100">{{ results | length }} resultat{{ 's' if results | length > 1 else '' }}</span>{% if sources %} &middot; {{ sources | join(', ') }}{% endif %}</span>
+  <span class="flex items-center gap-2">
+    <select name="sort" hx-get="/search" hx-include="#search-form" hx-target="#results"
+            class="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-300">
+      {% for val, lbl in [('seeders', 'Seeders'), ('size', 'Taille'), ('date', 'Date'), ('title', 'Nom')] %}
+      <option value="{{ val }}" {% if sort == val %}selected{% endif %}>{{ lbl }}</option>
+      {% endfor %}
+    </select>
+    <button hx-get="/search" hx-include="#search-form" hx-target="#results"
+            hx-vals='{"sort": "{{ sort }}", "dir": "{{ 'asc' if dir == 'desc' else 'desc' }}"}'
+            class="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-300 hover:text-emerald-400"
+            aria-label="Inverser le sens du tri"><i class="ti ti-arrow-{{ 'down' if dir == 'desc' else 'up' }}"></i></button>
+  </span>
+</div>
+{% if active_filters %}
+<div class="mb-3 flex flex-wrap items-center gap-2">
+  {% for f in active_filters %}
+  <button type="button" data-filter="{{ f.name }}"
+          onclick="clearFilter('{{ f.name }}'{% if f.value is defined and f.value %}, '{{ f.value }}'{% endif %})"
+          class="inline-flex items-center gap-1.5 rounded-full border border-emerald-700/60 bg-emerald-900/20 px-2.5 py-1 text-xs text-emerald-200">
+    {{ f.label }} <i class="ti ti-x text-[13px]"></i>
+  </button>
   {% endfor %}
-  </tbody>
-</table>
+</div>
+{% endif %}
+<div class="flex flex-col gap-1.5">
+  {% for r in results %}
+  <div class="flex items-center gap-4 rounded-lg border border-slate-800 px-3 py-2.5 hover:bg-slate-800/40{% if r.seeders < 10 %} opacity-75{% endif %}">
+    <div class="min-w-0 flex-1">
+      <div class="truncate text-sm text-slate-100">{{ r.title }}</div>
+      <div class="mt-1 flex items-center gap-2">
+        {{ badge_quality(r.title) }}
+        {{ source_chip(r.source) }}
+        <span class="whitespace-nowrap text-[11px] text-slate-500"><i class="ti ti-calendar"></i> {{ r.publish_date.strftime('%d/%m/%Y') if r.publish_date else '-' }}</span>
+      </div>
+    </div>
+    <div class="w-16 whitespace-nowrap text-right text-sm text-slate-100">{{ (r.size / 1073741824) | round(2) }} Go</div>
+    <div class="w-16 text-right text-sm">{{ health(r.seeders) }}</div>
+    <form hx-post="/download" hx-target="#toast" class="inline">
+      <input type="hidden" name="download_url" value="{{ r.download_url }}">
+      <button class="flex items-center gap-1 rounded bg-emerald-500 px-2.5 py-1.5 text-xs font-semibold text-slate-900 hover:bg-emerald-400"><i class="ti ti-plus"></i>Envoyer</button>
+    </form>
+    <button class="rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-400 hover:text-emerald-400"
+            aria-label="Copier le lien" onclick="navigator.clipboard.writeText('{{ r.download_url }}')"><i class="ti ti-copy"></i></button>
+  </div>
+  {% endfor %}
+</div>
 {% endif %}
