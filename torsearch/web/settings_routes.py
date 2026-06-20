@@ -4,13 +4,17 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
-from torsearch.config import IndexerConfig, SearchConfig, TransmissionConfig
+from torsearch.config import IndexerConfig, NotificationChannel, SearchConfig, TransmissionConfig
 from torsearch.context import AppContext
 from torsearch.indexers.torznab import TorznabIndexer
+from torsearch.notifications.notifier import Notifier
 from torsearch.settings.mutations import (
     SettingsError,
+    add_channel,
     add_indexer,
+    remove_channel,
     remove_indexer,
+    set_channel_enabled,
     set_general,
     set_indexer_enabled,
     update_indexer,
@@ -35,7 +39,7 @@ def _list(request: Request, ctx: AppContext, error: str | None = None, notice: s
 async def settings_page(request: Request):
     ctx: AppContext = request.app.state.ctx
     return templates.TemplateResponse(
-        request, "settings.html", {"config": ctx.config, "indexers": ctx.config.indexers}
+        request, "settings.html", {"config": ctx.config, "indexers": ctx.config.indexers, "channels": ctx.config.notifications}
     )
 
 
@@ -134,3 +138,59 @@ async def delete_indexer_route(request: Request, name: str):
         return _list(request, ctx, notice=f"Tracker « {name} » supprime.")
     except SettingsError as exc:
         return _list(request, ctx, error=f"Erreur : {exc}")
+
+
+def _notif_list(request: Request, ctx: AppContext, error: str | None = None, notice: str | None = None):
+    return templates.TemplateResponse(
+        request, "partials/notification_list.html",
+        {"channels": ctx.config.notifications, "error": error, "notice": notice},
+    )
+
+
+@settings_router.post("/settings/notifications", response_class=HTMLResponse)
+async def add_notification(
+    request: Request,
+    name: str = Form(...),
+    type: str = Form(...),
+    url: str = Form(""),
+    token: str = Form(""),
+    chat_id: str = Form(""),
+):
+    ctx: AppContext = request.app.state.ctx
+    try:
+        channel = NotificationChannel(name=name, type=type, url=url, token=token, chat_id=chat_id)
+        ctx.update_settings(add_channel(ctx.config, channel))
+        return _notif_list(request, ctx, notice=f"Canal « {name} » ajoute.")
+    except (ValidationError, SettingsError) as exc:
+        return _notif_list(request, ctx, error=f"Erreur : {exc}")
+
+
+@settings_router.post("/settings/notifications/{name}/toggle", response_class=HTMLResponse)
+async def toggle_notification(request: Request, name: str):
+    ctx: AppContext = request.app.state.ctx
+    current = next((c for c in ctx.config.notifications if c.name == name), None)
+    try:
+        ctx.update_settings(set_channel_enabled(ctx.config, name, not current.enabled if current else True))
+        return _notif_list(request, ctx)
+    except SettingsError as exc:
+        return _notif_list(request, ctx, error=f"Erreur : {exc}")
+
+
+@settings_router.post("/settings/notifications/{name}/delete", response_class=HTMLResponse)
+async def delete_notification(request: Request, name: str):
+    ctx: AppContext = request.app.state.ctx
+    try:
+        ctx.update_settings(remove_channel(ctx.config, name))
+        return _notif_list(request, ctx, notice=f"Canal « {name} » supprime.")
+    except SettingsError as exc:
+        return _notif_list(request, ctx, error=f"Erreur : {exc}")
+
+
+@settings_router.post("/settings/notifications/{name}/test", response_class=HTMLResponse)
+async def test_notification(request: Request, name: str):
+    ctx: AppContext = request.app.state.ctx
+    channel = next((c for c in ctx.config.notifications if c.name == name), None)
+    if channel is None:
+        return _toast(request, False, "Canal introuvable.")
+    ok, message = await Notifier().test(channel)
+    return _toast(request, ok, f"{name} : {message}")

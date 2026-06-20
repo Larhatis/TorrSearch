@@ -39,4 +39,23 @@
   </form>
   {% include "partials/indexer_list.html" %}
 </section>
+
+<section class="mt-10">
+  <h2 class="font-semibold mb-2">Notifications</h2>
+  <form hx-post="/settings/notifications" hx-target="#notification-list" hx-swap="outerHTML"
+        class="flex flex-wrap items-end gap-2 mb-4">
+    <input name="name" placeholder="Nom" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <select name="type" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
+      <option value="discord">Discord</option>
+      <option value="ntfy">ntfy</option>
+      <option value="telegram">Telegram</option>
+      <option value="webhook">Webhook</option>
+    </select>
+    <input name="url" placeholder="URL (Discord / ntfy / webhook)" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-72">
+    <input name="token" placeholder="Token (Telegram)" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <input name="chat_id" placeholder="Chat id (Telegram)" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-28">
+    <button class="rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1 text-sm">Ajouter</button>
+  </form>
+  {% include "partials/notification_list.html" %}
+</section>
 {% endblock %}
