@@ -5,9 +5,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse
+from starlette.middleware.sessions import SessionMiddleware
 
 from torsearch.context import AppContext
 from torsearch.models import Category
+from torsearch.web.auth import AuthMiddleware, AuthSettings
+from torsearch.web.auth_routes import auth_router
 from torsearch.search.filters import VALID_DIRECTIONS, VALID_SORTS, ResultFilters, apply
 from torsearch.web.downloads_routes import downloads_router
 from torsearch.web.settings_routes import settings_router
@@ -94,7 +97,12 @@ async def download(request: Request, download_url: str = Form(...)):
     return templates.TemplateResponse(request, "partials/toast.html", {"ok": ok, "message": message})
 
 
-def create_app(ctx: AppContext, history=None, monitor=None) -> FastAPI:
+def create_app(
+    ctx: AppContext, history=None, monitor=None, auth: AuthSettings | None = None
+) -> FastAPI:
+    if auth is None:
+        auth = AuthSettings(enabled=False)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         if monitor is not None:
@@ -108,8 +116,19 @@ def create_app(ctx: AppContext, history=None, monitor=None) -> FastAPI:
     app = FastAPI(title="TorrSearch", lifespan=lifespan)
     app.state.ctx = ctx
     app.state.history = history
+    app.state.auth = auth
+    if auth.enabled:
+        app.add_middleware(AuthMiddleware, settings=auth)
+        app.add_middleware(
+            SessionMiddleware,
+            secret_key=auth.secret_key,
+            https_only=auth.https_only,
+            same_site="lax",
+            max_age=60 * 60 * 24 * 14,
+        )
     app.include_router(router)
     app.include_router(settings_router)
     app.include_router(downloads_router)
     app.include_router(surveillance_router)
+    app.include_router(auth_router)
     return app

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connexion — TorrSearch</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center">
+  <main class="w-full max-w-sm px-6">
+    <h1 class="text-2xl font-bold text-emerald-400 mb-6 text-center">TorrSearch</h1>
+    {% if error %}
+    <p class="mb-4 rounded border border-red-500/40 bg-red-500/20 px-3 py-2 text-sm text-red-200">{{ error }}</p>
+    {% endif %}
+    <form method="post" action="/login" class="space-y-4">
+      <input type="hidden" name="next" value="{{ next }}">
+      <div>
+        <label class="mb-1 block text-sm text-slate-300" for="username">Identifiant</label>
+        <input id="username" name="username" type="text" autocomplete="username" autofocus
+               class="w-full rounded border border-slate-700 bg-slate-800 px-3 py-2 focus:border-emerald-400 focus:outline-none">
+      </div>
+      <div>
+        <label class="mb-1 block text-sm text-slate-300" for="password">Mot de passe</label>
+        <input id="password" name="password" type="password" autocomplete="current-password"
+               class="w-full rounded border border-slate-700 bg-slate-800 px-3 py-2 focus:border-emerald-400 focus:outline-none">
+      </div>
+      <button type="submit"
+              class="w-full rounded bg-emerald-500 py-2 font-semibold text-slate-900 hover:bg-emerald-400">Se connecter</button>
+    </form>
+  </main>
+</body>
+</html>

@@ -1,4 +1,31 @@
+from fastapi.testclient import TestClient
+
+from torsearch.config import Config
 from torsearch.web.auth import AuthSettings
+from torsearch.web.routes import create_app
+
+
+class _FakeSearch:
+    indexers: list = []
+
+    async def search(self, query, category):
+        return []
+
+
+class _FakeContext:
+    def __init__(self):
+        self.search_service = _FakeSearch()
+        self.transmission = None
+        self.config = Config()
+
+
+def _client(auth: AuthSettings) -> TestClient:
+    return TestClient(create_app(_FakeContext(), auth=auth))
+
+
+_ENABLED = AuthSettings(
+    enabled=True, username="admin", password="s3cret", secret_key="test-key"
+)
 
 
 def test_disabled_when_credentials_missing(monkeypatch):
@@ -42,3 +69,78 @@ def test_secret_from_env_takes_precedence(monkeypatch, tmp_path):
     auth = AuthSettings.from_env(data_dir=tmp_path)
     assert auth.secret_key == "explicit-key"
     assert not (tmp_path / ".session_secret").exists()
+
+
+def test_disabled_auth_allows_access():
+    client = _client(AuthSettings(enabled=False))
+    resp = client.get("/")
+    assert resp.status_code == 200
+
+
+def test_protected_route_redirects_to_login():
+    client = _client(_ENABLED)
+    resp = client.get("/", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"].startswith("/login")
+
+
+def test_htmx_request_gets_hx_redirect():
+    client = _client(_ENABLED)
+    resp = client.get(
+        "/search", params={"q": "x"}, headers={"HX-Request": "true"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 401
+    assert resp.headers["HX-Redirect"] == "/login"
+
+
+def test_login_page_accessible_without_session():
+    client = _client(_ENABLED)
+    resp = client.get("/login")
+    assert resp.status_code == 200
+    assert 'name="password"' in resp.text
+    assert 'name="username"' in resp.text
+
+
+def test_login_success_then_access():
+    client = _client(_ENABLED)
+    resp = client.post(
+        "/login", data={"username": "admin", "password": "s3cret", "next": "/"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/"
+    assert client.get("/").status_code == 200
+
+
+def test_login_failure_is_401_and_stays_locked():
+    client = _client(_ENABLED)
+    resp = client.post(
+        "/login", data={"username": "admin", "password": "nope", "next": "/"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 401
+    assert "incorrect" in resp.text.lower()
+    assert client.get("/", follow_redirects=False).status_code == 303
+
+
+def test_logout_clears_session():
+    client = _client(_ENABLED)
+    client.post(
+        "/login", data={"username": "admin", "password": "s3cret", "next": "/"},
+        follow_redirects=False,
+    )
+    resp = client.post("/logout", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/login"
+    assert client.get("/", follow_redirects=False).status_code == 303
+
+
+def test_login_rejects_open_redirect():
+    client = _client(_ENABLED)
+    resp = client.post(
+        "/login", data={"username": "admin", "password": "s3cret", "next": "//evil.com"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/"

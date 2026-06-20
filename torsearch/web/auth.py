@@ -5,6 +5,11 @@ import os
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
+
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import RedirectResponse, Response
 
 _TRUE = {"1", "true", "yes", "on"}
 
@@ -54,3 +59,26 @@ class AuthSettings:
         user_ok = hmac.compare_digest(username.encode(), self.username.encode())
         pass_ok = hmac.compare_digest(password.encode(), self.password.encode())
         return user_ok and pass_ok
+
+
+_PUBLIC_PATHS = {"/login", "/logout"}
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, settings: AuthSettings):
+        super().__init__(app)
+        self.settings = settings
+
+    async def dispatch(self, request: Request, call_next):
+        if not self.settings.enabled or request.url.path in _PUBLIC_PATHS:
+            return await call_next(request)
+        if request.session.get("user"):
+            return await call_next(request)
+        if request.headers.get("HX-Request") == "true":
+            resp = Response(status_code=401)
+            resp.headers["HX-Redirect"] = "/login"
+            return resp
+        target = request.url.path
+        if request.url.query:
+            target = f"{target}?{request.url.query}"
+        return RedirectResponse(f"/login?next={quote(target, safe='')}", status_code=303)
