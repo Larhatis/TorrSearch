@@ -13,6 +13,7 @@ dependencies = [
     "transmission-rpc>=7.0",
     "pyyaml>=6.0",
     "defusedxml>=0.7",
+    "itsdangerous>=2.0",
 ]
 
 [project.optional-dependencies]
