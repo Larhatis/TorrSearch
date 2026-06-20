@@ -64,6 +64,16 @@ class MonitorConfig(BaseModel):
     interval_minutes: int = 30
 
 
+class NotificationChannel(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    name: str
+    type: str  # discord | ntfy | telegram | webhook
+    url: str = ""
+    token: str = ""
+    chat_id: str = ""
+    enabled: bool = True
+
+
 class Config(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -72,6 +82,7 @@ class Config(BaseModel):
     indexers: list[IndexerConfig] = Field(default_factory=list)
     saved_searches: list[SavedSearch] = Field(default_factory=list)
     monitor: MonitorConfig = Field(default_factory=MonitorConfig)
+    notifications: list[NotificationChannel] = Field(default_factory=list)
 
 
 _ENV_PATTERN = re.compile(r"\$\{([^}]+)\}")

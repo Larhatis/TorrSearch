@@ -93,3 +93,19 @@ def test_monitor_defaults_off():
     assert cfg.monitor.enabled is False
     assert cfg.monitor.interval_minutes == 30
     assert cfg.saved_searches == []
+
+
+def test_notification_channel_defaults():
+    from torsearch.config import NotificationChannel
+    ch = NotificationChannel(name="d", type="discord", url="https://x")
+    assert ch.enabled is True
+    assert ch.token == "" and ch.chat_id == ""
+
+
+def test_config_round_trips_notifications():
+    from torsearch.config import Config, NotificationChannel
+    cfg = Config(notifications=[NotificationChannel(name="d", type="discord", url="https://x")])
+    again = Config.model_validate_json(cfg.model_dump_json())
+    assert again.notifications[0].name == "d"
+    assert again.notifications[0].type == "discord"
+    assert Config().notifications == []
