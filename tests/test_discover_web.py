@@ -1,3 +1,4 @@
+import json
 import re
 
 from fastapi.testclient import TestClient
@@ -54,6 +55,15 @@ def test_discover_card_bridges_to_torrent_search():
     resp = _client(FakeTmdb(results=[_media()])).get("/discover/search", params={"q": "dune"})
     assert 'hx-get="/search"' in resp.text
     assert "Torrents" in resp.text
+
+
+def test_discover_card_hx_vals_is_valid_json_with_query():
+    resp = _client(FakeTmdb(results=[_media()])).get("/discover/search", params={"q": "dune"})
+    match = re.search(r"hx-vals='([^']*)'", resp.text)
+    assert match, "hx-vals must be single-quoted and present"
+    data = json.loads(match.group(1))
+    assert data["q"] == "Dune Deux 2024"
+    assert data["cat"] == "movies"
 
 
 def test_discover_search_empty_query_shows_placeholder():
