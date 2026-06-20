@@ -1,3 +1,5 @@
+import re
+
 from fastapi.testclient import TestClient
 
 from torsearch.config import Config, IndexerConfig
@@ -141,3 +143,20 @@ def test_index_hides_onboarding_when_trackers_present():
     client, _ = _make()  # _make() seeds one indexer "t1"
     resp = client.get("/")
     assert "Aucun tracker configure" not in resp.text
+
+
+def test_nav_marks_search_active():
+    client, _ = _make()
+    html = client.get("/").text
+    assert re.search(r'href="/"[^>]*aria-current="page"', html)
+
+
+def test_nav_marks_downloads_active():
+    client, _ = _make()
+    html = client.get("/downloads").text
+    assert re.search(r'href="/downloads"[^>]*aria-current="page"', html)
+
+
+def test_nav_keeps_logout_hidden_when_auth_disabled():
+    client, _ = _make()
+    assert "Deconnexion" not in client.get("/").text
