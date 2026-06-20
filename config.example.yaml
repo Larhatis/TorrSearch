@@ -23,3 +23,6 @@ indexers:
     api_key: ${C411_API_KEY}
     auth: query
     enabled: true
+
+metadata:
+  tmdb_api_key: ${TMDB_API_KEY}   # decouverte par titre ; cle gratuite sur themoviedb.org
