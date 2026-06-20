@@ -1,43 +1,64 @@
 {% extends "base.html" %}
 {% block content %}
 {% if not has_trackers %}
-<div class="mb-4 rounded border border-amber-600/40 bg-amber-600/10 px-4 py-3 text-sm">
-  👉 Aucun tracker configure. <a href="/settings" class="underline text-amber-300 hover:text-amber-200">Ajoute tes trackers dans Reglages</a> pour commencer.
+<div class="mb-5 rounded-lg border border-amber-600/40 bg-amber-600/10 px-4 py-3 text-sm">
+  <i class="ti ti-alert-triangle text-amber-400"></i> Aucun tracker configure. <a href="/settings" class="underline text-amber-300 hover:text-amber-200">Ajoute tes trackers dans Reglages</a> pour commencer.
 </div>
 {% endif %}
-<form id="search-form" hx-get="/search" hx-target="#results" hx-indicator="#spinner" class="mb-6">
-  <div class="flex flex-wrap gap-3">
+<form id="search-form" hx-get="/search" hx-target="#results" hx-indicator="#spinner" class="mb-5">
+  <div class="flex items-stretch overflow-hidden rounded-xl border border-slate-700 bg-slate-800 focus-within:border-emerald-500">
+    <span class="flex items-center pl-4 text-slate-500"><i class="ti ti-search text-lg"></i></span>
     <input type="text" name="q" placeholder="Rechercher un film, une serie..." autofocus
-           class="flex-1 min-w-[240px] rounded bg-slate-800 border border-slate-700 px-4 py-2">
-    <select name="cat" class="rounded bg-slate-800 border border-slate-700 px-3 py-2">
+           class="min-w-0 flex-1 bg-transparent px-3 py-3 text-slate-100 outline-none">
+    <select name="cat" class="border-l border-slate-700 bg-transparent px-3 text-sm text-slate-300 outline-none">
       {% for c in categories %}
-      <option value="{{ c.value }}">{{ c.value | capitalize }}</option>
+      <option value="{{ c.value }}" class="bg-slate-800">{{ c.value | capitalize }}</option>
       {% endfor %}
     </select>
-    <button type="submit" class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-5 py-2">Chercher</button>
-    <span id="spinner" class="htmx-indicator self-center text-slate-400">Recherche...</span>
+    <button type="submit" class="bg-emerald-500 px-5 font-semibold text-slate-900 hover:bg-emerald-400">Chercher</button>
+    <span id="spinner" class="htmx-indicator flex items-center px-3 text-sm text-slate-400">...</span>
   </div>
-  <details class="mt-3 text-sm">
-    <summary class="cursor-pointer text-slate-400 hover:text-slate-200">Filtres</summary>
-    <div class="mt-3 flex flex-wrap items-end gap-4">
+  <details class="group mt-3 text-sm">
+    <summary class="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-slate-300 hover:border-slate-600">
+      <i class="ti ti-filter"></i> Filtres <i class="ti ti-chevron-down text-xs transition-transform group-open:rotate-180"></i>
+    </summary>
+    <div class="mt-3 flex flex-wrap items-end gap-4 rounded-lg border border-slate-800 bg-slate-900/60 p-4">
       <label class="text-xs text-slate-400">Seeders min<br>
-        <input type="number" name="min_seeders" value="0" min="0" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+        <input type="number" name="min_seeders" value="0" min="0" class="mt-1 w-24 rounded border border-slate-700 bg-slate-800 px-2 py-1"></label>
       <label class="text-xs text-slate-400">Taille min (Go)<br>
-        <input type="number" name="min_size_gb" step="0.1" min="0" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+        <input type="number" name="min_size_gb" step="0.1" min="0" class="mt-1 w-24 rounded border border-slate-700 bg-slate-800 px-2 py-1"></label>
       <label class="text-xs text-slate-400">Taille max (Go)<br>
-        <input type="number" name="max_size_gb" step="0.1" min="0" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+        <input type="number" name="max_size_gb" step="0.1" min="0" class="mt-1 w-24 rounded border border-slate-700 bg-slate-800 px-2 py-1"></label>
       <fieldset class="text-xs text-slate-400">
         <legend>Qualite</legend>
-        <div class="flex gap-2">
+        <div class="mt-1 flex gap-2">
           {% for qv in ["2160p", "1080p", "720p", "480p", "other"] %}
           <label class="flex items-center gap-1"><input type="checkbox" name="quality" value="{{ qv }}"> {{ qv }}</label>
           {% endfor %}
         </div>
       </fieldset>
       <label class="text-xs text-slate-400">Exclure ces mots<br>
-        <input type="text" name="exclude" placeholder="cam, ts, multi" class="w-48 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+        <input type="text" name="exclude" placeholder="cam, ts, multi" class="mt-1 w-48 rounded border border-slate-700 bg-slate-800 px-2 py-1"></label>
     </div>
   </details>
 </form>
 <div id="results"></div>
+<script>
+function clearFilter(name, value) {
+  const form = document.getElementById('search-form');
+  if (!form) return;
+  if (name === 'quality' && value) {
+    form.querySelectorAll('input[name="quality"]').forEach(function (cb) {
+      if (cb.value === value) cb.checked = false;
+    });
+  } else if (name === 'min_seeders') {
+    const el = form.querySelector('[name="min_seeders"]');
+    if (el) el.value = '0';
+  } else {
+    const el = form.querySelector('[name="' + name + '"]');
+    if (el) el.value = '';
+  }
+  htmx.trigger(form, 'submit');
+}
+</script>
 {% endblock %}

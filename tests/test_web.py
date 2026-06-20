@@ -160,3 +160,16 @@ def test_nav_marks_downloads_active():
 def test_nav_keeps_logout_hidden_when_auth_disabled():
     client, _ = _make()
     assert "Deconnexion" not in client.get("/").text
+
+
+def test_index_has_filter_panel_fields():
+    client, _ = _make()
+    html = client.get("/").text
+    assert 'name="min_seeders"' in html
+    assert 'name="quality"' in html
+    assert 'name="exclude"' in html
+
+
+def test_index_defines_clear_filter_helper():
+    client, _ = _make()
+    assert "function clearFilter" in client.get("/").text
