@@ -144,3 +144,22 @@ def test_login_rejects_open_redirect():
     )
     assert resp.status_code == 303
     assert resp.headers["location"] == "/"
+
+
+def test_logout_button_shown_when_logged_in():
+    client = _client(_ENABLED)
+    client.post(
+        "/login", data={"username": "admin", "password": "s3cret", "next": "/"},
+        follow_redirects=False,
+    )
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "Deconnexion" in resp.text
+    assert 'action="/logout"' in resp.text
+
+
+def test_logout_button_hidden_when_auth_disabled():
+    client = _client(AuthSettings(enabled=False))
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "Deconnexion" not in resp.text

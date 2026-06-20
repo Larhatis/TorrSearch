@@ -16,6 +16,11 @@
       <a href="/downloads" class="hover:text-emerald-400">Telechargements</a>
       <a href="/surveillance" class="hover:text-emerald-400">Surveillance</a>
     </nav>
+    {% if auth_enabled %}
+    <form method="post" action="/logout" class="ml-auto">
+      <button type="submit" class="text-sm text-slate-400 hover:text-emerald-400">Deconnexion</button>
+    </form>
+    {% endif %}
   </header>
   <main class="max-w-5xl mx-auto px-6 py-8">
     {% block content %}{% endblock %}
