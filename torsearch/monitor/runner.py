@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from torsearch.models import SearchResult
 from torsearch.monitor.history import MonitorRecord
+from torsearch.notifications.notifier import Notifier
 from torsearch.search.filters import ResultFilters, apply
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ def select_new(results, filters, seen):
     return None
 
 
-async def run_cycle(config, search_service, transmission, history) -> list[MonitorRecord]:
+async def run_cycle(config, search_service, transmission, history, notifier=None) -> list[MonitorRecord]:
     if not config.monitor.enabled:
         return []
     created: list[MonitorRecord] = []
@@ -57,13 +58,19 @@ async def run_cycle(config, search_service, transmission, history) -> list[Monit
         )
         history.add(record)
         created.append(record)
+        if notifier is not None:
+            try:
+                await notifier.notify(config.notifications, record)
+            except Exception as exc:
+                logger.warning("Notification for '%s' failed: %s", saved.name, exc)
     return created
 
 
 class MonitorRunner:
-    def __init__(self, ctx, history):
+    def __init__(self, ctx, history, notifier=None):
         self._ctx = ctx
         self._history = history
+        self._notifier = notifier or Notifier()
         self._task = None
 
     async def start(self) -> None:
@@ -83,7 +90,8 @@ class MonitorRunner:
         while True:
             try:
                 await run_cycle(
-                    self._ctx.config, self._ctx.search_service, self._ctx.transmission, self._history
+                    self._ctx.config, self._ctx.search_service, self._ctx.transmission,
+                    self._history, self._notifier,
                 )
             except Exception:
                 logger.exception("Monitor cycle failed")

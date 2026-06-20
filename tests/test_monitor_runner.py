@@ -100,3 +100,32 @@ async def test_runner_start_and_stop(tmp_path):
     assert runner._task is not None
     await runner.stop()
     assert runner._task is None
+
+
+class FakeNotifier:
+    def __init__(self, fail=False):
+        self.calls = []
+        self._fail = fail
+
+    async def notify(self, channels, record):
+        self.calls.append((channels, record))
+        if self._fail:
+            raise RuntimeError("notif boom")
+
+
+async def test_run_cycle_notifies_on_record(tmp_path):
+    history = MonitorHistory(tmp_path / "m.json")
+    cfg = Config(monitor=MonitorConfig(enabled=True),
+                 saved_searches=[SavedSearch(name="s", query="q", mode="notify")])
+    notifier = FakeNotifier()
+    await run_cycle(cfg, FakeSearch([_r("Found", infohash="Y")]), FakeTransmission(), history, notifier)
+    assert len(notifier.calls) == 1
+    assert notifier.calls[0][1].title == "Found"
+
+
+async def test_run_cycle_survives_notifier_error(tmp_path):
+    history = MonitorHistory(tmp_path / "m.json")
+    cfg = Config(monitor=MonitorConfig(enabled=True),
+                 saved_searches=[SavedSearch(name="s", query="q", mode="auto")])
+    created = await run_cycle(cfg, FakeSearch([_r("Best", infohash="X")]), FakeTransmission(), history, FakeNotifier(fail=True))
+    assert [r.kind for r in created] == ["grabbed"]  # record created despite notif failure
