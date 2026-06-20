@@ -109,3 +109,21 @@ def test_config_round_trips_notifications():
     assert again.notifications[0].name == "d"
     assert again.notifications[0].type == "discord"
     assert Config().notifications == []
+
+
+def test_metadata_tmdb_key_interpolated(tmp_path, monkeypatch):
+    monkeypatch.setenv("TMDB_API_KEY", "secret-key")
+    p = tmp_path / "c.yaml"
+    p.write_text("metadata:\n  tmdb_api_key: ${TMDB_API_KEY}\n")
+    from torsearch.config import load_config
+
+    cfg = load_config(p)
+    assert cfg.metadata.tmdb_api_key == "secret-key"
+
+
+def test_metadata_defaults_to_empty(tmp_path):
+    p = tmp_path / "c.yaml"
+    p.write_text("{}\n")
+    from torsearch.config import load_config
+
+    assert load_config(p).metadata.tmdb_api_key == ""

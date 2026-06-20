@@ -74,6 +74,12 @@ class NotificationChannel(BaseModel):
     enabled: bool = True
 
 
+class MetadataConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    tmdb_api_key: str = ""
+
+
 class Config(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -83,6 +89,7 @@ class Config(BaseModel):
     saved_searches: list[SavedSearch] = Field(default_factory=list)
     monitor: MonitorConfig = Field(default_factory=MonitorConfig)
     notifications: list[NotificationChannel] = Field(default_factory=list)
+    metadata: MetadataConfig = Field(default_factory=MetadataConfig)
 
 
 _ENV_PATTERN = re.compile(r"\$\{([^}]+)\}")
