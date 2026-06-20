@@ -34,3 +34,13 @@ def test_disabled_indexers_excluded_from_search_but_kept_in_config(tmp_path):
     ]))
     assert [ix.name for ix in ctx.search_service.indexers] == ["on"]
     assert [ix.name for ix in ctx.config.indexers] == ["on", "off"]
+
+
+def test_context_exposes_tmdb_disabled_by_default(tmp_path):
+    from torsearch.context import AppContext
+    from torsearch.metadata.tmdb import TmdbClient
+    from torsearch.settings.store import SettingsStore
+
+    ctx = AppContext(SettingsStore(str(tmp_path / "s.json")))
+    assert isinstance(ctx.tmdb, TmdbClient)
+    assert ctx.tmdb.enabled is False
