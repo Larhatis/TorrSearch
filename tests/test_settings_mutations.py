@@ -98,3 +98,24 @@ def test_set_monitor():
     out = set_monitor(Config(), MonitorConfig(enabled=True, interval_minutes=10))
     assert out.monitor.enabled is True
     assert out.monitor.interval_minutes == 10
+
+
+def test_add_channel_and_reject_duplicate():
+    from torsearch.config import NotificationChannel
+    from torsearch.settings.mutations import add_channel
+    cfg = Config()
+    cfg2 = add_channel(cfg, NotificationChannel(name="d", type="discord", url="https://x"))
+    assert [c.name for c in cfg2.notifications] == ["d"]
+    assert cfg.notifications == []
+    with pytest.raises(SettingsError):
+        add_channel(cfg2, NotificationChannel(name="d", type="ntfy", url="https://y"))
+
+
+def test_remove_and_toggle_channel():
+    from torsearch.config import NotificationChannel
+    from torsearch.settings.mutations import remove_channel, set_channel_enabled
+    cfg = Config(notifications=[NotificationChannel(name="d", type="discord", url="https://x", enabled=True)])
+    assert set_channel_enabled(cfg, "d", False).notifications[0].enabled is False
+    assert remove_channel(cfg, "d").notifications == []
+    with pytest.raises(SettingsError):
+        remove_channel(cfg, "nope")

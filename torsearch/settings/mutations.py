@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from torsearch.config import Config, IndexerConfig, MonitorConfig, SavedSearch, SearchConfig, TransmissionConfig
+from torsearch.config import Config, IndexerConfig, MonitorConfig, NotificationChannel, SavedSearch, SearchConfig, TransmissionConfig
 
 
 class SettingsError(Exception):
@@ -83,3 +83,33 @@ def set_saved_search_enabled(config: Config, name: str, enabled: bool) -> Config
 
 def set_monitor(config: Config, monitor: MonitorConfig) -> Config:
     return config.model_copy(update={"monitor": monitor})
+
+
+def _channel_index(config: Config, name: str) -> int:
+    for i, ch in enumerate(config.notifications):
+        if ch.name == name:
+            return i
+    return -1
+
+
+def add_channel(config: Config, channel: NotificationChannel) -> Config:
+    if _channel_index(config, channel.name) != -1:
+        raise SettingsError(f"Un canal nommé « {channel.name} » existe déjà.")
+    return config.model_copy(update={"notifications": [*config.notifications, channel]})
+
+
+def remove_channel(config: Config, name: str) -> Config:
+    if _channel_index(config, name) == -1:
+        raise SettingsError(f"Canal introuvable : « {name} ».")
+    return config.model_copy(
+        update={"notifications": [c for c in config.notifications if c.name != name]}
+    )
+
+
+def set_channel_enabled(config: Config, name: str, enabled: bool) -> Config:
+    idx = _channel_index(config, name)
+    if idx == -1:
+        raise SettingsError(f"Canal introuvable : « {name} ».")
+    new = list(config.notifications)
+    new[idx] = new[idx].model_copy(update={"enabled": enabled})
+    return config.model_copy(update={"notifications": new})
