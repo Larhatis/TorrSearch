@@ -28,3 +28,16 @@ def test_optional_fields_default_to_none():
     assert r.info_url is None
     assert r.publish_date is None
     assert r.infohash is None
+
+
+from torsearch.models import MediaResult
+
+
+def test_media_result_poster_url_built_from_path():
+    m = MediaResult(tmdb_id=1, media_type="movie", title="Dune", poster_path="/p.jpg")
+    assert m.poster_url == "https://image.tmdb.org/t/p/w342/p.jpg"
+
+
+def test_media_result_poster_url_none_without_path():
+    m = MediaResult(tmdb_id=2, media_type="tv", title="GoT")
+    assert m.poster_url is None

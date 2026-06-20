@@ -30,3 +30,19 @@ class SearchResult(BaseModel):
     @property
     def is_magnet(self) -> bool:
         return self.download_url.startswith("magnet:")
+
+
+class MediaResult(BaseModel):
+    tmdb_id: int
+    media_type: str  # "movie" | "tv"
+    title: str
+    year: str | None = None
+    overview: str = ""
+    poster_path: str | None = None
+
+    @computed_field
+    @property
+    def poster_url(self) -> str | None:
+        if not self.poster_path:
+            return None
+        return f"https://image.tmdb.org/t/p/w342{self.poster_path}"
