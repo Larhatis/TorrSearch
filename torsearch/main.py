@@ -8,6 +8,7 @@ from torsearch.context import AppContext
 from torsearch.monitor.history import MonitorHistory
 from torsearch.monitor.runner import MonitorRunner
 from torsearch.settings.store import SettingsStore
+from torsearch.web.auth import AuthSettings
 from torsearch.web.routes import create_app
 
 DEFAULT_SETTINGS_PATH = os.environ.get("TORSEARCH_SETTINGS", "data/settings.json")
@@ -24,7 +25,7 @@ def build_app(
     ctx = AppContext(store)
     history = MonitorHistory(monitor_path)
     monitor = MonitorRunner(ctx, history)
-    return create_app(ctx, history=history, monitor=monitor)
+    return create_app(ctx, history=history, monitor=monitor, auth=AuthSettings.from_env())
 
 
 def get_app() -> FastAPI:
