@@ -13,6 +13,7 @@ from torsearch.web.auth import AuthMiddleware, AuthSettings
 from torsearch.web.auth_routes import auth_router
 from torsearch.web.discover_routes import discover_router
 from torsearch.web.library_routes import library_router
+from torsearch.web.series_routes import series_router
 from torsearch.search.filters import VALID_DIRECTIONS, VALID_SORTS, ResultFilters, apply
 from torsearch.web.downloads_routes import downloads_router
 from torsearch.web.settings_routes import settings_router
@@ -161,4 +162,5 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(discover_router)
     app.include_router(library_router)
+    app.include_router(series_router)
     return app

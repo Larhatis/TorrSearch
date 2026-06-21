@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from torsearch.config import Config, MonitorConfig
 from torsearch.library.movies import MovieLibrary
+from torsearch.library.series import SeriesLibrary
 from torsearch.models import MediaResult, WantedMovie
 from torsearch.web.routes import create_app
 
@@ -27,7 +28,8 @@ class FakeCtx:
 
 def _client(tmp_path, monitor_on=False):
     lib = MovieLibrary(tmp_path / "lib.json")
-    return TestClient(create_app(FakeCtx(monitor_on), library=lib)), lib
+    series = SeriesLibrary(tmp_path / "series.json")
+    return TestClient(create_app(FakeCtx(monitor_on), library=lib, series_library=series)), lib
 
 
 def test_library_add_persists(tmp_path):

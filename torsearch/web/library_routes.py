@@ -15,9 +15,11 @@ library_router = APIRouter()
 async def library_page(request: Request):
     ctx = request.app.state.ctx
     library = request.app.state.library
+    series_library = request.app.state.series_library
     return templates.TemplateResponse(
         request, "library.html",
-        {"movies": library.list(), "monitor_on": ctx.config.monitor.enabled},
+        {"movies": library.list(), "series": series_library.list(),
+         "monitor_on": ctx.config.monitor.enabled},
     )
 
 
