@@ -147,3 +147,17 @@ def test_library_profile_loaded(tmp_path):
     cfg = load_config(p)
     assert cfg.library.qualities == ["1080p"]
     assert cfg.library.min_seeders == 5
+
+
+def test_jellyfin_config_defaults_and_interpolation(tmp_path, monkeypatch):
+    from torsearch.config import load_config
+
+    monkeypatch.setenv("JELLYFIN_KEY", "secret")
+    p = tmp_path / "c.yaml"
+    p.write_text("jellyfin:\n  url: http://jelly:8096\n  api_key: ${JELLYFIN_KEY}\n")
+    cfg = load_config(p)
+    assert cfg.jellyfin.url == "http://jelly:8096"
+    assert cfg.jellyfin.api_key == "secret"
+    empty = tmp_path / "e.yaml"
+    empty.write_text("{}\n")
+    assert load_config(empty).jellyfin.url == ""
