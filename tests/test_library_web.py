@@ -66,3 +66,15 @@ def test_discover_movie_card_has_add_button(tmp_path):
 def test_nav_marks_library_active(tmp_path):
     client, _ = _client(tmp_path)
     assert re.search(r'href="/library"[^>]*aria-current="page"', client.get("/library").text)
+
+
+def test_update_library_profile(tmp_path):
+    from torsearch.context import AppContext
+    from torsearch.settings.store import SettingsStore
+
+    ctx = AppContext(SettingsStore(str(tmp_path / "s.json")))
+    client = TestClient(create_app(ctx, library=MovieLibrary(tmp_path / "lib.json")))
+    resp = client.post("/settings/library", data={"quality": ["1080p"], "min_seeders": "5"})
+    assert resp.status_code == 200
+    assert ctx.config.library.qualities == ["1080p"]
+    assert ctx.config.library.min_seeders == 5
