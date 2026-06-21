@@ -20,10 +20,21 @@ class FakeTmdb:
                             poster_path="/a.jpg")]
 
 
+class _FakeJellyfin:
+    base_url = "http://jelly"
+
+    def __init__(self, owned=None):
+        self._owned = owned or {}
+
+    async def owned(self):
+        return dict(self._owned)
+
+
 class FakeCtx:
     def __init__(self, monitor_on=False):
         self.tmdb = FakeTmdb()
         self.config = Config(monitor=MonitorConfig(enabled=monitor_on))
+        self.jellyfin = _FakeJellyfin()
 
 
 def _client(tmp_path, monitor_on=False):
@@ -57,6 +68,15 @@ def test_library_remove(tmp_path):
     lib.add(WantedMovie(tmdb_id=1, title="Dune", added_at=NOW))
     client.post("/library/1/remove")
     assert lib.list() == []
+
+
+def test_library_marks_owned_movie(tmp_path):
+    client, lib = _client(tmp_path)
+    lib.add(WantedMovie(tmdb_id=693134, title="Dune", year="2024", added_at=NOW))
+    client.app.state.ctx.jellyfin = _FakeJellyfin(owned={"movie:693134": "it-1"})
+    html = client.get("/library").text
+    assert "Dans Jellyfin" in html
+    assert "it-1" in html
 
 
 def test_discover_movie_card_has_add_button(tmp_path):

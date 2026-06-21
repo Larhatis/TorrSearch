@@ -21,10 +21,21 @@ class FakeTmdb:
         ]
 
 
+class _FakeJellyfin:
+    base_url = "http://jelly"
+
+    def __init__(self, owned=None):
+        self._owned = owned or {}
+
+    async def owned(self):
+        return dict(self._owned)
+
+
 class FakeCtx:
     def __init__(self):
         self.tmdb = FakeTmdb()
         self.config = Config(monitor=MonitorConfig(enabled=True))
+        self.jellyfin = _FakeJellyfin()
 
 
 def _client(tmp_path):

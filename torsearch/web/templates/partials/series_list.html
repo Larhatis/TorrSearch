@@ -13,11 +13,19 @@
       {% endif %}
     </div>
     <div class="p-2.5">
+      {% set jf = (owned or {}).get('tv:' ~ s.tmdb_id) %}
       <div class="flex items-center gap-1.5">
         <span class="rounded px-1.5 py-0.5 text-[10px] bg-violet-500/15 text-violet-300">{{ s.grabbed | length }} episodes</span>
         {% if s.year %}<span class="text-[11px] text-slate-500">{{ s.year }}</span>{% endif %}
+        {% if jf %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-emerald-500/15 text-emerald-300">Dans Jellyfin</span>{% endif %}
       </div>
       <div class="mt-1 truncate text-sm text-slate-100" title="{{ s.title }}">{{ s.title }}</div>
+      {% if jf %}
+      <a href="{{ jellyfin_url }}/web/#/details?id={{ jf }}" target="_blank" rel="noopener"
+         class="mt-1.5 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
+        <i class="ti ti-player-play"></i> Lire
+      </a>
+      {% endif %}
       <button hx-post="/series/{{ s.tmdb_id }}/remove" hx-target="#series-list" hx-swap="outerHTML"
               class="mt-2 flex w-full items-center justify-center gap-1 rounded border border-slate-700 px-2 py-1.5 text-xs text-slate-400 hover:text-red-400">
         <i class="ti ti-trash"></i> Retirer

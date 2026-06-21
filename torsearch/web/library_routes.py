@@ -19,7 +19,8 @@ async def library_page(request: Request):
     return templates.TemplateResponse(
         request, "library.html",
         {"movies": library.list(), "series": series_library.list(),
-         "monitor_on": ctx.config.monitor.enabled},
+         "monitor_on": ctx.config.monitor.enabled,
+         "owned": await ctx.jellyfin.owned(), "jellyfin_url": ctx.jellyfin.base_url},
     )
 
 
