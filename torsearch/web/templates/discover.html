@@ -15,6 +15,6 @@
   </div>
 </form>
 {% endif %}
-<div id="media-results"></div>
+<div id="media-results"{% if has_tmdb %} hx-get="/discover/trending" hx-trigger="load"{% endif %}></div>
 <div id="results" class="mt-6"></div>
 {% endblock %}
