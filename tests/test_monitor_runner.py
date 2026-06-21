@@ -129,3 +129,65 @@ async def test_run_cycle_survives_notifier_error(tmp_path):
                  saved_searches=[SavedSearch(name="s", query="q", mode="auto")])
     created = await run_cycle(cfg, FakeSearch([_r("Best", infohash="X")]), FakeTransmission(), history, FakeNotifier(fail=True))
     assert [r.kind for r in created] == ["grabbed"]  # record created despite notif failure
+
+
+from datetime import datetime, timezone
+
+from torsearch.config import LibraryConfig
+from torsearch.library.movies import MovieLibrary
+from torsearch.models import WantedMovie
+from torsearch.monitor.runner import run_movie_cycle
+
+MNOW = datetime(2026, 6, 20, tzinfo=timezone.utc)
+
+
+def _lib(tmp_path):
+    lib = MovieLibrary(tmp_path / "lib.json")
+    lib.add(WantedMovie(tmdb_id=1, title="Dune", year="2024", added_at=MNOW))
+    return lib
+
+
+async def test_movie_cycle_grabs_and_marks(tmp_path):
+    history = MonitorHistory(tmp_path / "m.json")
+    lib = _lib(tmp_path)
+    cfg = Config(monitor=MonitorConfig(enabled=True))
+    tr = FakeTransmission()
+    created = await run_movie_cycle(cfg, lib, FakeSearch([_r("Dune.2024.1080p", seeders=50, infohash="X")]), tr, history)
+    assert tr.added == ["magnet:?xt=urn:btih:Dune.2024.1080p"]
+    assert [r.kind for r in created] == ["grabbed"]
+    assert lib.wanted() == []
+    assert lib.list()[0].status == "grabbed"
+
+
+async def test_movie_cycle_disabled_globally(tmp_path):
+    cfg = Config(monitor=MonitorConfig(enabled=False))
+    out = await run_movie_cycle(cfg, _lib(tmp_path), FakeSearch([_r("Dune.2024.1080p", infohash="X")]),
+                                FakeTransmission(), MonitorHistory(tmp_path / "m.json"))
+    assert out == []
+
+
+async def test_movie_cycle_respects_quality_profile(tmp_path):
+    lib = _lib(tmp_path)
+    cfg = Config(monitor=MonitorConfig(enabled=True), library=LibraryConfig(qualities=["2160p"], min_seeders=1))
+    tr = FakeTransmission()
+    out = await run_movie_cycle(cfg, lib, FakeSearch([_r("Dune.2024.1080p", seeders=50, infohash="X")]),
+                                tr, MonitorHistory(tmp_path / "m.json"))
+    assert out == []
+    assert tr.added == []
+    assert lib.wanted()
+
+
+async def test_movie_cycle_skips_already_grabbed(tmp_path):
+    lib = _lib(tmp_path)
+    lib.mark_grabbed(1, "old", MNOW)
+    cfg = Config(monitor=MonitorConfig(enabled=True))
+    out = await run_movie_cycle(cfg, lib, FakeSearch([_r("Dune.2024.1080p", infohash="X")]),
+                                FakeTransmission(), MonitorHistory(tmp_path / "m.json"))
+    assert out == []
+
+
+async def test_movie_cycle_resilient_to_search_error(tmp_path):
+    cfg = Config(monitor=MonitorConfig(enabled=True))
+    out = await run_movie_cycle(cfg, _lib(tmp_path), FakeSearch([], error=True),
+                                FakeTransmission(), MonitorHistory(tmp_path / "m.json"))
+    assert out == []

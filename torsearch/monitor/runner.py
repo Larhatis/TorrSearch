@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from torsearch.models import SearchResult
+from torsearch.models import Category, SearchResult
 from torsearch.monitor.history import MonitorRecord
 from torsearch.notifications.notifier import Notifier
 from torsearch.search.filters import ResultFilters, apply
@@ -66,11 +66,52 @@ async def run_cycle(config, search_service, transmission, history, notifier=None
     return created
 
 
+async def run_movie_cycle(config, library, search_service, transmission, history, notifier=None) -> list[MonitorRecord]:
+    if not config.monitor.enabled or library is None:
+        return []
+    profile = config.library
+    created: list[MonitorRecord] = []
+    for movie in library.wanted():
+        query = f"{movie.title} {movie.year or ''}".strip()
+        try:
+            results = await search_service.search(query, Category.MOVIES)
+        except Exception as exc:
+            logger.warning("Movie search '%s' failed: %s", movie.title, exc)
+            continue
+        filters = ResultFilters(
+            min_seeders=profile.min_seeders, qualities=profile.qualities,
+            sort="seeders", direction="desc",
+        )
+        pick = select_new(results, filters, set())
+        if pick is None:
+            continue
+        try:
+            transmission.add(pick.download_url)
+        except Exception as exc:
+            logger.warning("Movie grab '%s' failed: %s", movie.title, exc)
+            continue
+        now = datetime.now(timezone.utc)
+        library.mark_grabbed(movie.tmdb_id, pick.title, now)
+        record = MonitorRecord(
+            search=f"{movie.title} ({movie.year})", title=pick.title, source=pick.source,
+            infohash=pick.infohash, download_url=pick.download_url, kind="grabbed", at=now,
+        )
+        history.add(record)
+        created.append(record)
+        if notifier is not None:
+            try:
+                await notifier.notify(config.notifications, record)
+            except Exception as exc:
+                logger.warning("Movie notif '%s' failed: %s", movie.title, exc)
+    return created
+
+
 class MonitorRunner:
-    def __init__(self, ctx, history, notifier=None):
+    def __init__(self, ctx, history, notifier=None, library=None):
         self._ctx = ctx
         self._history = history
         self._notifier = notifier or Notifier()
+        self._library = library
         self._task = None
 
     async def start(self) -> None:
@@ -92,6 +133,10 @@ class MonitorRunner:
                 await run_cycle(
                     self._ctx.config, self._ctx.search_service, self._ctx.transmission,
                     self._history, self._notifier,
+                )
+                await run_movie_cycle(
+                    self._ctx.config, self._library, self._ctx.search_service,
+                    self._ctx.transmission, self._history, self._notifier,
                 )
             except Exception:
                 logger.exception("Monitor cycle failed")
