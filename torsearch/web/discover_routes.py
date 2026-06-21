@@ -19,5 +19,17 @@ async def discover_search(request: Request, q: str = ""):
     ctx = request.app.state.ctx
     media = await ctx.tmdb.search(q) if q.strip() else []
     return templates.TemplateResponse(
-        request, "partials/media_results.html", {"media": media, "query": q}
+        request, "partials/media_results.html",
+        {"media": media, "query": q, "owned": await ctx.jellyfin.owned(),
+         "jellyfin_url": ctx.jellyfin.base_url},
+    )
+
+
+@discover_router.get("/discover/trending", response_class=HTMLResponse)
+async def discover_trending(request: Request):
+    ctx = request.app.state.ctx
+    return templates.TemplateResponse(
+        request, "partials/media_results.html",
+        {"media": await ctx.tmdb.trending(), "query": "", "owned": await ctx.jellyfin.owned(),
+         "jellyfin_url": ctx.jellyfin.base_url},
     )

@@ -87,6 +87,13 @@ class LibraryConfig(BaseModel):
     min_seeders: int = 1
 
 
+class JellyfinConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    url: str = ""
+    api_key: str = ""
+
+
 class Config(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -98,6 +105,7 @@ class Config(BaseModel):
     notifications: list[NotificationChannel] = Field(default_factory=list)
     metadata: MetadataConfig = Field(default_factory=MetadataConfig)
     library: LibraryConfig = Field(default_factory=LibraryConfig)
+    jellyfin: JellyfinConfig = Field(default_factory=JellyfinConfig)
 
 
 _ENV_PATTERN = re.compile(r"\$\{([^}]+)\}")

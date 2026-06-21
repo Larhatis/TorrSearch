@@ -3,8 +3,15 @@
 <h1 class="mb-4 text-lg font-semibold">Bibliotheque</h1>
 {% if not monitor_on %}
 <div class="mb-5 rounded-lg border border-amber-600/40 bg-amber-600/10 px-4 py-3 text-sm">
-  <i class="ti ti-alert-triangle text-amber-400"></i> La surveillance est desactivee : active-la dans <a href="/surveillance" class="underline text-amber-300 hover:text-amber-200">Surveillance</a> pour l'auto-grab des films voulus.
+  <i class="ti ti-alert-triangle text-amber-400"></i> La surveillance est desactivee : active-la dans <a href="/surveillance" class="underline text-amber-300 hover:text-amber-200">Surveillance</a> pour l'auto-grab.
 </div>
 {% endif %}
-{% include "partials/library_list.html" %}
+<section class="mb-8">
+  <h2 class="mb-3 font-semibold text-slate-300">Films</h2>
+  {% include "partials/library_list.html" %}
+</section>
+<section>
+  <h2 class="mb-3 font-semibold text-slate-300">Series</h2>
+  {% include "partials/series_list.html" %}
+</section>
 {% endblock %}

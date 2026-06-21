@@ -12,11 +12,19 @@
       {% endif %}
     </div>
     <div class="p-2.5">
+      {% set jf = (owned or {}).get(m.media_type ~ ':' ~ m.tmdb_id) %}
       <div class="flex items-center gap-1.5">
         <span class="rounded px-1.5 py-0.5 text-[10px] {{ 'bg-sky-500/15 text-sky-300' if m.media_type == 'movie' else 'bg-violet-500/15 text-violet-300' }}">{{ 'Film' if m.media_type == 'movie' else 'Serie' }}</span>
         {% if m.year %}<span class="text-[11px] text-slate-500">{{ m.year }}</span>{% endif %}
+        {% if jf %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-emerald-500/15 text-emerald-300">Dans Jellyfin</span>{% endif %}
       </div>
       <div class="mt-1 truncate text-sm text-slate-100" title="{{ m.title }}">{{ m.title }}</div>
+      {% if jf %}
+      <a href="{{ jellyfin_url }}/web/#/details?id={{ jf }}" target="_blank" rel="noopener"
+         class="mt-1.5 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
+        <i class="ti ti-player-play"></i> Lire
+      </a>
+      {% endif %}
       <button hx-get="/search" hx-target="#results"
               hx-vals='{{ {"q": (m.title ~ " " ~ (m.year or "")) | trim, "cat": ("movies" if m.media_type == "movie" else "tv")} | tojson }}'
               class="mt-2 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
@@ -27,6 +35,12 @@
               hx-vals='{{ {"tmdb_id": m.tmdb_id, "title": m.title, "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
               class="mt-1.5 flex w-full items-center justify-center gap-1 rounded border border-slate-700 px-2 py-1.5 text-xs text-slate-300 hover:text-emerald-400">
         <i class="ti ti-bookmark-plus"></i> Bibliotheque
+      </button>
+      {% elif m.media_type == 'tv' %}
+      <button hx-post="/series/add" hx-target="#toast"
+              hx-vals='{{ {"tmdb_id": m.tmdb_id, "title": m.title, "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
+              class="mt-1.5 flex w-full items-center justify-center gap-1 rounded border border-slate-700 px-2 py-1.5 text-xs text-slate-300 hover:text-emerald-400">
+        <i class="ti ti-bookmark-plus"></i> Suivre
       </button>
       {% endif %}
     </div>

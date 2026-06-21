@@ -9,8 +9,9 @@ auto-hebergee a Prowlarr/Jackett + Sonarr/Radarr, a configurer entierement au cl
 ## Fonctionnalites
 
 - 🔎 **Recherche multi-trackers** Torznab, en parallele, fusionnee et dedoublonnee.
-- 🎬 **Decouverte par titre (TMDB)** : cherche un film/serie par vrai titre + affiche, puis trouve les torrents en un clic.
-- 📚 **Bibliotheque de films** facon Radarr-lite : ajoute un film « voulu », il est **auto-grabbe** des qu'une release conforme au profil de qualite apparait.
+- 🎬 **Decouverte (TMDB)** : **tendances** au chargement + recherche par vrai titre (affiches), puis les torrents en un clic.
+- 📚 **Bibliotheque Films & Series** (Radarr-lite + Sonarr-lite) : ajoute un film/serie « voulu » ; **auto-grabbe** le film, ou **chaque nouvel episode** de la serie, des qu'une release conforme au profil de qualite apparait.
+- 🎞️ **Integration Jellyfin** : marque ce que tu **possedes deja** (« Dans Jellyfin ») et ouvre la **lecture** d'un clic.
 - 🛰️ **Surveillance auto** : recherches sauvegardees qui tournent en fond et envoient (ou signalent) les nouveaux resultats.
 - 🔔 **Notifications** (Discord / ntfy / Telegram / webhook) sur les grabs et les trouvailles.
 - 🎛️ **Tout se configure dans l'UI** (page Reglages) : trackers, Transmission, profil de qualite — rien a coder.
@@ -39,9 +40,10 @@ trackers (URL Torznab + passkey). Transmission est inclus dans le compose et dej
 
 - **Trackers** : Reglages → ajoute un tracker Torznab (nom, URL, passkey). Le bouton **Tester** verifie que ca repond.
 - **Transmission** : Reglages → hote / port / identifiants.
-- **Decouverte (TMDB)** : renseigne `TMDB_API_KEY` (cle gratuite sur [themoviedb.org](https://www.themoviedb.org/)) en variable d'environnement pour activer la page **Decouvrir** et la **Bibliotheque**.
+- **Decouverte (TMDB)** : renseigne `TMDB_API_KEY` (cle gratuite sur [themoviedb.org](https://www.themoviedb.org/)) en variable d'environnement pour activer la page **Decouvrir** (tendances + recherche) et la **Bibliotheque**.
+- **Jellyfin (optionnel)** : Reglages → URL + cle API. TorrSearch marque alors les medias deja presents dans ton Jellyfin et propose un lien de lecture (Jellyfin reste ton serveur media).
 - **Auth (optionnelle)** : definis `TORSEARCH_USERNAME` et `TORSEARCH_PASSWORD` pour exiger un login (desactive si l'une manque). Voir `.env.example`.
-- Toute la config est persistee dans `data/settings.json` (volume, jamais versionne) ; la bibliotheque dans `data/library.json`.
+- Toute la config est persistee dans `data/settings.json` (volume, jamais versionne) ; les bibliotheques dans `data/library.json` (films) et `data/series.json` (series).
 
 ## Developpement
 

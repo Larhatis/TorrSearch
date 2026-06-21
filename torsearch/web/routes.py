@@ -13,6 +13,7 @@ from torsearch.web.auth import AuthMiddleware, AuthSettings
 from torsearch.web.auth_routes import auth_router
 from torsearch.web.discover_routes import discover_router
 from torsearch.web.library_routes import library_router
+from torsearch.web.series_routes import series_router
 from torsearch.search.filters import VALID_DIRECTIONS, VALID_SORTS, ResultFilters, apply
 from torsearch.web.downloads_routes import downloads_router
 from torsearch.web.settings_routes import settings_router
@@ -123,7 +124,8 @@ async def download(request: Request, download_url: str = Form(...)):
 
 
 def create_app(
-    ctx: AppContext, history=None, monitor=None, auth: AuthSettings | None = None, library=None
+    ctx: AppContext, history=None, monitor=None, auth: AuthSettings | None = None, library=None,
+    series_library=None,
 ) -> FastAPI:
     if auth is None:
         auth = AuthSettings(enabled=False)
@@ -143,6 +145,7 @@ def create_app(
     app.state.history = history
     app.state.auth = auth
     app.state.library = library
+    app.state.series_library = series_library
     if auth.enabled:
         app.add_middleware(AuthMiddleware, settings=auth)
         app.add_middleware(
@@ -159,4 +162,5 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(discover_router)
     app.include_router(library_router)
+    app.include_router(series_router)
     return app

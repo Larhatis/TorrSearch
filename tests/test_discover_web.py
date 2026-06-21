@@ -16,15 +16,29 @@ class FakeTmdb:
     async def search(self, query):
         return list(self._results)
 
+    async def trending(self):
+        return list(self._results)
+
+
+class FakeJellyfin:
+    base_url = "http://jelly"
+
+    def __init__(self, owned=None):
+        self._owned = owned or {}
+
+    async def owned(self):
+        return dict(self._owned)
+
 
 class FakeCtx:
-    def __init__(self, tmdb):
+    def __init__(self, tmdb, jellyfin=None):
         self.tmdb = tmdb
         self.config = Config()
+        self.jellyfin = jellyfin or FakeJellyfin()
 
 
-def _client(tmdb) -> TestClient:
-    return TestClient(create_app(FakeCtx(tmdb)))
+def _client(tmdb, jellyfin=None) -> TestClient:
+    return TestClient(create_app(FakeCtx(tmdb, jellyfin)))
 
 
 def _media():
@@ -74,3 +88,21 @@ def test_discover_search_empty_query_shows_placeholder():
 def test_nav_marks_discover_active():
     html = _client(FakeTmdb(enabled=True)).get("/discover").text
     assert re.search(r'href="/discover"[^>]*aria-current="page"', html)
+
+
+def test_discover_page_autoloads_trending():
+    resp = _client(FakeTmdb(enabled=True)).get("/discover")
+    assert 'hx-get="/discover/trending"' in resp.text
+
+
+def test_discover_trending_renders_cards():
+    resp = _client(FakeTmdb(results=[_media()])).get("/discover/trending")
+    assert resp.status_code == 200
+    assert "Dune Deux" in resp.text
+
+
+def test_discover_marks_owned_in_jellyfin():
+    jelly = FakeJellyfin(owned={"movie:693134": "item-xyz"})
+    resp = _client(FakeTmdb(results=[_media()]), jelly).get("/discover/search", params={"q": "dune"})
+    assert "Dans Jellyfin" in resp.text
+    assert "item-xyz" in resp.text
