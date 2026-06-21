@@ -1,0 +1,67 @@
+import httpx
+import respx
+
+from torsearch.config import MetadataConfig
+from torsearch.metadata.tmdb import TmdbClient, parse_multi
+
+SAMPLE = {
+    "results": [
+        {"id": 693134, "media_type": "movie", "title": "Dune : Deuxieme partie",
+         "release_date": "2024-02-27", "overview": "Paul Atreides...", "poster_path": "/a.jpg"},
+        {"id": 1399, "media_type": "tv", "name": "Game of Thrones",
+         "first_air_date": "2011-04-17", "overview": "Neuf familles...", "poster_path": None},
+        {"id": 500, "media_type": "person", "name": "Un Acteur"},
+    ]
+}
+
+
+def test_parse_multi_maps_and_filters():
+    out = parse_multi(SAMPLE)
+    assert len(out) == 2
+    movie = out[0]
+    assert movie.media_type == "movie"
+    assert movie.title == "Dune : Deuxieme partie"
+    assert movie.year == "2024"
+    assert movie.poster_url == "https://image.tmdb.org/t/p/w342/a.jpg"
+    tv = out[1]
+    assert tv.media_type == "tv"
+    assert tv.title == "Game of Thrones"
+    assert tv.year == "2011"
+    assert tv.poster_url is None
+
+
+def test_enabled_reflects_key():
+    assert TmdbClient(MetadataConfig(tmdb_api_key="K")).enabled is True
+    assert TmdbClient(MetadataConfig()).enabled is False
+
+
+async def test_search_disabled_returns_empty_without_request():
+    assert await TmdbClient(MetadataConfig()).search("dune") == []
+
+
+async def test_search_success_parses_results():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"))
+    with respx.mock:
+        respx.get("https://api.themoviedb.org/3/search/multi").mock(
+            return_value=httpx.Response(200, json=SAMPLE)
+        )
+        out = await client.search("dune")
+    assert [m.title for m in out] == ["Dune : Deuxieme partie", "Game of Thrones"]
+
+
+async def test_search_http_error_returns_empty():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"))
+    with respx.mock:
+        respx.get("https://api.themoviedb.org/3/search/multi").mock(
+            return_value=httpx.Response(500)
+        )
+        assert await client.search("dune") == []
+
+
+async def test_search_malformed_json_returns_empty():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"))
+    with respx.mock:
+        respx.get("https://api.themoviedb.org/3/search/multi").mock(
+            return_value=httpx.Response(200, content=b"not json")
+        )
+        assert await client.search("dune") == []

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from torsearch.config import Config, IndexerConfig, MonitorConfig, NotificationChannel, SavedSearch, SearchConfig, TransmissionConfig
+from torsearch.config import Config, IndexerConfig, LibraryConfig, MonitorConfig, NotificationChannel, SavedSearch, SearchConfig, TransmissionConfig
 
 
 class SettingsError(Exception):
@@ -83,6 +83,10 @@ def set_saved_search_enabled(config: Config, name: str, enabled: bool) -> Config
 
 def set_monitor(config: Config, monitor: MonitorConfig) -> Config:
     return config.model_copy(update={"monitor": monitor})
+
+
+def set_library(config: Config, library: LibraryConfig) -> Config:
+    return config.model_copy(update={"library": library})
 
 
 def _channel_index(config: Config, name: str) -> int:

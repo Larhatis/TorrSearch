@@ -1,0 +1,16 @@
+{% macro badge_quality(title) %}
+{%- set q = detect_quality(title) -%}
+{%- set cls = {'2160p': 'bg-violet-500/15 text-violet-300', '1080p': 'bg-sky-500/15 text-sky-300', '720p': 'bg-slate-700 text-slate-300', '480p': 'bg-slate-700 text-slate-400', 'other': 'bg-slate-800 text-slate-500'} -%}
+<span data-quality="{{ q }}" class="rounded px-1.5 py-0.5 text-[11px] {{ cls[q] }}">{{ q }}</span>
+{%- endmacro %}
+
+{% macro health(seeders) %}
+{%- set level = 'good' if seeders >= 100 else ('ok' if seeders >= 10 else 'low') -%}
+{%- set txt = {'good': 'text-emerald-400', 'ok': 'text-amber-400', 'low': 'text-red-400'} -%}
+{%- set dot = {'good': 'bg-emerald-500', 'ok': 'bg-amber-500', 'low': 'bg-red-500'} -%}
+<span data-health="{{ level }}" class="inline-flex items-center justify-end gap-1.5 {{ txt[level] }}"><span class="h-1.5 w-1.5 rounded-full {{ dot[level] }}"></span>{{ seeders }}</span>
+{%- endmacro %}
+
+{% macro source_chip(source) %}
+<span class="rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[11px] text-slate-400">{{ source }}</span>
+{%- endmacro %}

@@ -1,0 +1,36 @@
+{% if not media %}
+  <p class="text-slate-400">Aucun media trouve{% if query %} pour "{{ query }}"{% endif %}.</p>
+{% else %}
+<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+  {% for m in media %}
+  <div class="overflow-hidden rounded-lg border border-slate-800 bg-slate-800/40">
+    <div class="aspect-[2/3] bg-slate-900">
+      {% if m.poster_url %}
+      <img src="{{ m.poster_url }}" alt="{{ m.title }}" class="h-full w-full object-cover" loading="lazy">
+      {% else %}
+      <div class="flex h-full items-center justify-center text-slate-600"><i class="ti ti-photo text-3xl"></i></div>
+      {% endif %}
+    </div>
+    <div class="p-2.5">
+      <div class="flex items-center gap-1.5">
+        <span class="rounded px-1.5 py-0.5 text-[10px] {{ 'bg-sky-500/15 text-sky-300' if m.media_type == 'movie' else 'bg-violet-500/15 text-violet-300' }}">{{ 'Film' if m.media_type == 'movie' else 'Serie' }}</span>
+        {% if m.year %}<span class="text-[11px] text-slate-500">{{ m.year }}</span>{% endif %}
+      </div>
+      <div class="mt-1 truncate text-sm text-slate-100" title="{{ m.title }}">{{ m.title }}</div>
+      <button hx-get="/search" hx-target="#results"
+              hx-vals='{{ {"q": (m.title ~ " " ~ (m.year or "")) | trim, "cat": ("movies" if m.media_type == "movie" else "tv")} | tojson }}'
+              class="mt-2 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
+        <i class="ti ti-download"></i> Torrents
+      </button>
+      {% if m.media_type == 'movie' %}
+      <button hx-post="/library/add" hx-target="#toast"
+              hx-vals='{{ {"tmdb_id": m.tmdb_id, "title": m.title, "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
+              class="mt-1.5 flex w-full items-center justify-center gap-1 rounded border border-slate-700 px-2 py-1.5 text-xs text-slate-300 hover:text-emerald-400">
+        <i class="ti ti-bookmark-plus"></i> Bibliotheque
+      </button>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

@@ -58,4 +58,21 @@
   </form>
   {% include "partials/notification_list.html" %}
 </section>
+
+<section class="mt-10">
+  <h2 class="font-semibold mb-2">Bibliotheque (profil de qualite)</h2>
+  <form hx-post="/settings/library" hx-target="#toast" class="flex flex-wrap items-end gap-4">
+    <fieldset class="text-xs text-slate-400">
+      <legend>Qualites recherchees</legend>
+      <div class="mt-1 flex gap-2">
+        {% for qv in ["2160p", "1080p", "720p", "480p"] %}
+        <label class="flex items-center gap-1"><input type="checkbox" name="quality" value="{{ qv }}" {% if qv in config.library.qualities %}checked{% endif %}> {{ qv }}</label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <label class="text-xs text-slate-400">Seeders min<br>
+      <input name="min_seeders" value="{{ config.library.min_seeders }}" class="mt-1 w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+  </form>
+</section>
 {% endblock %}

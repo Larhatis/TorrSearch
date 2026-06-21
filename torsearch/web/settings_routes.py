@@ -4,7 +4,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
-from torsearch.config import IndexerConfig, NotificationChannel, SearchConfig, TransmissionConfig
+from torsearch.config import IndexerConfig, LibraryConfig, NotificationChannel, SearchConfig, TransmissionConfig
 from torsearch.context import AppContext
 from torsearch.indexers.torznab import TorznabIndexer
 from torsearch.notifications.notifier import Notifier
@@ -17,6 +17,7 @@ from torsearch.settings.mutations import (
     set_channel_enabled,
     set_general,
     set_indexer_enabled,
+    set_library,
     update_indexer,
 )
 from torsearch.web.templating import templates
@@ -61,6 +62,24 @@ async def update_general(
         search = SearchConfig(timeout_seconds=timeout_seconds)
         ctx.update_settings(set_general(ctx.config, transmission, search))
         return _toast(request, True, "Reglages enregistres.")
+    except (ValidationError, SettingsError) as exc:
+        return _toast(request, False, f"Erreur : {exc}")
+
+
+@settings_router.post("/settings/library", response_class=HTMLResponse)
+async def update_library(
+    request: Request,
+    quality: list[str] = Form(default=[]),
+    min_seeders: str = Form("1"),
+):
+    ctx: AppContext = request.app.state.ctx
+    try:
+        profile = LibraryConfig(
+            qualities=[q for q in quality if q],
+            min_seeders=int(min_seeders) if min_seeders.lstrip("-").isdigit() else 0,
+        )
+        ctx.update_settings(set_library(ctx.config, profile))
+        return _toast(request, True, "Profil bibliotheque enregistre.")
     except (ValidationError, SettingsError) as exc:
         return _toast(request, False, f"Erreur : {exc}")
 
