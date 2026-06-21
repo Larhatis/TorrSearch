@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from torsearch.config import Config
 from torsearch.indexers.registry import build_indexers
+from torsearch.jellyfin.client import JellyfinClient
 from torsearch.metadata.tmdb import TmdbClient
 from torsearch.search.service import SearchService
 from torsearch.settings.store import SettingsStore
@@ -30,11 +31,16 @@ class AppContext:
     def tmdb(self) -> TmdbClient:
         return self._tmdb
 
+    @property
+    def jellyfin(self) -> JellyfinClient:
+        return self._jellyfin
+
     def _rebuild(self) -> None:
         indexers = build_indexers(self._config)
         self._search_service = SearchService(indexers, timeout=self._config.search.timeout_seconds)
         self._transmission = TransmissionClient(self._config.transmission)
         self._tmdb = TmdbClient(self._config.metadata)
+        self._jellyfin = JellyfinClient(self._config.jellyfin)
 
     def update_settings(self, new_config: Config) -> None:
         self._store.save(new_config)

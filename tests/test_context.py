@@ -44,3 +44,13 @@ def test_context_exposes_tmdb_disabled_by_default(tmp_path):
     ctx = AppContext(SettingsStore(str(tmp_path / "s.json")))
     assert isinstance(ctx.tmdb, TmdbClient)
     assert ctx.tmdb.enabled is False
+
+
+def test_context_exposes_jellyfin_disabled_by_default(tmp_path):
+    from torsearch.context import AppContext
+    from torsearch.jellyfin.client import JellyfinClient
+    from torsearch.settings.store import SettingsStore
+
+    ctx = AppContext(SettingsStore(str(tmp_path / "s.json")))
+    assert isinstance(ctx.jellyfin, JellyfinClient)
+    assert ctx.jellyfin.enabled is False
