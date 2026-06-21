@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from torsearch.config import Config, IndexerConfig, LibraryConfig, MonitorConfig, NotificationChannel, SavedSearch, SearchConfig, TransmissionConfig
+from torsearch.config import Config, IndexerConfig, JellyfinConfig, LibraryConfig, MonitorConfig, NotificationChannel, SavedSearch, SearchConfig, TransmissionConfig
 
 
 class SettingsError(Exception):
@@ -87,6 +87,10 @@ def set_monitor(config: Config, monitor: MonitorConfig) -> Config:
 
 def set_library(config: Config, library: LibraryConfig) -> Config:
     return config.model_copy(update={"library": library})
+
+
+def set_jellyfin(config: Config, jellyfin: JellyfinConfig) -> Config:
+    return config.model_copy(update={"jellyfin": jellyfin})
 
 
 def _channel_index(config: Config, name: str) -> int:

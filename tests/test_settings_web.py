@@ -159,3 +159,18 @@ def test_test_notification_channel(tmp_path):
         resp = client.post("/settings/notifications/d/test")
     assert resp.status_code == 200
     assert "OK" in resp.text
+
+
+def test_update_jellyfin_settings(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from torsearch.context import AppContext
+    from torsearch.settings.store import SettingsStore
+    from torsearch.web.routes import create_app
+
+    ctx = AppContext(SettingsStore(str(tmp_path / "s.json")))
+    client = TestClient(create_app(ctx))
+    resp = client.post("/settings/jellyfin", data={"url": "http://jelly:8096", "api_key": "K"})
+    assert resp.status_code == 200
+    assert ctx.config.jellyfin.url == "http://jelly:8096"
+    assert ctx.config.jellyfin.api_key == "K"

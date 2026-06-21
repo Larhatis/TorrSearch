@@ -4,7 +4,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
-from torsearch.config import IndexerConfig, LibraryConfig, NotificationChannel, SearchConfig, TransmissionConfig
+from torsearch.config import IndexerConfig, JellyfinConfig, LibraryConfig, NotificationChannel, SearchConfig, TransmissionConfig
 from torsearch.context import AppContext
 from torsearch.indexers.torznab import TorznabIndexer
 from torsearch.notifications.notifier import Notifier
@@ -17,6 +17,7 @@ from torsearch.settings.mutations import (
     set_channel_enabled,
     set_general,
     set_indexer_enabled,
+    set_jellyfin,
     set_library,
     update_indexer,
 )
@@ -80,6 +81,16 @@ async def update_library(
         )
         ctx.update_settings(set_library(ctx.config, profile))
         return _toast(request, True, "Profil bibliotheque enregistre.")
+    except (ValidationError, SettingsError) as exc:
+        return _toast(request, False, f"Erreur : {exc}")
+
+
+@settings_router.post("/settings/jellyfin", response_class=HTMLResponse)
+async def update_jellyfin(request: Request, url: str = Form(""), api_key: str = Form("")):
+    ctx: AppContext = request.app.state.ctx
+    try:
+        ctx.update_settings(set_jellyfin(ctx.config, JellyfinConfig(url=url, api_key=api_key)))
+        return _toast(request, True, "Jellyfin enregistre.")
     except (ValidationError, SettingsError) as exc:
         return _toast(request, False, f"Erreur : {exc}")
 
