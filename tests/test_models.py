@@ -54,3 +54,13 @@ def test_wanted_movie_defaults_and_poster_url():
     assert m.status == "wanted"
     assert m.grabbed_at is None
     assert m.poster_url == "https://image.tmdb.org/t/p/w342/p.jpg"
+
+
+from torsearch.models import WantedSeries
+
+
+def test_wanted_series_defaults_and_poster_url():
+    s = WantedSeries(tmdb_id=1, title="Show", year="2024", poster_path="/s.jpg",
+                     added_at=datetime(2026, 6, 21, tzinfo=timezone.utc))
+    assert s.grabbed == []
+    assert s.poster_url == "https://image.tmdb.org/t/p/w342/s.jpg"
