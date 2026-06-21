@@ -10,6 +10,7 @@ from torsearch.models import MediaResult
 logger = logging.getLogger(__name__)
 
 _SEARCH_URL = "https://api.themoviedb.org/3/search/multi"
+_TRENDING_URL = "https://api.themoviedb.org/3/trending/all/week"
 
 
 def parse_multi(payload: dict) -> list[MediaResult]:
@@ -69,6 +70,24 @@ class TmdbClient:
             return parse_multi(response.json())
         except Exception as exc:  # resilience: never raise to the web layer
             logger.warning("TMDB search failed: %s", exc)
+            return []
+        finally:
+            if owns_client:
+                await client.aclose()
+
+    async def trending(self) -> list[MediaResult]:
+        if not self.enabled:
+            return []
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        try:
+            response = await client.get(
+                _TRENDING_URL, params={"api_key": self._api_key, "language": "fr-FR"}
+            )
+            response.raise_for_status()
+            return parse_multi(response.json())
+        except Exception as exc:  # resilience
+            logger.warning("TMDB trending failed: %s", exc)
             return []
         finally:
             if owns_client:

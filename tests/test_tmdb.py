@@ -65,3 +65,26 @@ async def test_search_malformed_json_returns_empty():
             return_value=httpx.Response(200, content=b"not json")
         )
         assert await client.search("dune") == []
+
+
+async def test_trending_returns_media():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"))
+    with respx.mock:
+        respx.get("https://api.themoviedb.org/3/trending/all/week").mock(
+            return_value=httpx.Response(200, json=SAMPLE)
+        )
+        out = await client.trending()
+    assert [m.title for m in out] == ["Dune : Deuxieme partie", "Game of Thrones"]
+
+
+async def test_trending_disabled_returns_empty():
+    assert await TmdbClient(MetadataConfig()).trending() == []
+
+
+async def test_trending_error_returns_empty():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"))
+    with respx.mock:
+        respx.get("https://api.themoviedb.org/3/trending/all/week").mock(
+            return_value=httpx.Response(500)
+        )
+        assert await client.trending() == []
