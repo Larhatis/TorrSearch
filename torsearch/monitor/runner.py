@@ -4,6 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
+from torsearch.library.episodes import parse_episodes
 from torsearch.models import Category, SearchResult
 from torsearch.monitor.history import MonitorRecord
 from torsearch.notifications.notifier import Notifier
@@ -106,12 +107,58 @@ async def run_movie_cycle(config, library, search_service, transmission, history
     return created
 
 
+async def run_series_cycle(config, series_library, search_service, transmission, history, notifier=None) -> list[MonitorRecord]:
+    if not config.monitor.enabled or series_library is None:
+        return []
+    profile = config.library
+    created: list[MonitorRecord] = []
+    for series in series_library.list():
+        try:
+            results = await search_service.search(series.title, Category.TV)
+        except Exception as exc:
+            logger.warning("Series search '%s' failed: %s", series.title, exc)
+            continue
+        kept = apply(results, ResultFilters(
+            min_seeders=profile.min_seeders, qualities=profile.qualities,
+            sort="seeders", direction="desc",
+        ))
+        have = set(series.grabbed)
+        newly: list[str] = []
+        for r in kept:
+            keys = parse_episodes(r.title)
+            if not keys - have:
+                continue
+            try:
+                transmission.add(r.download_url)
+            except Exception as exc:
+                logger.warning("Series grab '%s' failed: %s", series.title, exc)
+                continue
+            have |= keys
+            newly.extend(keys)
+            now = datetime.now(timezone.utc)
+            record = MonitorRecord(
+                search=series.title, title=r.title, source=r.source,
+                infohash=r.infohash, download_url=r.download_url, kind="grabbed", at=now,
+            )
+            history.add(record)
+            created.append(record)
+            if notifier is not None:
+                try:
+                    await notifier.notify(config.notifications, record)
+                except Exception as exc:
+                    logger.warning("Series notif '%s' failed: %s", series.title, exc)
+        if newly:
+            series_library.mark_grabbed(series.tmdb_id, sorted(set(newly)))
+    return created
+
+
 class MonitorRunner:
-    def __init__(self, ctx, history, notifier=None, library=None):
+    def __init__(self, ctx, history, notifier=None, library=None, series_library=None):
         self._ctx = ctx
         self._history = history
         self._notifier = notifier or Notifier()
         self._library = library
+        self._series_library = series_library
         self._task = None
 
     async def start(self) -> None:
@@ -136,6 +183,10 @@ class MonitorRunner:
                 )
                 await run_movie_cycle(
                     self._ctx.config, self._library, self._ctx.search_service,
+                    self._ctx.transmission, self._history, self._notifier,
+                )
+                await run_series_cycle(
+                    self._ctx.config, self._series_library, self._ctx.search_service,
                     self._ctx.transmission, self._history, self._notifier,
                 )
             except Exception:
