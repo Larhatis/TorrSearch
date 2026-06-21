@@ -123,7 +123,8 @@ async def download(request: Request, download_url: str = Form(...)):
 
 
 def create_app(
-    ctx: AppContext, history=None, monitor=None, auth: AuthSettings | None = None, library=None
+    ctx: AppContext, history=None, monitor=None, auth: AuthSettings | None = None, library=None,
+    series_library=None,
 ) -> FastAPI:
     if auth is None:
         auth = AuthSettings(enabled=False)
@@ -143,6 +144,7 @@ def create_app(
     app.state.history = history
     app.state.auth = auth
     app.state.library = library
+    app.state.series_library = series_library
     if auth.enabled:
         app.add_middleware(AuthMiddleware, settings=auth)
         app.add_middleware(

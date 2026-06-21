@@ -25,3 +25,4 @@ def test_build_app_wires_context_history_and_bootstraps(tmp_path, monkeypatch):
     assert app.state.history is not None
     assert app.state.history.records() == []
     assert app.state.library is not None
+    assert app.state.series_library is not None

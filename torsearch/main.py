@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from torsearch.context import AppContext
 from torsearch.library.movies import MovieLibrary
+from torsearch.library.series import SeriesLibrary
 from torsearch.monitor.history import MonitorHistory
 from torsearch.monitor.runner import MonitorRunner
 from torsearch.settings.store import SettingsStore
@@ -16,6 +17,7 @@ DEFAULT_SETTINGS_PATH = os.environ.get("TORSEARCH_SETTINGS", "data/settings.json
 DEFAULT_CONFIG_PATH = os.environ.get("TORSEARCH_CONFIG", "config.yaml")
 DEFAULT_MONITOR_PATH = os.environ.get("TORSEARCH_MONITOR", "data/monitor.json")
 DEFAULT_LIBRARY_PATH = os.environ.get("TORSEARCH_LIBRARY", "data/library.json")
+DEFAULT_SERIES_PATH = os.environ.get("TORSEARCH_SERIES", "data/series.json")
 
 
 def build_app(
@@ -23,13 +25,18 @@ def build_app(
     bootstrap_config_path: str = DEFAULT_CONFIG_PATH,
     monitor_path: str = DEFAULT_MONITOR_PATH,
     library_path: str = DEFAULT_LIBRARY_PATH,
+    series_path: str = DEFAULT_SERIES_PATH,
 ) -> FastAPI:
     store = SettingsStore(settings_path, bootstrap_config_path=bootstrap_config_path)
     ctx = AppContext(store)
     history = MonitorHistory(monitor_path)
     library = MovieLibrary(library_path)
-    monitor = MonitorRunner(ctx, history, library=library)
-    return create_app(ctx, history=history, monitor=monitor, auth=AuthSettings.from_env(), library=library)
+    series_library = SeriesLibrary(series_path)
+    monitor = MonitorRunner(ctx, history, library=library, series_library=series_library)
+    return create_app(
+        ctx, history=history, monitor=monitor, auth=AuthSettings.from_env(),
+        library=library, series_library=series_library,
+    )
 
 
 def get_app() -> FastAPI:
