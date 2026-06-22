@@ -87,7 +87,7 @@ async def run_movie_cycle(config, library, search_service, transmission, history
         if pick is None:
             continue
         try:
-            transmission.add(pick.download_url)
+            transmission.add(pick.download_url, download_dir=config.paths.for_category(Category.MOVIES))
         except Exception as exc:
             logger.warning("Movie grab '%s' failed: %s", movie.title, exc)
             continue
@@ -129,7 +129,7 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             if not keys - have:
                 continue
             try:
-                transmission.add(r.download_url)
+                transmission.add(r.download_url, download_dir=config.paths.for_category(Category.TV))
             except Exception as exc:
                 logger.warning("Series grab '%s' failed: %s", series.title, exc)
                 continue
