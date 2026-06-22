@@ -33,8 +33,8 @@ class TransmissionClient:
             )
         return self._client
 
-    def add(self, download_url: str) -> int:
-        torrent = self._get_client().add_torrent(download_url)
+    def add(self, download_url: str, download_dir: str | None = None) -> int:
+        torrent = self._get_client().add_torrent(download_url, download_dir=download_dir)
         return torrent.id
 
     def list_torrents(self) -> list[TorrentInfo]:
