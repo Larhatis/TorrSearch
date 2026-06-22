@@ -161,3 +161,24 @@ def test_jellyfin_config_defaults_and_interpolation(tmp_path, monkeypatch):
     empty = tmp_path / "e.yaml"
     empty.write_text("{}\n")
     assert load_config(empty).jellyfin.url == ""
+
+
+def test_paths_for_category(tmp_path):
+    from torsearch.config import load_config
+    from torsearch.models import Category
+
+    p = tmp_path / "c.yaml"
+    p.write_text("paths:\n  by_category:\n    movies: /data/films\n    tv: /data/series\n")
+    cfg = load_config(p)
+    assert cfg.paths.for_category(Category.MOVIES) == "/data/films"
+    assert cfg.paths.for_category(Category.TV) == "/data/series"
+    assert cfg.paths.for_category(Category.ANIME) is None
+
+
+def test_paths_default_empty(tmp_path):
+    from torsearch.config import load_config
+    from torsearch.models import Category
+
+    p = tmp_path / "e.yaml"
+    p.write_text("{}\n")
+    assert load_config(p).paths.for_category(Category.MOVIES) is None
