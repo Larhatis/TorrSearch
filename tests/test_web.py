@@ -21,9 +21,11 @@ class FakeIndexer:
 class FakeTransmission:
     def __init__(self):
         self.added = []
+        self.dirs = []
 
-    def add(self, download_url):
+    def add(self, download_url, download_dir=None):
         self.added.append(download_url)
+        self.dirs.append(download_dir)
         return 7
 
 
@@ -199,3 +201,16 @@ def test_search_renders_active_filter_chip():
     resp = client.get("/search", params={"q": "x", "min_seeders": "10"})
     assert 'data-filter="min_seeders"' in resp.text
     assert "clearFilter('min_seeders')" in resp.text
+
+
+def test_download_routes_to_category_path():
+    from torsearch.config import PathsConfig
+
+    service = SearchService([FakeIndexer("t1", [])])
+    transmission = FakeTransmission()
+    config = Config(indexers=[IndexerConfig(name="t1", url="https://t1/api", api_key="k")],
+                    paths=PathsConfig(by_category={"movies": "/data/films"}))
+    client = TestClient(create_app(FakeContext(service, transmission, config)))
+    resp = client.post("/download", data={"download_url": "magnet:?x", "category": "movies"})
+    assert resp.status_code == 200
+    assert transmission.dirs == ["/data/films"]
