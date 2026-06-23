@@ -214,3 +214,14 @@ def test_download_routes_to_category_path():
     resp = client.post("/download", data={"download_url": "magnet:?x", "category": "movies"})
     assert resp.status_code == 200
     assert transmission.dirs == ["/data/films"]
+
+
+def test_nav_labels_collapse_on_small_screens():
+    client, _ = _make()
+    assert "hidden lg:inline" in client.get("/").text
+
+
+def test_download_toast_auto_dismisses():
+    client, _ = _make()
+    resp = client.post("/download", data={"download_url": "magnet:?x"})
+    assert "toastfade" in resp.text
