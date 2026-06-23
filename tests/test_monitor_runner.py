@@ -25,9 +25,11 @@ class FakeSearch:
 class FakeTransmission:
     def __init__(self):
         self.added = []
+        self.dirs = []
 
-    def add(self, url):
+    def add(self, url, download_dir=None):
         self.added.append(url)
+        self.dirs.append(download_dir)
         return 1
 
 
@@ -256,3 +258,23 @@ async def test_series_cycle_respects_quality_profile(tmp_path):
                                  tr, MonitorHistory(tmp_path / "m.json"))
     assert out == []
     assert tr.added == []
+
+
+async def test_movie_cycle_uses_movies_path(tmp_path):
+    from torsearch.config import PathsConfig
+    lib = _lib(tmp_path)
+    cfg = Config(monitor=MonitorConfig(enabled=True), paths=PathsConfig(by_category={"movies": "/data/films"}))
+    tr = FakeTransmission()
+    await run_movie_cycle(cfg, lib, FakeSearch([_r("Dune.2024.1080p", infohash="X")]),
+                          tr, MonitorHistory(tmp_path / "m.json"))
+    assert tr.dirs == ["/data/films"]
+
+
+async def test_series_cycle_uses_tv_path(tmp_path):
+    from torsearch.config import PathsConfig
+    lib = _slib(tmp_path)
+    cfg = Config(monitor=MonitorConfig(enabled=True), paths=PathsConfig(by_category={"tv": "/data/series"}))
+    tr = FakeTransmission()
+    await run_series_cycle(cfg, lib, FakeSearch([_r("Show.S01E01.1080p", infohash="A")]),
+                           tr, MonitorHistory(tmp_path / "m.json"))
+    assert tr.dirs == ["/data/series"]

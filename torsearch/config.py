@@ -94,6 +94,15 @@ class JellyfinConfig(BaseModel):
     api_key: str = ""
 
 
+class PathsConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    by_category: dict[str, str] = Field(default_factory=dict)
+
+    def for_category(self, category: Category) -> str | None:
+        return self.by_category.get(category.value) or None
+
+
 class Config(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -106,6 +115,7 @@ class Config(BaseModel):
     metadata: MetadataConfig = Field(default_factory=MetadataConfig)
     library: LibraryConfig = Field(default_factory=LibraryConfig)
     jellyfin: JellyfinConfig = Field(default_factory=JellyfinConfig)
+    paths: PathsConfig = Field(default_factory=PathsConfig)
 
 
 _ENV_PATTERN = re.compile(r"\$\{([^}]+)\}")

@@ -4,9 +4,10 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
-from torsearch.config import IndexerConfig, JellyfinConfig, LibraryConfig, NotificationChannel, SearchConfig, TransmissionConfig
+from torsearch.config import IndexerConfig, JellyfinConfig, LibraryConfig, NotificationChannel, PathsConfig, SearchConfig, TransmissionConfig
 from torsearch.context import AppContext
 from torsearch.indexers.torznab import TorznabIndexer
+from torsearch.models import Category
 from torsearch.notifications.notifier import Notifier
 from torsearch.settings.mutations import (
     SettingsError,
@@ -19,6 +20,7 @@ from torsearch.settings.mutations import (
     set_indexer_enabled,
     set_jellyfin,
     set_library,
+    set_paths,
     update_indexer,
 )
 from torsearch.web.templating import templates
@@ -41,7 +43,7 @@ def _list(request: Request, ctx: AppContext, error: str | None = None, notice: s
 async def settings_page(request: Request):
     ctx: AppContext = request.app.state.ctx
     return templates.TemplateResponse(
-        request, "settings.html", {"config": ctx.config, "indexers": ctx.config.indexers, "channels": ctx.config.notifications}
+        request, "settings.html", {"config": ctx.config, "indexers": ctx.config.indexers, "channels": ctx.config.notifications, "categories": list(Category)}
     )
 
 
@@ -91,6 +93,24 @@ async def update_jellyfin(request: Request, url: str = Form(""), api_key: str = 
     try:
         ctx.update_settings(set_jellyfin(ctx.config, JellyfinConfig(url=url, api_key=api_key)))
         return _toast(request, True, "Jellyfin enregistre.")
+    except (ValidationError, SettingsError) as exc:
+        return _toast(request, False, f"Erreur : {exc}")
+
+
+@settings_router.post("/settings/paths", response_class=HTMLResponse)
+async def update_paths(request: Request):
+    ctx: AppContext = request.app.state.ctx
+    form = await request.form()
+    by_category = {}
+    for c in Category:
+        if c == Category.ALL:
+            continue
+        value = (form.get(f"path_{c.value}") or "").strip()
+        if value:
+            by_category[c.value] = value
+    try:
+        ctx.update_settings(set_paths(ctx.config, PathsConfig(by_category=by_category)))
+        return _toast(request, True, "Dossiers enregistres.")
     except (ValidationError, SettingsError) as exc:
         return _toast(request, False, f"Erreur : {exc}")
 

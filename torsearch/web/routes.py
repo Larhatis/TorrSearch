@@ -113,10 +113,14 @@ async def search(
 
 
 @router.post("/download", response_class=HTMLResponse)
-async def download(request: Request, download_url: str = Form(...)):
+async def download(request: Request, download_url: str = Form(...), category: str = Form("")):
     ctx: AppContext = request.app.state.ctx
     try:
-        torrent_id = ctx.transmission.add(download_url)
+        cat = Category(category)
+    except ValueError:
+        cat = Category.OTHER
+    try:
+        torrent_id = ctx.transmission.add(download_url, ctx.config.paths.for_category(cat))
         message, ok = f"Ajoute a Transmission (#{torrent_id})", True
     except Exception as exc:
         message, ok = f"Erreur Transmission : {exc}", False

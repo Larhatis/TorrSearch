@@ -9,8 +9,9 @@ class FakeRpc:
         self.kwargs = kwargs
         self.added = []
 
-    def add_torrent(self, url):
+    def add_torrent(self, url, download_dir=None):
         self.added.append(url)
+        self.last_download_dir = download_dir
         return SimpleNamespace(id=42)
 
 
@@ -31,6 +32,21 @@ def test_add_returns_torrent_id_and_passes_url():
     assert created["client"].kwargs["host"] == "tr.local"
     assert created["client"].kwargs["port"] == 9092
     assert created["client"].kwargs["protocol"] == "http"
+
+
+def test_add_passes_download_dir():
+    captured = {}
+
+    def factory(**kwargs):
+        captured["client"] = FakeRpc(**kwargs)
+        return captured["client"]
+
+    tc = TransmissionClient(TransmissionConfig(), client_factory=factory)
+    tc.add("magnet:?xt=urn:btih:A", download_dir="/data/films")
+    assert captured["client"].last_download_dir == "/data/films"
+
+    tc.add("magnet:?xt=urn:btih:B")
+    assert captured["client"].last_download_dir is None
 
 
 def test_https_config_uses_https_protocol():

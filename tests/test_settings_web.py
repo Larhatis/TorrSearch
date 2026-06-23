@@ -174,3 +174,20 @@ def test_update_jellyfin_settings(tmp_path):
     assert resp.status_code == 200
     assert ctx.config.jellyfin.url == "http://jelly:8096"
     assert ctx.config.jellyfin.api_key == "K"
+
+
+def test_update_paths(tmp_path):
+    from fastapi.testclient import TestClient
+
+    from torsearch.context import AppContext
+    from torsearch.models import Category
+    from torsearch.settings.store import SettingsStore
+    from torsearch.web.routes import create_app
+
+    ctx = AppContext(SettingsStore(str(tmp_path / "s.json")))
+    client = TestClient(create_app(ctx))
+    resp = client.post("/settings/paths", data={"path_movies": "/data/films", "path_tv": "/data/series", "path_anime": ""})
+    assert resp.status_code == 200
+    assert ctx.config.paths.for_category(Category.MOVIES) == "/data/films"
+    assert ctx.config.paths.for_category(Category.TV) == "/data/series"
+    assert ctx.config.paths.for_category(Category.ANIME) is None

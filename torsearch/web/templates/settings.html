@@ -86,4 +86,16 @@
     <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
 </section>
+
+<section class="mt-10">
+  <h2 class="font-semibold mb-2">Dossiers de telechargement</h2>
+  <p class="text-xs text-slate-500 mb-2">Chemins vus par Transmission (dans son conteneur le cas echeant). Vide = dossier par defaut.</p>
+  <form hx-post="/settings/paths" hx-target="#toast" class="flex flex-wrap items-end gap-3">
+    {% for c in categories %}{% if c.value != 'all' %}
+    <label class="text-xs text-slate-400">{{ c.value | capitalize }}<br>
+      <input name="path_{{ c.value }}" value="{{ config.paths.by_category.get(c.value, '') }}" placeholder="/data/{{ c.value }}" class="mt-1 w-48 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    {% endif %}{% endfor %}
+    <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+  </form>
+</section>
 {% endblock %}

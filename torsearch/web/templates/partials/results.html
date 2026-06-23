@@ -43,6 +43,7 @@
     <div class="w-16 text-right text-sm">{{ health(r.seeders) }}</div>
     <form hx-post="/download" hx-target="#toast" class="inline">
       <input type="hidden" name="download_url" value="{{ r.download_url }}">
+      <input type="hidden" name="category" value="{{ r.category.value }}">
       <button class="flex items-center gap-1 rounded bg-emerald-500 px-2.5 py-1.5 text-xs font-semibold text-slate-900 hover:bg-emerald-400"><i class="ti ti-plus"></i>Envoyer</button>
     </form>
     <button class="rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-400 hover:text-emerald-400"

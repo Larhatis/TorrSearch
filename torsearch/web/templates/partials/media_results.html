@@ -4,12 +4,9 @@
 <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
   {% for m in media %}
   <div class="overflow-hidden rounded-lg border border-slate-800 bg-slate-800/40">
-    <div class="aspect-[2/3] bg-slate-900">
-      {% if m.poster_url %}
-      <img src="{{ m.poster_url }}" alt="{{ m.title }}" class="h-full w-full object-cover" loading="lazy">
-      {% else %}
-      <div class="flex h-full items-center justify-center text-slate-600"><i class="ti ti-photo text-3xl"></i></div>
-      {% endif %}
+    <div class="relative flex aspect-[2/3] items-center justify-center bg-slate-900 text-slate-600">
+      <i class="ti ti-photo text-3xl"></i>
+      {% if m.poster_url %}<img src="{{ m.poster_url }}" alt="{{ m.title }}" class="absolute inset-0 h-full w-full object-cover" loading="lazy" onerror="this.remove()">{% endif %}
     </div>
     <div class="p-2.5">
       {% set jf = (owned or {}).get(m.media_type ~ ':' ~ m.tmdb_id) %}
