@@ -101,12 +101,43 @@ async def run_cycle(config, search_service, transmission, history, notifier=None
     return created
 
 
-async def run_movie_cycle(config, library, search_service, transmission, history, notifier=None) -> list[MonitorRecord]:
+def _movie_needs_grab(movie, jellyfin, owned_map, now, window) -> bool:
+    """Whether a movie should be (re)hunted this cycle.
+
+    Never grabbed -> yes. Grabbed: with Jellyfin as truth, an absent movie past the
+    cooldown window means the download failed -> re-hunt; present or still in cooldown ->
+    skip. Without Jellyfin we keep ``grabbed`` permanent (no truth source).
+    """
+    if movie.status != "grabbed":
+        return True
+    if jellyfin is None or not getattr(jellyfin, "enabled", False):
+        return False
+    if f"movie:{movie.tmdb_id}" in owned_map:
+        return False
+    if movie.grabbed_at is not None:
+        at = movie.grabbed_at if movie.grabbed_at.tzinfo else movie.grabbed_at.replace(tzinfo=timezone.utc)
+        if now - at <= window:
+            return False
+    return True
+
+
+async def run_movie_cycle(config, library, search_service, transmission, history,
+                          notifier=None, jellyfin=None) -> list[MonitorRecord]:
     if not config.monitor.enabled or library is None:
         return []
     profile = config.library
     created: list[MonitorRecord] = []
-    for movie in library.wanted():
+    owned_map: dict[str, str] = {}
+    if jellyfin is not None and getattr(jellyfin, "enabled", False):
+        try:
+            owned_map = await jellyfin.owned()
+        except Exception as exc:
+            logger.warning("Jellyfin owned() failed: %s", exc)
+    now = datetime.now(timezone.utc)
+    window = timedelta(hours=config.monitor.regrab_hours)
+    for movie in library.list():
+        if not _movie_needs_grab(movie, jellyfin, owned_map, now, window):
+            continue
         query = f"{movie.title} {movie.year or ''}".strip()
         try:
             results = await search_service.search(query, Category.MOVIES)
@@ -295,6 +326,7 @@ class MonitorRunner:
                 await run_movie_cycle(
                     self._ctx.config, self._library, self._ctx.search_service,
                     self._ctx.transmission, self._history, self._notifier,
+                    jellyfin=getattr(self._ctx, "jellyfin", None),
                 )
                 await run_series_cycle(
                     self._ctx.config, self._series_library, self._ctx.search_service,

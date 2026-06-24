@@ -19,8 +19,9 @@ class MonitorRecord(BaseModel):
 
 
 class MonitorHistory:
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path, max_records: int = 1000):
         self._path = Path(path)
+        self._max_records = max_records
 
     def _load(self) -> list[MonitorRecord]:
         if not self._path.exists():
@@ -40,6 +41,8 @@ class MonitorHistory:
     def add(self, record: MonitorRecord) -> None:
         existing = self._load()
         existing.append(record)
+        if self._max_records and len(existing) > self._max_records:
+            existing = existing[-self._max_records:]
         self._path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self._path.with_name(self._path.name + ".tmp")
         tmp.write_text(json.dumps([r.model_dump(mode="json") for r in existing], indent=2))
