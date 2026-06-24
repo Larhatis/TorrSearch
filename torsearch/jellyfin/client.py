@@ -52,3 +52,49 @@ class JellyfinClient:
         finally:
             if owns_client:
                 await client.aclose()
+
+    async def refresh(self) -> bool:
+        """Trigger a full Jellyfin library scan. Best-effort: never raises."""
+        if not self.enabled:
+            return False
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        try:
+            response = await client.post(
+                f"{self._url}/Library/Refresh", params={"api_key": self._api_key}
+            )
+            response.raise_for_status()
+            return True
+        except Exception as exc:  # resilience: never raise
+            logger.warning("Jellyfin refresh() failed: %s", exc)
+            return False
+        finally:
+            if owns_client:
+                await client.aclose()
+
+    async def episodes(self, item_id: str) -> set[str]:
+        """Episode keys (e.g. ``S01E02``) physically present for a series item."""
+        if not self.enabled or not item_id:
+            return set()
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        try:
+            response = await client.get(
+                f"{self._url}/Shows/{item_id}/Episodes",
+                params={"api_key": self._api_key},
+            )
+            response.raise_for_status()
+            keys: set[str] = set()
+            for item in response.json().get("Items", []):
+                season = item.get("ParentIndexNumber")
+                episode = item.get("IndexNumber")
+                if season is None or episode is None:
+                    continue
+                keys.add(f"S{int(season):02d}E{int(episode):02d}")
+            return keys
+        except Exception as exc:  # resilience: never raise
+            logger.warning("Jellyfin episodes() failed: %s", exc)
+            return set()
+        finally:
+            if owns_client:
+                await client.aclose()
