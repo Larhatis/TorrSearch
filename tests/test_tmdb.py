@@ -128,3 +128,44 @@ async def test_episodes_error_returns_empty():
     with respx.mock:
         respx.get("https://api.themoviedb.org/3/tv/42").mock(return_value=httpx.Response(500))
         assert await client.episodes(42) == set()
+
+
+def _mock_full_series():
+    detail = respx.get("https://api.themoviedb.org/3/tv/42").mock(
+        return_value=httpx.Response(200, json=TV_DETAIL))
+    respx.get("https://api.themoviedb.org/3/tv/42/season/1").mock(
+        return_value=httpx.Response(200, json=SEASON_1))
+    respx.get("https://api.themoviedb.org/3/tv/42/season/2").mock(
+        return_value=httpx.Response(200, json=SEASON_2))
+    return detail
+
+
+async def test_episodes_cached_within_ttl():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"), episode_cache_seconds=600, clock=lambda: 1000.0)
+    with respx.mock:
+        detail = _mock_full_series()
+        first = await client.episodes(42)
+        second = await client.episodes(42)  # served from cache, no HTTP
+    assert first == second == {"S01E01", "S01E02", "S02E01"}
+    assert detail.call_count == 1
+
+
+async def test_episodes_cache_expires():
+    now = [1000.0]
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"), episode_cache_seconds=60, clock=lambda: now[0])
+    with respx.mock:
+        detail = _mock_full_series()
+        await client.episodes(42)
+        now[0] += 120  # advance past TTL
+        await client.episodes(42)
+    assert detail.call_count == 2
+
+
+async def test_episodes_empty_result_not_cached():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"), clock=lambda: 1000.0)
+    with respx.mock:
+        detail = respx.get("https://api.themoviedb.org/3/tv/42").mock(
+            return_value=httpx.Response(200, json={"seasons": []}))
+        assert await client.episodes(42) == set()
+        assert await client.episodes(42) == set()
+    assert detail.call_count == 2  # empty results are re-fetched, never cached
