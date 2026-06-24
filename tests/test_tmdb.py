@@ -88,3 +88,43 @@ async def test_trending_error_returns_empty():
             return_value=httpx.Response(500)
         )
         assert await client.trending() == []
+
+
+TV_DETAIL = {"seasons": [
+    {"season_number": 0, "episode_count": 2},  # specials -> skipped
+    {"season_number": 1, "episode_count": 3},
+    {"season_number": 2, "episode_count": 2},
+]}
+SEASON_1 = {"episodes": [
+    {"season_number": 1, "episode_number": 1, "air_date": "2020-01-01"},
+    {"season_number": 1, "episode_number": 2, "air_date": "2020-01-08"},
+    {"season_number": 1, "episode_number": 3, "air_date": "2099-01-01"},  # unaired
+]}
+SEASON_2 = {"episodes": [
+    {"season_number": 2, "episode_number": 1, "air_date": "2021-01-01"},
+    {"season_number": 2, "episode_number": 2, "air_date": ""},  # no air date -> skipped
+]}
+
+
+async def test_episodes_aggregates_aired_only():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"))
+    with respx.mock:
+        respx.get("https://api.themoviedb.org/3/tv/42").mock(
+            return_value=httpx.Response(200, json=TV_DETAIL))
+        respx.get("https://api.themoviedb.org/3/tv/42/season/1").mock(
+            return_value=httpx.Response(200, json=SEASON_1))
+        respx.get("https://api.themoviedb.org/3/tv/42/season/2").mock(
+            return_value=httpx.Response(200, json=SEASON_2))
+        keys = await client.episodes(42)
+    assert keys == {"S01E01", "S01E02", "S02E01"}
+
+
+async def test_episodes_disabled_returns_empty():
+    assert await TmdbClient(MetadataConfig()).episodes(42) == set()
+
+
+async def test_episodes_error_returns_empty():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"))
+    with respx.mock:
+        respx.get("https://api.themoviedb.org/3/tv/42").mock(return_value=httpx.Response(500))
+        assert await client.episodes(42) == set()

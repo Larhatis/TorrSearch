@@ -24,6 +24,40 @@ def select_new(results, filters, seen):
     return None
 
 
+def covered_episodes(keys: set[str], wanted: set[str]) -> set[str]:
+    """Episode keys from ``wanted`` that a torrent (its parsed ``keys``) satisfies.
+
+    ``keys`` may hold episode keys (``S01E02``) or a season key (``S01``); a season
+    key covers every wanted episode of that season.
+    """
+    out: set[str] = set()
+    for key in keys:
+        if "E" in key:
+            if key in wanted:
+                out.add(key)
+        else:
+            out |= {ep for ep in wanted if ep.startswith(key + "E")}
+    return out
+
+
+async def run_jellyfin_refresh(transmission, jellyfin, completed_seen: set[int]) -> set[int]:
+    """Refresh Jellyfin once when a torrent has newly finished. Returns finished ids."""
+    if jellyfin is None or not getattr(jellyfin, "enabled", False):
+        return completed_seen
+    try:
+        torrents = transmission.list_torrents()
+    except Exception as exc:
+        logger.warning("Jellyfin refresh: listing torrents failed: %s", exc)
+        return completed_seen
+    done = {t.id for t in torrents if t.percent >= 100.0}
+    if done - completed_seen:
+        try:
+            await jellyfin.refresh()
+        except Exception as exc:
+            logger.warning("Jellyfin refresh failed: %s", exc)
+    return done
+
+
 async def run_cycle(config, search_service, transmission, history, notifier=None) -> list[MonitorRecord]:
     if not config.monitor.enabled:
         return []
@@ -107,12 +141,43 @@ async def run_movie_cycle(config, library, search_service, transmission, history
     return created
 
 
-async def run_series_cycle(config, series_library, search_service, transmission, history, notifier=None) -> list[MonitorRecord]:
+async def _series_have(series, jellyfin) -> set[str]:
+    """Episodes already on hand: recorded grabs + what Jellyfin physically holds."""
+    have = set(series.grabbed)
+    if jellyfin is not None and getattr(jellyfin, "enabled", False):
+        try:
+            item_id = (await jellyfin.owned()).get(f"tv:{series.tmdb_id}")
+            if item_id:
+                have |= await jellyfin.episodes(item_id)
+        except Exception as exc:
+            logger.warning("Jellyfin lookup for '%s' failed: %s", series.title, exc)
+    return have
+
+
+async def _series_aired(series, tmdb) -> set[str]:
+    """Episodes already aired per TMDB, or empty when TMDB is unavailable."""
+    if tmdb is None or not getattr(tmdb, "enabled", False):
+        return set()
+    try:
+        return await tmdb.episodes(series.tmdb_id)
+    except Exception as exc:
+        logger.warning("TMDB episodes for '%s' failed: %s", series.title, exc)
+        return set()
+
+
+async def run_series_cycle(config, series_library, search_service, transmission, history,
+                           notifier=None, jellyfin=None, tmdb=None) -> list[MonitorRecord]:
     if not config.monitor.enabled or series_library is None:
         return []
     profile = config.library
     created: list[MonitorRecord] = []
     for series in series_library.list():
+        have = await _series_have(series, jellyfin)
+        aired = await _series_aired(series, tmdb)
+        # Targeted mode: we know what aired -> only chase the real gaps.
+        remaining = (aired - have) if aired else None
+        if remaining is not None and not remaining:
+            continue  # complete & up to date
         try:
             results = await search_service.search(series.title, Category.TV)
         except Exception as exc:
@@ -122,19 +187,26 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             min_seeders=profile.min_seeders, qualities=profile.qualities,
             sort="seeders", direction="desc",
         ))
-        have = set(series.grabbed)
         newly: list[str] = []
         for r in kept:
             keys = parse_episodes(r.title)
-            if not keys - have:
+            if not keys:
+                continue
+            if remaining is not None:
+                covered = covered_episodes(keys, remaining)
+            else:
+                covered = keys - have  # fallback: anything not already on hand
+            if not covered:
                 continue
             try:
                 transmission.add(r.download_url, download_dir=config.paths.for_category(Category.TV))
             except Exception as exc:
                 logger.warning("Series grab '%s' failed: %s", series.title, exc)
                 continue
-            have |= keys
-            newly.extend(keys)
+            if remaining is not None:
+                remaining -= covered
+            have |= covered
+            newly.extend(covered)
             now = datetime.now(timezone.utc)
             record = MonitorRecord(
                 search=series.title, title=r.title, source=r.source,
@@ -159,6 +231,7 @@ class MonitorRunner:
         self._notifier = notifier or Notifier()
         self._library = library
         self._series_library = series_library
+        self._completed_seen: set[int] = set()
         self._task = None
 
     async def start(self) -> None:
@@ -188,6 +261,12 @@ class MonitorRunner:
                 await run_series_cycle(
                     self._ctx.config, self._series_library, self._ctx.search_service,
                     self._ctx.transmission, self._history, self._notifier,
+                    jellyfin=getattr(self._ctx, "jellyfin", None),
+                    tmdb=getattr(self._ctx, "tmdb", None),
+                )
+                self._completed_seen = await run_jellyfin_refresh(
+                    self._ctx.transmission, getattr(self._ctx, "jellyfin", None),
+                    self._completed_seen,
                 )
             except Exception:
                 logger.exception("Monitor cycle failed")

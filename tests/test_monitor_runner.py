@@ -278,3 +278,145 @@ async def test_series_cycle_uses_tv_path(tmp_path):
     await run_series_cycle(cfg, lib, FakeSearch([_r("Show.S01E01.1080p", infohash="A")]),
                            tr, MonitorHistory(tmp_path / "m.json"))
     assert tr.dirs == ["/data/series"]
+
+
+# --- Feature 1: Jellyfin auto-refresh on download completion ---
+
+class _Torrent:
+    def __init__(self, tid, percent):
+        self.id = tid
+        self.percent = percent
+
+
+class FakeTransmissionList:
+    def __init__(self, torrents, error=False):
+        self._torrents = torrents
+        self._error = error
+
+    def list_torrents(self):
+        if self._error:
+            raise RuntimeError("boom")
+        return list(self._torrents)
+
+
+class FakeJellyfin:
+    def __init__(self, enabled=True, owned=None, episodes=None):
+        self.enabled = enabled
+        self._owned = owned or {}
+        self._episodes = episodes or {}
+        self.refresh_calls = 0
+
+    async def refresh(self):
+        self.refresh_calls += 1
+        return True
+
+    async def owned(self):
+        return dict(self._owned)
+
+    async def episodes(self, item_id):
+        return set(self._episodes.get(item_id, set()))
+
+
+class FakeTmdb:
+    def __init__(self, enabled=True, episodes=None):
+        self.enabled = enabled
+        self._episodes = episodes or {}
+
+    async def episodes(self, tv_id):
+        return set(self._episodes.get(tv_id, set()))
+
+
+async def test_refresh_triggers_on_new_completion():
+    from torsearch.monitor.runner import run_jellyfin_refresh
+    jf = FakeJellyfin()
+    tr = FakeTransmissionList([_Torrent(1, 100.0), _Torrent(2, 42.0)])
+    seen = await run_jellyfin_refresh(tr, jf, set())
+    assert jf.refresh_calls == 1
+    assert seen == {1}
+
+
+async def test_refresh_not_repeated_without_new_completion():
+    from torsearch.monitor.runner import run_jellyfin_refresh
+    jf = FakeJellyfin()
+    tr = FakeTransmissionList([_Torrent(1, 100.0)])
+    seen = await run_jellyfin_refresh(tr, jf, {1})
+    assert jf.refresh_calls == 0
+    assert seen == {1}
+
+
+async def test_refresh_triggers_again_when_another_finishes():
+    from torsearch.monitor.runner import run_jellyfin_refresh
+    jf = FakeJellyfin()
+    tr = FakeTransmissionList([_Torrent(1, 100.0), _Torrent(2, 100.0)])
+    seen = await run_jellyfin_refresh(tr, jf, {1})
+    assert jf.refresh_calls == 1
+    assert seen == {1, 2}
+
+
+async def test_refresh_skipped_when_jellyfin_disabled():
+    from torsearch.monitor.runner import run_jellyfin_refresh
+    jf = FakeJellyfin(enabled=False)
+    tr = FakeTransmissionList([_Torrent(1, 100.0)])
+    seen = await run_jellyfin_refresh(tr, jf, set())
+    assert jf.refresh_calls == 0
+    assert seen == set()
+
+
+async def test_refresh_survives_transmission_error():
+    from torsearch.monitor.runner import run_jellyfin_refresh
+    jf = FakeJellyfin()
+    tr = FakeTransmissionList([], error=True)
+    seen = await run_jellyfin_refresh(tr, jf, {5})
+    assert jf.refresh_calls == 0
+    assert seen == {5}
+
+
+async def test_refresh_noop_when_jellyfin_none():
+    from torsearch.monitor.runner import run_jellyfin_refresh
+    tr = FakeTransmissionList([_Torrent(1, 100.0)])
+    seen = await run_jellyfin_refresh(tr, None, set())
+    assert seen == set()
+
+
+# --- Feature 2: targeted missing-episode series cycle ---
+
+async def test_series_cycle_targets_only_missing_episodes(tmp_path):
+    lib = _slib(tmp_path)  # tmdb_id=1, no grabbed
+    cfg = Config(monitor=MonitorConfig(enabled=True))
+    tr = FakeTransmission()
+    jf = FakeJellyfin(owned={"tv:1": "jf1"}, episodes={"jf1": {"S01E01"}})
+    tmdb = FakeTmdb(episodes={1: {"S01E01", "S01E02", "S01E03"}})
+    created = await run_series_cycle(cfg, lib, FakeSearch([
+        _r("Show.S01E01.1080p", seeders=50, infohash="A"),  # already in Jellyfin -> skip
+        _r("Show.S01E02.1080p", seeders=40, infohash="B"),  # missing -> grab
+        _r("Show.S01E03.1080p", seeders=30, infohash="C"),  # missing -> grab
+        _r("Show.S01E04.1080p", seeders=20, infohash="D"),  # not aired -> skip
+    ]), tr, MonitorHistory(tmp_path / "m.json"), jellyfin=jf, tmdb=tmdb)
+    assert len(tr.added) == 2
+    assert [r.title for r in created] == ["Show.S01E02.1080p", "Show.S01E03.1080p"]
+    assert lib.list()[0].grabbed == ["S01E02", "S01E03"]
+
+
+async def test_series_cycle_skips_complete_series(tmp_path):
+    lib = _slib(tmp_path)
+    cfg = Config(monitor=MonitorConfig(enabled=True))
+    tr = FakeTransmission()
+    jf = FakeJellyfin(owned={"tv:1": "jf1"}, episodes={"jf1": {"S01E01"}})
+    tmdb = FakeTmdb(episodes={1: {"S01E01"}})  # everything aired is present
+    out = await run_series_cycle(cfg, lib, FakeSearch([_r("Show.S01E01.1080p", infohash="A")]),
+                                 tr, MonitorHistory(tmp_path / "m.json"), jellyfin=jf, tmdb=tmdb)
+    assert out == []
+    assert tr.added == []
+
+
+async def test_series_cycle_season_pack_covers_missing(tmp_path):
+    lib = _slib(tmp_path)
+    cfg = Config(monitor=MonitorConfig(enabled=True))
+    tr = FakeTransmission()
+    jf = FakeJellyfin(owned={}, episodes={})  # nothing in Jellyfin
+    tmdb = FakeTmdb(episodes={1: {"S02E01", "S02E02"}})
+    created = await run_series_cycle(cfg, lib, FakeSearch([
+        _r("Show.S02.COMPLETE.1080p", seeders=60, infohash="P"),
+    ]), tr, MonitorHistory(tmp_path / "m.json"), jellyfin=jf, tmdb=tmdb)
+    assert len(tr.added) == 1
+    assert lib.list()[0].grabbed == ["S02E01", "S02E02"]
