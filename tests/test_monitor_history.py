@@ -39,3 +39,12 @@ def test_persistence_round_trip_and_atomic(tmp_path):
     MonitorHistory(path).add(_rec())
     assert MonitorHistory(path).records()[0].title == "T"
     assert not path.with_name(path.name + ".tmp").exists()
+
+
+def test_history_capped_to_max_records(tmp_path):
+    h = MonitorHistory(tmp_path / "monitor.json", max_records=5)
+    for i in range(8):
+        h.add(_rec(title=f"t{i}", infohash=f"H{i}", url=f"u{i}"))
+    titles = [r.title for r in h.records()]
+    assert len(titles) == 5  # only the last 5 kept
+    assert titles == ["t7", "t6", "t5", "t4", "t3"]  # most recent first, oldest dropped

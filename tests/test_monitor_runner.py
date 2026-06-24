@@ -497,3 +497,56 @@ async def test_series_cycle_fetches_owned_once(tmp_path):
     await run_series_cycle(cfg, lib, FakeSearch([]), FakeTransmission(),
                            MonitorHistory(tmp_path / "m.json"), jellyfin=jf, tmdb=tmdb)
     assert jf.owned_calls == 1
+
+
+# --- Improvement A: re-grab failed movie downloads (Jellyfin as truth) ---
+
+async def test_movie_cycle_regrabs_failed_after_window(tmp_path):
+    lib = _lib(tmp_path)
+    now = datetime.now(timezone.utc)
+    lib.mark_grabbed(1, "Dune.2024.old", now - timedelta(hours=72))  # grabbed long ago
+    cfg = Config(monitor=MonitorConfig(enabled=True, regrab_hours=48))
+    tr = FakeTransmission()
+    jf = FakeJellyfin(owned={})  # not present in Jellyfin -> failed download
+    created = await run_movie_cycle(cfg, lib, FakeSearch([_r("Dune.2024.1080p", seeders=50, infohash="X")]),
+                                    tr, MonitorHistory(tmp_path / "m.json"), jellyfin=jf)
+    assert len(tr.added) == 1
+    assert [r.kind for r in created] == ["grabbed"]
+
+
+async def test_movie_cycle_present_in_jellyfin_not_regrabbed(tmp_path):
+    lib = _lib(tmp_path)
+    now = datetime.now(timezone.utc)
+    lib.mark_grabbed(1, "Dune.2024.old", now - timedelta(hours=72))
+    cfg = Config(monitor=MonitorConfig(enabled=True, regrab_hours=48))
+    tr = FakeTransmission()
+    jf = FakeJellyfin(owned={"movie:1": "jf1"})  # confirmed present
+    out = await run_movie_cycle(cfg, lib, FakeSearch([_r("Dune.2024.1080p", infohash="X")]),
+                                tr, MonitorHistory(tmp_path / "m.json"), jellyfin=jf)
+    assert out == []
+    assert tr.added == []
+
+
+async def test_movie_cycle_recent_grab_in_cooldown(tmp_path):
+    lib = _lib(tmp_path)
+    now = datetime.now(timezone.utc)
+    lib.mark_grabbed(1, "Dune.2024.old", now - timedelta(hours=1))  # still downloading
+    cfg = Config(monitor=MonitorConfig(enabled=True, regrab_hours=48))
+    tr = FakeTransmission()
+    jf = FakeJellyfin(owned={})
+    out = await run_movie_cycle(cfg, lib, FakeSearch([_r("Dune.2024.1080p", infohash="X")]),
+                                tr, MonitorHistory(tmp_path / "m.json"), jellyfin=jf)
+    assert out == []
+    assert tr.added == []
+
+
+async def test_movie_cycle_jellyfin_disabled_keeps_grabbed(tmp_path):
+    lib = _lib(tmp_path)
+    now = datetime.now(timezone.utc)
+    lib.mark_grabbed(1, "Dune.2024.old", now - timedelta(hours=72))
+    cfg = Config(monitor=MonitorConfig(enabled=True, regrab_hours=48))
+    tr = FakeTransmission()
+    out = await run_movie_cycle(cfg, lib, FakeSearch([_r("Dune.2024.1080p", infohash="X")]),
+                                tr, MonitorHistory(tmp_path / "m.json"), jellyfin=None)
+    assert out == []
+    assert tr.added == []
