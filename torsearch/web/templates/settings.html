@@ -1,9 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="text-lg font-semibold mb-6">Reglages</h1>
+<h1 class="mb-6 flex items-center gap-2 text-xl font-bold text-white">
+  <i class="ti ti-settings text-slate-500"></i> Reglages
+</h1>
 
-<section class="mb-10">
-  <h2 class="font-semibold mb-2">Transmission &amp; recherche</h2>
+<div class="space-y-5">
+
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+    <i class="ti ti-download text-slate-500"></i>
+    <h2 class="text-sm font-semibold text-white">Transmission &amp; recherche</h2>
+  </div>
   <form hx-post="/settings/general" hx-target="#toast" class="flex flex-wrap items-end gap-3">
     <label class="text-xs text-slate-400">Hote<br>
       <input name="host" value="{{ config.transmission.host }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
@@ -21,8 +28,11 @@
   </form>
 </section>
 
-<section>
-  <h2 class="font-semibold mb-2">Trackers</h2>
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+    <i class="ti ti-rss text-slate-500"></i>
+    <h2 class="text-sm font-semibold text-white">Trackers</h2>
+  </div>
   <form hx-post="/settings/indexers" hx-target="#indexer-list" hx-swap="outerHTML"
         class="flex flex-wrap items-end gap-2 mb-4">
     <label class="text-xs text-slate-400">Nom<br>
@@ -40,8 +50,11 @@
   {% include "partials/indexer_list.html" %}
 </section>
 
-<section class="mt-10">
-  <h2 class="font-semibold mb-2">Notifications</h2>
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+    <i class="ti ti-bell text-slate-500"></i>
+    <h2 class="text-sm font-semibold text-white">Notifications</h2>
+  </div>
   <form hx-post="/settings/notifications" hx-target="#notification-list" hx-swap="outerHTML"
         class="flex flex-wrap items-end gap-2 mb-4">
     <input name="name" placeholder="Nom" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
@@ -59,8 +72,11 @@
   {% include "partials/notification_list.html" %}
 </section>
 
-<section class="mt-10">
-  <h2 class="font-semibold mb-2">Bibliotheque (profil de qualite)</h2>
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+    <i class="ti ti-movie text-slate-500"></i>
+    <h2 class="text-sm font-semibold text-white">Bibliotheque (profil de qualite)</h2>
+  </div>
   <form hx-post="/settings/library" hx-target="#toast" class="flex flex-wrap items-end gap-4">
     <fieldset class="text-xs text-slate-400">
       <legend>Qualites recherchees</legend>
@@ -76,8 +92,11 @@
   </form>
 </section>
 
-<section class="mt-10">
-  <h2 class="font-semibold mb-2">Jellyfin (lecture)</h2>
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+    <i class="ti ti-device-tv text-slate-500"></i>
+    <h2 class="text-sm font-semibold text-white">Jellyfin (lecture)</h2>
+  </div>
   <form hx-post="/settings/jellyfin" hx-target="#toast" class="flex flex-wrap items-end gap-3">
     <label class="text-xs text-slate-400">URL<br>
       <input name="url" value="{{ config.jellyfin.url }}" placeholder="http://jellyfin:8096" class="mt-1 w-72 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
@@ -87,9 +106,12 @@
   </form>
 </section>
 
-<section class="mt-10">
-  <h2 class="font-semibold mb-2">Dossiers de telechargement</h2>
-  <p class="text-xs text-slate-500 mb-2">Chemins vus par Transmission (dans son conteneur le cas echeant). Vide = dossier par defaut.</p>
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+    <i class="ti ti-folder text-slate-500"></i>
+    <h2 class="text-sm font-semibold text-white">Dossiers de telechargement</h2>
+  </div>
+  <p class="text-xs text-slate-500 mb-3">Chemins vus par Transmission (dans son conteneur le cas echeant). Vide = dossier par defaut.</p>
   <form hx-post="/settings/paths" hx-target="#toast" class="flex flex-wrap items-end gap-3">
     {% for c in categories %}{% if c.value != 'all' %}
     <label class="text-xs text-slate-400">{{ c.value | capitalize }}<br>
@@ -98,4 +120,6 @@
     <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
 </section>
+
+</div>
 {% endblock %}
