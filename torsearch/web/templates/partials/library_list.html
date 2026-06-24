@@ -13,12 +13,12 @@
       {% set jf = (owned or {}).get('movie:' ~ m.tmdb_id) %}
       <div class="flex items-center gap-1.5">
         {% if m.status == 'grabbed' %}
-        <span class="rounded px-1.5 py-0.5 text-[10px] bg-emerald-500/15 text-emerald-300">Obtenu</span>
+        <span class="rounded px-1.5 py-0.5 text-[10px] bg-green-500/15 text-green-300">Obtenu</span>
         {% else %}
         <span class="rounded px-1.5 py-0.5 text-[10px] bg-amber-500/15 text-amber-300">Voulu</span>
         {% endif %}
         {% if m.year %}<span class="text-[11px] text-slate-500">{{ m.year }}</span>{% endif %}
-        {% if jf %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-emerald-500/15 text-emerald-300">Dans Jellyfin</span>{% endif %}
+        {% if jf %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-green-500/15 text-green-300">Dans Jellyfin</span>{% endif %}
       </div>
       <div class="mt-1 truncate text-sm text-slate-100" title="{{ m.title }}">{{ m.title }}</div>
       {% if jf %}

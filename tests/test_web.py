@@ -225,3 +225,8 @@ def test_download_toast_auto_dismisses():
     client, _ = _make()
     resp = client.post("/download", data={"download_url": "magnet:?x"})
     assert "toastfade" in resp.text
+
+
+def test_cyan_accent_palette_configured():
+    client, _ = _make()
+    assert "#00d4e8" in client.get("/").text
