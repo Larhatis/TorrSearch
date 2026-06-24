@@ -62,6 +62,7 @@ class MonitorConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
     enabled: bool = False
     interval_minutes: int = 30
+    regrab_hours: int = 48
 
 
 class NotificationChannel(BaseModel):

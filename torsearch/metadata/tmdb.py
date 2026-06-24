@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date
 
 import httpx
@@ -44,10 +45,15 @@ class TmdbClient:
         config: MetadataConfig,
         client: httpx.AsyncClient | None = None,
         timeout: float = 10.0,
+        episode_cache_seconds: float = 6 * 3600,
+        clock=time.monotonic,
     ):
         self._api_key = config.tmdb_api_key
         self._client = client
         self._timeout = timeout
+        self._episode_cache_seconds = episode_cache_seconds
+        self._clock = clock
+        self._episode_cache: dict[int, tuple[float, set[str]]] = {}
 
     @property
     def enabled(self) -> bool:
@@ -96,9 +102,22 @@ class TmdbClient:
                 await client.aclose()
 
     async def episodes(self, tv_id: int) -> set[str]:
-        """Aired episode keys (e.g. ``S01E02``) for a series. Best-effort -> set()."""
+        """Aired episode keys (e.g. ``S01E02``) for a series, cached with a TTL.
+
+        Empty results (network failure or no aired episode) are never cached so a
+        brand-new or transiently-failing series is re-checked next cycle.
+        """
         if not self.enabled:
             return set()
+        cached = self._episode_cache.get(tv_id)
+        if cached is not None and cached[0] > self._clock():
+            return set(cached[1])
+        result = await self._fetch_episodes(tv_id)
+        if result:
+            self._episode_cache[tv_id] = (self._clock() + self._episode_cache_seconds, result)
+        return set(result)
+
+    async def _fetch_episodes(self, tv_id: int) -> set[str]:
         owns_client = self._client is None
         client = self._client or httpx.AsyncClient(timeout=self._timeout)
         params = {"api_key": self._api_key, "language": "fr-FR"}

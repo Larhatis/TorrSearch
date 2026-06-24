@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from torsearch.library.episodes import parse_episodes
 from torsearch.models import Category, SearchResult
@@ -141,17 +141,45 @@ async def run_movie_cycle(config, library, search_service, transmission, history
     return created
 
 
-async def _series_have(series, jellyfin) -> set[str]:
-    """Episodes already on hand: recorded grabs + what Jellyfin physically holds."""
-    have = set(series.grabbed)
-    if jellyfin is not None and getattr(jellyfin, "enabled", False):
+def _history_episodes(series, records, now, window):
+    """(recent, historic) grabbed episodes for a series from the monitor history.
+
+    ``recent`` = grabbed within the cooldown window (download likely still running);
+    ``historic`` = every episode ever recorded as grabbed for this series.
+    """
+    recent: set[str] = set()
+    historic: set[str] = set()
+    for r in records:
+        if r.search != series.title or r.kind != "grabbed":
+            continue
+        keys = parse_episodes(r.title)
+        historic |= keys
+        at = r.at if r.at.tzinfo else r.at.replace(tzinfo=timezone.utc)
+        if now - at <= window:
+            recent |= keys
+    return recent, historic
+
+
+async def _series_have(series, jellyfin, owned_map, records, now, window) -> set[str]:
+    """Episodes considered already on hand.
+
+    With Jellyfin as source of truth: present-on-disk + recently-grabbed (cooldown) +
+    legacy grabs (recorded before timestamps existed). An episode grabbed long ago but
+    absent from Jellyfin drops out -> it gets re-chased. Without Jellyfin we keep the
+    permanent ``series.grabbed`` (no truth source to confirm failures against).
+    """
+    if jellyfin is None or not getattr(jellyfin, "enabled", False):
+        return set(series.grabbed)
+    present: set[str] = set()
+    item_id = owned_map.get(f"tv:{series.tmdb_id}")
+    if item_id:
         try:
-            item_id = (await jellyfin.owned()).get(f"tv:{series.tmdb_id}")
-            if item_id:
-                have |= await jellyfin.episodes(item_id)
+            present = await jellyfin.episodes(item_id)
         except Exception as exc:
-            logger.warning("Jellyfin lookup for '%s' failed: %s", series.title, exc)
-    return have
+            logger.warning("Jellyfin episodes for '%s' failed: %s", series.title, exc)
+    recent, historic = _history_episodes(series, records, now, window)
+    legacy = set(series.grabbed) - historic
+    return present | recent | legacy
 
 
 async def _series_aired(series, tmdb) -> set[str]:
@@ -171,8 +199,18 @@ async def run_series_cycle(config, series_library, search_service, transmission,
         return []
     profile = config.library
     created: list[MonitorRecord] = []
+    # Fetched once per cycle (not once per series): Jellyfin ownership map + grab log.
+    owned_map: dict[str, str] = {}
+    if jellyfin is not None and getattr(jellyfin, "enabled", False):
+        try:
+            owned_map = await jellyfin.owned()
+        except Exception as exc:
+            logger.warning("Jellyfin owned() failed: %s", exc)
+    records = history.records()
+    now = datetime.now(timezone.utc)
+    window = timedelta(hours=config.monitor.regrab_hours)
     for series in series_library.list():
-        have = await _series_have(series, jellyfin)
+        have = await _series_have(series, jellyfin, owned_map, records, now, window)
         aired = await _series_aired(series, tmdb)
         # Targeted mode: we know what aired -> only chase the real gaps.
         remaining = (aired - have) if aired else None

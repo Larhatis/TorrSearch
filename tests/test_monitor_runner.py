@@ -305,12 +305,14 @@ class FakeJellyfin:
         self._owned = owned or {}
         self._episodes = episodes or {}
         self.refresh_calls = 0
+        self.owned_calls = 0
 
     async def refresh(self):
         self.refresh_calls += 1
         return True
 
     async def owned(self):
+        self.owned_calls += 1
         return dict(self._owned)
 
     async def episodes(self, item_id):
@@ -420,3 +422,78 @@ async def test_series_cycle_season_pack_covers_missing(tmp_path):
     ]), tr, MonitorHistory(tmp_path / "m.json"), jellyfin=jf, tmdb=tmdb)
     assert len(tr.added) == 1
     assert lib.list()[0].grabbed == ["S02E01", "S02E02"]
+
+
+# --- Improvement 1: re-grab failed downloads after cooldown ---
+
+from datetime import timedelta
+
+
+def _grab_record(title, when, search="Show"):
+    from torsearch.monitor.history import MonitorRecord
+    return MonitorRecord(search=search, title=title, source="trk",
+                         download_url="magnet:?" + title, kind="grabbed", at=when)
+
+
+async def test_series_cycle_regrabs_failed_after_window(tmp_path):
+    history = MonitorHistory(tmp_path / "m.json")
+    # Episode was grabbed 3 days ago but never landed in Jellyfin.
+    now = datetime.now(timezone.utc)
+    history.add(_grab_record("Show.S01E02.1080p", now - timedelta(hours=72)))
+    lib = _slib(tmp_path, grabbed=["S01E02"])
+    cfg = Config(monitor=MonitorConfig(enabled=True, regrab_hours=48))
+    tr = FakeTransmission()
+    jf = FakeJellyfin(owned={"tv:1": "jf1"}, episodes={"jf1": set()})  # absent from Jellyfin
+    tmdb = FakeTmdb(episodes={1: {"S01E01", "S01E02"}})
+    created = await run_series_cycle(cfg, lib, FakeSearch([
+        _r("Show.S01E01.1080p", seeders=50, infohash="A"),
+        _r("Show.S01E02.1080p", seeders=40, infohash="B"),
+    ]), tr, history, jellyfin=jf, tmdb=tmdb)
+    titles = {r.title for r in created}
+    assert "Show.S01E02.1080p" in titles  # re-grabbed despite being in series.grabbed
+    assert len(tr.added) == 2
+
+
+async def test_series_cycle_keeps_recent_grab_in_cooldown(tmp_path):
+    history = MonitorHistory(tmp_path / "m.json")
+    now = datetime.now(timezone.utc)
+    history.add(_grab_record("Show.S01E02.1080p", now - timedelta(hours=1)))  # still downloading
+    lib = _slib(tmp_path, grabbed=["S01E02"])
+    cfg = Config(monitor=MonitorConfig(enabled=True, regrab_hours=48))
+    tr = FakeTransmission()
+    jf = FakeJellyfin(owned={"tv:1": "jf1"}, episodes={"jf1": set()})
+    tmdb = FakeTmdb(episodes={1: {"S01E01", "S01E02"}})
+    created = await run_series_cycle(cfg, lib, FakeSearch([
+        _r("Show.S01E01.1080p", seeders=50, infohash="A"),
+        _r("Show.S01E02.1080p", seeders=40, infohash="B"),
+    ]), tr, history, jellyfin=jf, tmdb=tmdb)
+    assert [r.title for r in created] == ["Show.S01E01.1080p"]  # E02 still in cooldown
+    assert len(tr.added) == 1
+
+
+async def test_series_cycle_legacy_grabbed_not_regrabbed(tmp_path):
+    # grabbed before this feature: present in series.grabbed but no history record.
+    history = MonitorHistory(tmp_path / "m.json")
+    lib = _slib(tmp_path, grabbed=["S01E01"])
+    cfg = Config(monitor=MonitorConfig(enabled=True, regrab_hours=48))
+    tr = FakeTransmission()
+    jf = FakeJellyfin(owned={"tv:1": "jf1"}, episodes={"jf1": set()})  # absent, but no history
+    tmdb = FakeTmdb(episodes={1: {"S01E01"}})
+    out = await run_series_cycle(cfg, lib, FakeSearch([_r("Show.S01E01.1080p", infohash="A")]),
+                                 tr, history, jellyfin=jf, tmdb=tmdb)
+    assert out == []  # legacy grab kept, no re-grab storm
+    assert tr.added == []
+
+
+# --- Improvement 3: fetch Jellyfin owned() once per cycle ---
+
+async def test_series_cycle_fetches_owned_once(tmp_path):
+    lib = SeriesLibrary(tmp_path / "series.json")
+    lib.add(WantedSeries(tmdb_id=1, title="ShowA", year="2024", added_at=MNOW))
+    lib.add(WantedSeries(tmdb_id=2, title="ShowB", year="2024", added_at=MNOW))
+    cfg = Config(monitor=MonitorConfig(enabled=True))
+    jf = FakeJellyfin(owned={}, episodes={})
+    tmdb = FakeTmdb(episodes={})
+    await run_series_cycle(cfg, lib, FakeSearch([]), FakeTransmission(),
+                           MonitorHistory(tmp_path / "m.json"), jellyfin=jf, tmdb=tmdb)
+    assert jf.owned_calls == 1
