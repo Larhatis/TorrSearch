@@ -13,7 +13,7 @@
       <div class="flex items-center gap-1.5">
         <span class="rounded px-1.5 py-0.5 text-[10px] {{ 'bg-sky-500/15 text-sky-300' if m.media_type == 'movie' else 'bg-violet-500/15 text-violet-300' }}">{{ 'Film' if m.media_type == 'movie' else 'Serie' }}</span>
         {% if m.year %}<span class="text-[11px] text-slate-500">{{ m.year }}</span>{% endif %}
-        {% if jf %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-emerald-500/15 text-emerald-300">Dans Jellyfin</span>{% endif %}
+        {% if jf %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-green-500/15 text-green-300">Dans Jellyfin</span>{% endif %}
       </div>
       <div class="mt-1 truncate text-sm text-slate-100" title="{{ m.title }}">{{ m.title }}</div>
       {% if jf %}
