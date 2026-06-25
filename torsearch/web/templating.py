@@ -15,11 +15,14 @@ def _auth_context(request):
     auth = getattr(request.app.state, "auth", None)
     enabled = bool(auth and getattr(auth, "enabled", False))
     role = effective_role(request)
+    requests_store = getattr(request.app.state, "requests", None)
+    pending = requests_store.count_pending() if (role == "admin" and requests_store) else 0
     return {
         "auth_enabled": enabled,
         "role": role,
         "is_admin": role == "admin",
         "is_member": role in ("admin", "member"),
+        "pending_requests": pending,
     }
 
 
