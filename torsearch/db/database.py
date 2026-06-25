@@ -81,6 +81,15 @@ class Collection:
                 [(self._name, id, json.dumps(data)) for id, data in items],
             )
 
+    def trim(self, keep_last: int) -> None:
+        """Drop all but the most recent ``keep_last`` rows (by insertion order)."""
+        with self._db._connect() as con:
+            con.execute(
+                "DELETE FROM documents WHERE collection=? AND rowid NOT IN "
+                "(SELECT rowid FROM documents WHERE collection=? ORDER BY rowid DESC LIMIT ?)",
+                (self._name, self._name, keep_last),
+            )
+
     def count(self) -> int:
         with self._db._connect() as con:
             return con.execute(
@@ -89,3 +98,10 @@ class Collection:
 
     def is_empty(self) -> bool:
         return self.count() == 0
+
+
+def as_collection(source: Collection | str | Path, name: str) -> Collection:
+    """A Collection from an existing one, or a fresh per-file SQLite DB (tests/CLI)."""
+    if isinstance(source, Collection):
+        return source
+    return Database(source).collection(name)

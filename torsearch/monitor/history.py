@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
-import os
+import uuid
 from datetime import datetime
 from pathlib import Path
 
 from pydantic import BaseModel
+
+from torsearch.db.database import Collection, as_collection
 
 
 class MonitorRecord(BaseModel):
@@ -19,31 +21,36 @@ class MonitorRecord(BaseModel):
 
 
 class MonitorHistory:
-    def __init__(self, path: str | Path, max_records: int = 1000):
-        self._path = Path(path)
+    def __init__(self, source: Collection | str | Path, max_records: int = 1000,
+                 migrate_from: str | Path | None = None):
+        self._c = as_collection(source, "monitor")
         self._max_records = max_records
+        if migrate_from is not None:
+            self._migrate(Path(migrate_from))
 
-    def _load(self) -> list[MonitorRecord]:
-        if not self._path.exists():
-            return []
-        return [MonitorRecord.model_validate(item) for item in json.loads(self._path.read_text())]
+    def _migrate(self, path: Path) -> None:
+        if not path.exists() or not self._c.is_empty():
+            return
+        try:
+            items = json.loads(path.read_text())
+        except (OSError, ValueError):
+            return
+        self._c.replace_all([(uuid.uuid4().hex, r) for r in items])
+
+    def _all(self) -> list[MonitorRecord]:
+        return [MonitorRecord.model_validate(d) for d in self._c.all()]
 
     def records(self) -> list[MonitorRecord]:
-        return list(reversed(self._load()))
+        return list(reversed(self._all()))
 
     def seen_keys(self, search_name: str) -> set[str]:
         return {
             r.infohash or r.download_url
-            for r in self._load()
+            for r in self._all()
             if r.search == search_name
         }
 
     def add(self, record: MonitorRecord) -> None:
-        existing = self._load()
-        existing.append(record)
-        if self._max_records and len(existing) > self._max_records:
-            existing = existing[-self._max_records:]
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._path.with_name(self._path.name + ".tmp")
-        tmp.write_text(json.dumps([r.model_dump(mode="json") for r in existing], indent=2))
-        os.replace(tmp, self._path)
+        self._c.upsert(uuid.uuid4().hex, record.model_dump(mode="json"))
+        if self._max_records:
+            self._c.trim(self._max_records)

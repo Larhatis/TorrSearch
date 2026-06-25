@@ -13,14 +13,19 @@ def test_build_app_wires_context_history_and_bootstraps(tmp_path, monkeypatch):
         "    api_key: ${TORR9_API_KEY}\n"
         "    enabled: true\n"
     )
-    settings = tmp_path / "data" / "settings.json"
+    d = tmp_path / "data"
     app = main.build_app(
-        settings_path=str(settings),
+        settings_path=str(d / "settings.json"),
         bootstrap_config_path=str(config),
-        monitor_path=str(tmp_path / "data" / "monitor.json"),
+        monitor_path=str(d / "monitor.json"),
+        library_path=str(d / "library.json"),
+        series_path=str(d / "series.json"),
+        users_path=str(d / "users.json"),
+        requests_path=str(d / "requests.json"),
+        db_path=str(d / "torsearch.db"),
     )
     assert [ix.name for ix in app.state.ctx.search_service.indexers] == ["torr9"]
-    assert settings.exists()
+    assert app.state.ctx.config.indexers[0].api_key == "secret"  # persisted into the DB
     assert app.state.history is not None
     assert app.state.history.records() == []
     assert app.state.library is not None

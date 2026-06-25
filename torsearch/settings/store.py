@@ -1,32 +1,42 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 from torsearch.config import Config, load_config
+from torsearch.db.database import Collection, as_collection
 
 
 class SettingsStore:
     def __init__(
         self,
-        settings_path: str | Path,
+        source: Collection | str | Path,
         bootstrap_config_path: str | Path | None = None,
+        migrate_from: str | Path | None = None,
     ):
-        self._settings_path = Path(settings_path)
-        self._bootstrap_config_path = Path(bootstrap_config_path) if bootstrap_config_path else None
+        self._c = as_collection(source, "settings")
+        self._bootstrap = Path(bootstrap_config_path) if bootstrap_config_path else None
+        if migrate_from is not None:
+            self._migrate(Path(migrate_from))
+
+    def _migrate(self, path: Path) -> None:
+        if not path.exists() or not self._c.is_empty():
+            return
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, ValueError):
+            return
+        self._c.upsert("config", data)
 
     def load(self) -> Config:
-        if self._settings_path.exists():
-            return Config(**json.loads(self._settings_path.read_text()))
-        if self._bootstrap_config_path and self._bootstrap_config_path.exists():
-            config = load_config(self._bootstrap_config_path)
+        doc = self._c.get("config")
+        if doc is not None:
+            return Config(**doc)
+        if self._bootstrap and self._bootstrap.exists():
+            config = load_config(self._bootstrap)
             self.save(config)
             return config
         return Config()
 
     def save(self, config: Config) -> None:
-        self._settings_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._settings_path.with_name(self._settings_path.name + ".tmp")
-        tmp.write_text(config.model_dump_json(indent=2))
-        os.replace(tmp, self._settings_path)
+        self._c.upsert("config", config.model_dump(mode="json"))
