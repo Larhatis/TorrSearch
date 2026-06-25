@@ -24,6 +24,15 @@ def detect_quality(title: str) -> str:
     return "other"
 
 
+def quality_rank(title: str) -> int:
+    """Rank of a title's quality (0 = best, higher = worse; "other" is last)."""
+    label = detect_quality(title)
+    for i, (lbl, _) in enumerate(_QUALITY_PATTERNS):
+        if lbl == label:
+            return i
+    return len(_QUALITY_PATTERNS)
+
+
 class ResultFilters(BaseModel):
     min_seeders: int = 0
     min_size: int | None = None

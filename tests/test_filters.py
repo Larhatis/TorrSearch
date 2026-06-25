@@ -1,7 +1,13 @@
 from datetime import UTC, datetime
 
 from torsearch.models import Category, SearchResult
-from torsearch.search.filters import ResultFilters, apply, detect_quality
+from torsearch.search.filters import ResultFilters, apply, detect_quality, quality_rank
+
+
+def test_quality_rank_orders_best_first():
+    assert quality_rank("Movie.2160p") < quality_rank("Movie.1080p") < quality_rank("Movie.720p")
+    assert quality_rank("Movie.1080p") < quality_rank("Movie.no.quality")  # "other" is worst
+    assert quality_rank("Movie.4K") == quality_rank("Movie.2160p")
 
 
 def _r(title="X", size=1000, seeders=10, leechers=1, date=None):

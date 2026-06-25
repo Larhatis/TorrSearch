@@ -424,6 +424,28 @@ async def test_series_cycle_season_pack_covers_missing(tmp_path):
     assert lib.list()[0].grabbed == ["S02E01", "S02E02"]
 
 
+async def test_series_cycle_prefers_smaller_torrent_for_small_gap(tmp_path):
+    lib = _slib(tmp_path)
+    cfg = Config(monitor=MonitorConfig(enabled=True))
+    tr = FakeTransmission()
+    # Only S02E05 is missing (E01-E04 already in Jellyfin).
+    jf = FakeJellyfin(owned={"tv:1": "jf1"},
+                      episodes={"jf1": {"S02E01", "S02E02", "S02E03", "S02E04"}})
+    tmdb = FakeTmdb(episodes={1: {f"S02E0{n}" for n in range(1, 6)}})
+    results = [
+        SearchResult(title="Show.S02.COMPLETE.1080p", size=20_000_000_000, seeders=100,
+                     leechers=0, source="t", category=Category.TV,
+                     download_url="magnet:?P", infohash="P"),
+        SearchResult(title="Show.S02E05.1080p", size=500_000_000, seeders=40,
+                     leechers=0, source="t", category=Category.TV,
+                     download_url="magnet:?S", infohash="S"),
+    ]
+    created = await run_series_cycle(cfg, lib, FakeSearch(results), tr,
+                                     MonitorHistory(tmp_path / "m.json"), jellyfin=jf, tmdb=tmdb)
+    assert [r.title for r in created] == ["Show.S02E05.1080p"]  # the single, not the 20 GB pack
+    assert lib.list()[0].grabbed == ["S02E05"]
+
+
 # --- Improvement 1: re-grab failed downloads after cooldown ---
 
 from datetime import UTC, timedelta
@@ -548,5 +570,40 @@ async def test_movie_cycle_jellyfin_disabled_keeps_grabbed(tmp_path):
     tr = FakeTransmission()
     out = await run_movie_cycle(cfg, lib, FakeSearch([_r("Dune.2024.1080p", infohash="X")]),
                                 tr, MonitorHistory(tmp_path / "m.json"), jellyfin=None)
+    assert out == []
+    assert tr.added == []
+
+
+# --- Improvement R2: quality upgrades (movies, opt-in) ---
+
+async def test_movie_cycle_upgrades_quality_when_enabled(tmp_path):
+    lib = _lib(tmp_path)
+    lib.mark_grabbed(1, "Dune.2024.720p", MNOW)
+    cfg = Config(monitor=MonitorConfig(enabled=True), library=LibraryConfig(upgrades=True))
+    tr = FakeTransmission()
+    created = await run_movie_cycle(cfg, lib, FakeSearch([_r("Dune.2024.1080p", seeders=50, infohash="U")]),
+                                    tr, MonitorHistory(tmp_path / "m.json"))
+    assert [r.title for r in created] == ["Dune.2024.1080p"]
+    assert lib.list()[0].grabbed_title == "Dune.2024.1080p"
+
+
+async def test_movie_cycle_no_upgrade_when_disabled(tmp_path):
+    lib = _lib(tmp_path)
+    lib.mark_grabbed(1, "Dune.2024.720p", MNOW)
+    cfg = Config(monitor=MonitorConfig(enabled=True), library=LibraryConfig(upgrades=False))
+    tr = FakeTransmission()
+    out = await run_movie_cycle(cfg, lib, FakeSearch([_r("Dune.2024.1080p", infohash="U")]),
+                                tr, MonitorHistory(tmp_path / "m.json"))
+    assert out == []
+    assert lib.list()[0].grabbed_title == "Dune.2024.720p"
+
+
+async def test_movie_cycle_no_upgrade_when_not_better(tmp_path):
+    lib = _lib(tmp_path)
+    lib.mark_grabbed(1, "Dune.2024.1080p", MNOW)
+    cfg = Config(monitor=MonitorConfig(enabled=True), library=LibraryConfig(upgrades=True))
+    tr = FakeTransmission()
+    out = await run_movie_cycle(cfg, lib, FakeSearch([_r("Dune.2024.1080p", infohash="U")]),
+                                tr, MonitorHistory(tmp_path / "m.json"))
     assert out == []
     assert tr.added == []

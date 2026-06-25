@@ -86,6 +86,7 @@ class LibraryConfig(BaseModel):
 
     qualities: list[str] = Field(default_factory=lambda: ["2160p", "1080p"])
     min_seeders: int = 1
+    upgrades: bool = False
 
 
 class JellyfinConfig(BaseModel):

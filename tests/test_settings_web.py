@@ -24,6 +24,14 @@ def test_settings_page_renders_general_and_trackers(tmp_path):
     assert 'name="timeout_seconds"' in resp.text
 
 
+def test_library_update_sets_upgrades_toggle(tmp_path):
+    client, ctx, _ = _client(tmp_path)
+    client.post("/settings/library", data={"quality": ["1080p"], "min_seeders": "2", "upgrades": "on"})
+    assert ctx.config.library.upgrades is True
+    client.post("/settings/library", data={"quality": ["1080p"], "min_seeders": "2"})  # checkbox absent
+    assert ctx.config.library.upgrades is False
+
+
 def test_general_update_persists_and_reloads(tmp_path):
     client, ctx, _ = _client(tmp_path)
     resp = client.post("/settings/general", data={

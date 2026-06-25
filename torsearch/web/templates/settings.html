@@ -108,6 +108,8 @@
     </fieldset>
     <label class="text-xs text-slate-400">Seeders min<br>
       <input name="min_seeders" value="{{ config.library.min_seeders }}" class="mt-1 w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="flex items-center gap-1.5 text-xs text-slate-400" title="Re-telecharge un film en meilleure qualite quand une release superieure du profil apparait">
+      <input type="checkbox" name="upgrades" {% if config.library.upgrades %}checked{% endif %}> Upgrades de qualite (films)</label>
     <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
 </section>

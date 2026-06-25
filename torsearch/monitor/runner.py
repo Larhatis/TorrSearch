@@ -8,7 +8,7 @@ from torsearch.library.episodes import parse_episodes
 from torsearch.models import Category, SearchResult
 from torsearch.monitor.history import MonitorRecord
 from torsearch.notifications.notifier import Notifier
-from torsearch.search.filters import ResultFilters, apply
+from torsearch.search.filters import ResultFilters, apply, quality_rank
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +121,27 @@ def _movie_needs_grab(movie, jellyfin, owned_map, now, window) -> bool:
     return True
 
 
+async def _grab_movie(config, movie, pick, transmission, library, history, notifier, created) -> None:
+    try:
+        transmission.add(pick.download_url, download_dir=config.paths.for_category(Category.MOVIES))
+    except Exception as exc:
+        logger.warning("Movie grab '%s' failed: %s", movie.title, exc)
+        return
+    now = datetime.now(UTC)
+    library.mark_grabbed(movie.tmdb_id, pick.title, now)
+    record = MonitorRecord(
+        search=f"{movie.title} ({movie.year})", title=pick.title, source=pick.source,
+        infohash=pick.infohash, download_url=pick.download_url, kind="grabbed", at=now,
+    )
+    history.add(record)
+    created.append(record)
+    if notifier is not None:
+        try:
+            await notifier.notify(config.notifications, record)
+        except Exception as exc:
+            logger.warning("Movie notif '%s' failed: %s", movie.title, exc)
+
+
 async def run_movie_cycle(config, library, search_service, transmission, history,
                           notifier=None, jellyfin=None) -> list[MonitorRecord]:
     if not config.monitor.enabled or library is None:
@@ -135,8 +156,14 @@ async def run_movie_cycle(config, library, search_service, transmission, history
             logger.warning("Jellyfin owned() failed: %s", exc)
     now = datetime.now(UTC)
     window = timedelta(hours=config.monitor.regrab_hours)
+    filters = ResultFilters(
+        min_seeders=profile.min_seeders, qualities=profile.qualities,
+        sort="seeders", direction="desc",
+    )
     for movie in library.list():
-        if not _movie_needs_grab(movie, jellyfin, owned_map, now, window):
+        needs = _movie_needs_grab(movie, jellyfin, owned_map, now, window)
+        upgrade = not needs and profile.upgrades and movie.status == "grabbed"
+        if not needs and not upgrade:
             continue
         query = f"{movie.title} {movie.year or ''}".strip()
         try:
@@ -144,31 +171,18 @@ async def run_movie_cycle(config, library, search_service, transmission, history
         except Exception as exc:
             logger.warning("Movie search '%s' failed: %s", movie.title, exc)
             continue
-        filters = ResultFilters(
-            min_seeders=profile.min_seeders, qualities=profile.qualities,
-            sort="seeders", direction="desc",
-        )
-        pick = select_new(results, filters, set())
-        if pick is None:
-            continue
-        try:
-            transmission.add(pick.download_url, download_dir=config.paths.for_category(Category.MOVIES))
-        except Exception as exc:
-            logger.warning("Movie grab '%s' failed: %s", movie.title, exc)
-            continue
-        now = datetime.now(UTC)
-        library.mark_grabbed(movie.tmdb_id, pick.title, now)
-        record = MonitorRecord(
-            search=f"{movie.title} ({movie.year})", title=pick.title, source=pick.source,
-            infohash=pick.infohash, download_url=pick.download_url, kind="grabbed", at=now,
-        )
-        history.add(record)
-        created.append(record)
-        if notifier is not None:
-            try:
-                await notifier.notify(config.notifications, record)
-            except Exception as exc:
-                logger.warning("Movie notif '%s' failed: %s", movie.title, exc)
+        if needs:
+            pick = select_new(results, filters, set())
+            if pick is not None:
+                await _grab_movie(config, movie, pick, transmission, library, history, notifier, created)
+        else:
+            # Upgrade: grab a strictly better quality than what we already hold.
+            candidates = apply(results, filters)
+            if not candidates:
+                continue
+            best = min(candidates, key=lambda r: (quality_rank(r.title), -r.seeders))
+            if quality_rank(best.title) < quality_rank(movie.grabbed_title or ""):
+                await _grab_movie(config, movie, best, transmission, library, history, notifier, created)
     return created
 
 
@@ -256,8 +270,10 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             min_seeders=profile.min_seeders, qualities=profile.qualities,
             sort="seeders", direction="desc",
         ))
+        # Grab the smallest covering torrent first (seeders break ties): avoids pulling a
+        # whole-season pack just to fill one missing episode.
         newly: list[str] = []
-        for r in kept:
+        for r in sorted(kept, key=lambda x: (x.size, -x.seeders)):
             keys = parse_episodes(r.title)
             if not keys:
                 continue
