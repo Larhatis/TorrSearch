@@ -131,12 +131,14 @@ async def update_library(
     request: Request,
     quality: list[str] = Form(default=[]),
     min_seeders: str = Form("1"),
+    upgrades: str | None = Form(None),
 ):
     ctx: AppContext = request.app.state.ctx
     try:
         profile = LibraryConfig(
             qualities=[q for q in quality if q],
             min_seeders=int(min_seeders) if min_seeders.lstrip("-").isdigit() else 0,
+            upgrades=upgrades is not None,
         )
         ctx.update_settings(set_library(ctx.config, profile))
         return _toast(request, True, "Profil bibliotheque enregistre.")
