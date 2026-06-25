@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from fastapi.testclient import TestClient
 
 from torsearch.config import Config
+from torsearch.db.database import Database
 from torsearch.library.movies import MovieLibrary
 from torsearch.library.series import SeriesLibrary
 from torsearch.models import MediaResult, WantedMovie
@@ -42,7 +43,7 @@ class FakeCtx:
 
 
 def _client(tmp_path):
-    store = UserStore(tmp_path / "users.json")
+    store = UserStore(Database(tmp_path / "t.db").collection("users"))
     store.add("admin", "pw", Role.ADMIN)
     store.add("mem", "pw", Role.MEMBER)
     store.add("guest", "pw", Role.GUEST)

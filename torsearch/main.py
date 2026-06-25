@@ -6,6 +6,7 @@ import os
 from fastapi import FastAPI
 
 from torsearch.context import AppContext
+from torsearch.db.database import Database
 from torsearch.library.movies import MovieLibrary
 from torsearch.library.series import SeriesLibrary
 from torsearch.monitor.history import MonitorHistory
@@ -23,6 +24,7 @@ DEFAULT_LIBRARY_PATH = os.environ.get("TORSEARCH_LIBRARY", "data/library.json")
 DEFAULT_SERIES_PATH = os.environ.get("TORSEARCH_SERIES", "data/series.json")
 DEFAULT_USERS_PATH = os.environ.get("TORSEARCH_USERS", "data/users.json")
 DEFAULT_REQUESTS_PATH = os.environ.get("TORSEARCH_REQUESTS", "data/requests.json")
+DEFAULT_DB_PATH = os.environ.get("TORSEARCH_DB", "data/torsearch.db")
 
 logger = logging.getLogger(__name__)
 
@@ -46,15 +48,17 @@ def build_app(
     series_path: str = DEFAULT_SERIES_PATH,
     users_path: str = DEFAULT_USERS_PATH,
     requests_path: str = DEFAULT_REQUESTS_PATH,
+    db_path: str = DEFAULT_DB_PATH,
 ) -> FastAPI:
     store = SettingsStore(settings_path, bootstrap_config_path=bootstrap_config_path)
     ctx = AppContext(store)
+    db = Database(db_path)
     history = MonitorHistory(monitor_path)
     library = MovieLibrary(library_path)
     series_library = SeriesLibrary(series_path)
     monitor = MonitorRunner(ctx, history, library=library, series_library=series_library)
     auth = AuthSettings.from_env()
-    users = UserStore(users_path)
+    users = UserStore(db.collection("users"), migrate_from=users_path)
     if auth.enabled:
         _warn_if_weak_admin_password(auth.username, auth.password)
         if users.is_empty():

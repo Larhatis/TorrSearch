@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 from enum import Enum
 from pathlib import Path
 
 from pydantic import BaseModel
 
+from torsearch.db.database import Collection
 from torsearch.users.passwords import hash_password, verify_password
 
 
@@ -38,31 +38,33 @@ class UserError(Exception):
 
 
 class UserStore:
-    def __init__(self, path: str | Path):
-        self._path = Path(path)
+    def __init__(self, collection: Collection, migrate_from: str | Path | None = None):
+        self._c = collection
+        if migrate_from is not None:
+            self._migrate(Path(migrate_from))
 
-    def _load(self) -> list[User]:
-        if not self._path.exists():
-            return []
-        return [User.model_validate(u) for u in json.loads(self._path.read_text())]
-
-    def _save(self, users: list[User]) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._path.with_name(self._path.name + ".tmp")
-        tmp.write_text(json.dumps([u.model_dump(mode="json") for u in users], indent=2))
-        os.replace(tmp, self._path)
+    def _migrate(self, path: Path) -> None:
+        """One-time import of a legacy users.json into the (empty) SQLite collection."""
+        if not path.exists() or not self._c.is_empty():
+            return
+        try:
+            items = json.loads(path.read_text())
+        except (OSError, ValueError):
+            return
+        self._c.replace_all([(u["username"], u) for u in items if u.get("username")])
 
     def list(self) -> list[User]:
-        return self._load()
+        return [User.model_validate(d) for d in self._c.all()]
 
     def get(self, username: str) -> User | None:
-        return next((u for u in self._load() if u.username == username), None)
+        data = self._c.get(username)
+        return User.model_validate(data) if data else None
 
     def is_empty(self) -> bool:
-        return not self._load()
+        return self._c.is_empty()
 
-    def count_admins(self, users: list[User] | None = None) -> int:  # type: ignore[valid-type]  # `list` method shadows builtin
-        return sum(1 for u in (users if users is not None else self._load()) if u.role == Role.ADMIN)
+    def count_admins(self) -> int:
+        return sum(1 for u in self.list() if u.role == Role.ADMIN)
 
     def verify(self, username: str, password: str) -> User | None:
         user = self.get(username)
@@ -70,43 +72,37 @@ class UserStore:
             return user
         return None
 
+    def _put(self, user: User) -> None:
+        self._c.upsert(user.username, user.model_dump(mode="json"))
+
     def add(self, username: str, password: str, role: Role) -> User:
-        users = self._load()
-        if any(u.username == username for u in users):
+        if self.get(username) is not None:
             raise UserError(f"L'utilisateur « {username} » existe deja.")
         user = User(username=username, password_hash=hash_password(password), role=Role(role))
-        users.append(user)
-        self._save(users)
+        self._put(user)
         return user
 
     def remove(self, username: str) -> None:
-        users = self._load()
-        target = next((u for u in users if u.username == username), None)
+        target = self.get(username)
         if target is None:
             return
-        if target.role == Role.ADMIN and self.count_admins(users) <= 1:
+        if target.role == Role.ADMIN and self.count_admins() <= 1:
             raise UserError("Impossible de supprimer le dernier administrateur.")
-        self._save([u for u in users if u.username != username])
+        self._c.delete(username)
 
     def set_role(self, username: str, role: Role) -> None:
-        users = self._load()
         role = Role(role)
-        target = next((u for u in users if u.username == username), None)
+        target = self.get(username)
         if target is None:
             raise UserError(f"Utilisateur « {username} » introuvable.")
-        if target.role == Role.ADMIN and role != Role.ADMIN and self.count_admins(users) <= 1:
+        if target.role == Role.ADMIN and role != Role.ADMIN and self.count_admins() <= 1:
             raise UserError("Impossible de retrograder le dernier administrateur.")
-        for i, u in enumerate(users):
-            if u.username == username:
-                users[i] = u.model_copy(update={"role": role})
-        self._save(users)
+        self._put(target.model_copy(update={"role": role}))
 
     def set_password(self, username: str, password: str) -> None:
-        users = self._load()
-        for i, u in enumerate(users):
-            if u.username == username:
-                users[i] = u.model_copy(update={"password_hash": hash_password(password)})
-        self._save(users)
+        target = self.get(username)
+        if target is not None:
+            self._put(target.model_copy(update={"password_hash": hash_password(password)}))
 
     def bootstrap_admin(self, username: str, password: str) -> bool:
         if not self.is_empty():

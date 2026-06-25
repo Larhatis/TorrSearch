@@ -1,5 +1,8 @@
+import json
+
 import pytest
 
+from torsearch.db.database import Database
 from torsearch.users.passwords import hash_password, verify_password
 from torsearch.users.store import Role, UserError, UserStore
 
@@ -27,7 +30,7 @@ def test_verify_rejects_malformed_hash():
 # --- store ---
 
 def _store(tmp_path):
-    return UserStore(tmp_path / "users.json")
+    return UserStore(Database(tmp_path / "t.db").collection("users"))
 
 
 def test_add_get_and_verify(tmp_path):
@@ -40,10 +43,11 @@ def test_add_get_and_verify(tmp_path):
 
 
 def test_password_is_hashed_on_disk(tmp_path):
-    s = _store(tmp_path)
-    s.add("bob", "plaintext", Role.GUEST)
-    raw = (tmp_path / "users.json").read_text()
-    assert "plaintext" not in raw
+    db = Database(tmp_path / "t.db")
+    UserStore(db.collection("users")).add("bob", "plaintext", Role.GUEST)
+    stored = db.collection("users").get("bob")
+    assert stored["password_hash"] != "plaintext"
+    assert "plaintext" not in json.dumps(stored)
 
 
 def test_add_duplicate_raises(tmp_path):
@@ -96,8 +100,17 @@ def test_set_password_changes_verification(tmp_path):
 
 
 def test_persistence_round_trip(tmp_path):
-    path = tmp_path / "users.json"
-    UserStore(path).add("bob", "pw", Role.MEMBER)
-    again = UserStore(path)
+    path = tmp_path / "t.db"
+    UserStore(Database(path).collection("users")).add("bob", "pw", Role.MEMBER)
+    again = UserStore(Database(path).collection("users"))
     assert again.get("bob").role == Role.MEMBER
-    assert not path.with_name(path.name + ".tmp").exists()
+
+
+def test_migrates_legacy_json(tmp_path):
+    legacy = tmp_path / "users.json"
+    legacy.write_text(json.dumps([{"username": "old", "password_hash": "x", "role": "admin"}]))
+    store = UserStore(Database(tmp_path / "t.db").collection("users"), migrate_from=legacy)
+    assert store.get("old").role == Role.ADMIN
+    # migration only runs into an empty collection -> no duplication on re-open
+    again = UserStore(Database(tmp_path / "t.db").collection("users"), migrate_from=legacy)
+    assert again.count_admins() == 1
