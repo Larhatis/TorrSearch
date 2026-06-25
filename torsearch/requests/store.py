@@ -51,6 +51,9 @@ class RequestStore:
     def pending(self) -> list[MediaRequest]:
         return [r for r in self.list() if r.status == RequestStatus.PENDING]
 
+    def for_user(self, username: str) -> list[MediaRequest]:
+        return [r for r in self.list() if r.username == username]
+
     def count_pending(self) -> int:
         return sum(1 for r in self._load() if r.status == RequestStatus.PENDING)
 

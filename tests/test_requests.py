@@ -53,3 +53,12 @@ def test_persistence_round_trip(tmp_path):
     rid = RequestStore(path).add("bob", "movie", 5, "Y", None, None).id
     assert RequestStore(path).get(rid).username == "bob"
     assert not path.with_name(path.name + ".tmp").exists()
+
+
+def test_for_user_returns_only_that_user_newest_first(tmp_path):
+    s = _store(tmp_path)
+    s.add("bob", "movie", 1, "A", None, None)
+    s.add("alice", "movie", 2, "B", None, None)
+    s.add("bob", "tv", 3, "C", None, None)
+    assert [r.title for r in s.for_user("bob")] == ["C", "A"]
+    assert [r.title for r in s.for_user("alice")] == ["B"]

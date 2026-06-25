@@ -37,11 +37,10 @@ class Notifier:
             return
         response.raise_for_status()
 
-    async def notify(self, channels: list[NotificationChannel], record: MonitorRecord) -> None:
+    async def notify_message(self, channels: list[NotificationChannel], title: str, body: str) -> None:
         active = [c for c in channels if c.enabled]
         if not active:
             return
-        title, body = format_record(record)
         client = self._client_factory(timeout=self._timeout)
         try:
             for channel in active:
@@ -51,6 +50,10 @@ class Notifier:
                     logger.warning("Notification to '%s' failed: %s", channel.name, exc)
         finally:
             await client.aclose()
+
+    async def notify(self, channels: list[NotificationChannel], record: MonitorRecord) -> None:
+        title, body = format_record(record)
+        await self.notify_message(channels, title, body)
 
     async def test(self, channel: NotificationChannel) -> tuple[bool, str]:
         client = self._client_factory(timeout=self._timeout)

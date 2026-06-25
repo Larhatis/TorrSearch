@@ -69,6 +69,20 @@ async def test_notify_skips_disabled_and_survives_failure():
     assert not o.called
 
 
+async def test_notify_message_posts_custom_title_body():
+    ch = NotificationChannel(name="w", type="webhook", url="https://my/hook")
+    with respx.mock:
+        route = respx.post("https://my/hook").mock(return_value=httpx.Response(200))
+        await Notifier().notify_message([ch], "Nouvelle demande", "Matrix (bob)")
+    body = route.calls.last.request.content
+    assert b"Nouvelle demande" in body and b"Matrix" in body
+
+
+async def test_notify_message_noop_without_channels():
+    # must not raise and not attempt any HTTP call
+    await Notifier().notify_message([], "t", "b")
+
+
 async def test_test_returns_ok_then_error():
     ch = NotificationChannel(name="d", type="discord", url="https://discord/webhook")
     with respx.mock:

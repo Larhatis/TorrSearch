@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
 from torsearch.models import WantedMovie, WantedSeries
+from torsearch.notifications.notifier import Notifier
 from torsearch.requests.store import RequestStatus
 from torsearch.web.authz import require_admin
 from torsearch.web.templating import templates
@@ -46,8 +47,28 @@ async def create_request(
     store = request.app.state.requests
     if store is None:
         return _toast(request, False, "Demandes indisponibles.")
-    store.add(_current_user(request), media_type, tmdb_id, title, year or None, poster_path or None)
+    user = _current_user(request)
+    store.add(user, media_type, tmdb_id, title, year or None, poster_path or None)
+    await _ping_admin(request, title, year, user)
     return _toast(request, True, "Demande envoyee — l'admin la validera.")
+
+
+async def _ping_admin(request: Request, title: str, year: str, user: str) -> None:
+    try:
+        channels = request.app.state.ctx.config.notifications
+        label = f"{title} ({year})" if year else title
+        await Notifier().notify_message(channels, "TorrSearch - nouvelle demande", f"{label} demande par {user}")
+    except Exception:  # best-effort: a notification failure must not break the request
+        pass
+
+
+@requests_router.get("/requests/mine", response_class=HTMLResponse)
+async def my_requests_page(request: Request):
+    store = request.app.state.requests
+    return templates.TemplateResponse(
+        request, "my_requests.html",
+        {"requests": store.for_user(_current_user(request)) if store else []},
+    )
 
 
 @requests_router.get("/requests", response_class=HTMLResponse, dependencies=[Depends(require_admin)])

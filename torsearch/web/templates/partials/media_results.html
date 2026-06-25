@@ -9,11 +9,16 @@
       {% if m.poster_url %}<img src="{{ m.poster_url }}" alt="{{ m.title }}" class="absolute inset-0 h-full w-full object-cover" loading="lazy" onerror="this.remove()">{% endif %}
     </div>
     <div class="p-2.5">
-      {% set jf = (owned or {}).get(m.media_type ~ ':' ~ m.tmdb_id) %}
-      <div class="flex items-center gap-1.5">
+      {% set key = m.media_type ~ ':' ~ m.tmdb_id %}
+      {% set jf = (owned or {}).get(key) %}
+      {% set in_lib = key in (in_library or []) %}
+      {% set req = key in (requested or []) %}
+      <div class="flex flex-wrap items-center gap-1.5">
         <span class="rounded px-1.5 py-0.5 text-[10px] {{ 'bg-sky-500/15 text-sky-300' if m.media_type == 'movie' else 'bg-violet-500/15 text-violet-300' }}">{{ 'Film' if m.media_type == 'movie' else 'Serie' }}</span>
         {% if m.year %}<span class="text-[11px] text-slate-500">{{ m.year }}</span>{% endif %}
-        {% if jf %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-green-500/15 text-green-300">Dans Jellyfin</span>{% endif %}
+        {% if jf %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-green-500/15 text-green-300">Dans Jellyfin</span>
+        {% elif in_lib %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-green-500/15 text-green-300">Dans la bibliotheque</span>
+        {% elif req %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-amber-500/15 text-amber-300">Demande</span>{% endif %}
       </div>
       <div class="mt-1 truncate text-sm text-slate-100" title="{{ m.title }}">{{ m.title }}</div>
       {% if jf %}
@@ -28,6 +33,7 @@
               class="mt-2 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
         <i class="ti ti-download"></i> Torrents
       </button>
+      {% if not in_lib %}
       {% if m.media_type == 'movie' %}
       <button hx-post="/library/add" hx-target="#toast"
               hx-vals='{{ {"tmdb_id": m.tmdb_id, "title": m.title, "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
@@ -41,7 +47,8 @@
         <i class="ti ti-bookmark-plus"></i> Suivre
       </button>
       {% endif %}
-      {% else %}
+      {% endif %}
+      {% elif not in_lib and not req %}
       <button hx-post="/requests" hx-target="#toast"
               hx-vals='{{ {"media_type": m.media_type, "tmdb_id": m.tmdb_id, "title": m.title, "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
               class="mt-2 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
