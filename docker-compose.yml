@@ -1,9 +1,12 @@
 services:
   torsearch:
-    build: .
+    image: ghcr.io/larhatis/torrsearch:latest
+    # Pour developper depuis les sources, remplace la ligne `image:` par : build: .
     container_name: torsearch
     ports:
       - "8080:8000"
+    env_file:
+      - .env  # TORSEARCH_USERNAME/PASSWORD, TMDB_API_KEY, ... (cf. .env.example)
     environment:
       - TORSEARCH_SETTINGS=/data/settings.json
       - TORSEARCH_MONITOR=/data/monitor.json

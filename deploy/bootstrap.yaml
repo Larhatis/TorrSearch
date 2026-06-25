@@ -3,3 +3,6 @@
 transmission:
   host: transmission
   port: 9091
+metadata:
+  # Interpole la variable d'environnement TMDB_API_KEY (vide = decouverte desactivee).
+  tmdb_api_key: ${TMDB_API_KEY}

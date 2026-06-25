@@ -3,6 +3,7 @@
 ![CI](https://github.com/Larhatis/TorrSearch/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.12+-blue)
 [![Ruff](https://img.shields.io/badge/lint-ruff-261230)](https://github.com/astral-sh/ruff)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 Recherche un film ou une serie sur **plusieurs trackers Torznab a la fois** et envoie le
 resultat choisi a **Transmission** — depuis une interface web. Une alternative legere et
@@ -28,11 +29,13 @@ Pre-requis : Docker + Docker Compose.
 ```bash
 git clone https://github.com/Larhatis/TorrSearch.git
 cd TorrSearch
+cp .env.example .env        # renseigne login/mot de passe admin + cle TMDB (optionnel)
 docker compose up -d
 ```
 
-Ouvre **http://localhost:8080**. L'app demarre **vide** : va dans **Reglages** pour ajouter tes
-trackers (URL Torznab + passkey). Transmission est inclus dans le compose et deja branche.
+Le compose tire l'image publiee `ghcr.io/larhatis/torrsearch`. Ouvre **http://localhost:8080**.
+L'app demarre **vide** : va dans **Reglages** pour ajouter tes trackers (URL Torznab + passkey).
+Transmission est inclus dans le compose et deja branche.
 
 > Tu as deja ton propre Transmission ? Dans **Reglages → Transmission**, remplace l'hote
 > `transmission` par l'adresse de ton instance (et retire le service `transmission` du
@@ -46,6 +49,16 @@ trackers (URL Torznab + passkey). Transmission est inclus dans le compose et dej
 - **Jellyfin (optionnel)** : Reglages → URL + cle API. TorrSearch marque alors les medias deja presents dans ton Jellyfin et propose un lien de lecture (Jellyfin reste ton serveur media).
 - **Auth & utilisateurs (optionnel)** : definis `TORSEARCH_USERNAME` et `TORSEARCH_PASSWORD` pour exiger un login (desactive si l'une manque). Ce compte devient l'**administrateur** au premier demarrage. L'admin gere ensuite les autres comptes dans Reglages → **Utilisateurs**, avec trois roles : **admin** (tout), **membre** (recherche manuelle + ajout direct), **invite** (parcourir et demander). Les demandes des invites arrivent dans l'ecran **Demandes** ou l'admin approuve (ajout a la bibliotheque) ou refuse. Mots de passe stockes hashes dans `data/users.json`, demandes dans `data/requests.json`. Voir `.env.example`.
 - Toute la config est persistee dans `data/settings.json` (volume, jamais versionne) ; les bibliotheques dans `data/library.json` (films) et `data/series.json` (series).
+
+## Securite & exposition
+
+- TorrSearch **ne fait pas le TLS** : si tu l'exposes hors de ton reseau local, place-le
+  **derriere un reverse proxy HTTPS** (Caddy, Traefik, Nginx Proxy Manager…) et mets
+  `TORSEARCH_HTTPS=1` pour que le cookie de session soit `Secure`.
+- **Active l'auth** (`TORSEARCH_USERNAME`/`PASSWORD`) avant toute exposition, et choisis un
+  **mot de passe fort** (l'app previent au demarrage si le mot de passe admin est trivial).
+- Le login est protege par un **throttle** (blocage temporaire apres plusieurs echecs) et
+  l'app envoie des en-tetes de securite de base. Le conteneur tourne en **non-root**.
 
 ## Developpement
 
