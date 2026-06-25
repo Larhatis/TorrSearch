@@ -1,0 +1,22 @@
+<div id="user-list" class="space-y-2">
+  {% if error %}<p class="rounded-lg border border-red-500/40 bg-red-500/15 px-3 py-2 text-xs text-red-300">{{ error }}</p>{% endif %}
+  {% if notice %}<p class="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">{{ notice }}</p>{% endif %}
+  {% for u in users %}
+  <div class="flex flex-wrap items-center gap-2 rounded border border-slate-700 bg-slate-800 px-3 py-2">
+    <i class="ti ti-user text-slate-500"></i>
+    <span class="text-sm text-white">{{ u.username }}</span>
+    <form hx-post="/settings/users/{{ u.username }}/role" hx-target="#user-list" hx-swap="outerHTML"
+          class="ml-auto flex items-center gap-1">
+      <select name="role" class="rounded bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-slate-300">
+        <option value="guest" {% if u.role.value == 'guest' %}selected{% endif %}>Invite</option>
+        <option value="member" {% if u.role.value == 'member' %}selected{% endif %}>Membre</option>
+        <option value="admin" {% if u.role.value == 'admin' %}selected{% endif %}>Admin</option>
+      </select>
+      <button class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:text-emerald-400">Changer</button>
+    </form>
+    <form hx-post="/settings/users/{{ u.username }}/delete" hx-target="#user-list" hx-swap="outerHTML">
+      <button class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:text-red-400"><i class="ti ti-trash"></i></button>
+    </form>
+  </div>
+  {% endfor %}
+</div>

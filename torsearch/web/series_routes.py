@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
 from torsearch.models import WantedSeries
+from torsearch.web.authz import require_member
 from torsearch.web.templating import templates
 
 series_router = APIRouter()
 
 
-@series_router.post("/series/add", response_class=HTMLResponse)
+@series_router.post("/series/add", response_class=HTMLResponse, dependencies=[Depends(require_member)])
 async def series_add(
     request: Request,
     tmdb_id: int = Form(...),
@@ -28,7 +29,7 @@ async def series_add(
     return templates.TemplateResponse(request, "partials/toast.html", {"ok": True, "message": message})
 
 
-@series_router.post("/series/{tmdb_id}/remove", response_class=HTMLResponse)
+@series_router.post("/series/{tmdb_id}/remove", response_class=HTMLResponse, dependencies=[Depends(require_member)])
 async def series_remove(request: Request, tmdb_id: int):
     series_library = request.app.state.series_library
     series_library.remove(tmdb_id)

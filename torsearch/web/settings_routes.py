@@ -9,6 +9,7 @@ from torsearch.context import AppContext
 from torsearch.indexers.torznab import TorznabIndexer
 from torsearch.models import Category
 from torsearch.notifications.notifier import Notifier
+from torsearch.users.store import Role, UserError
 from torsearch.settings.mutations import (
     SettingsError,
     add_channel,
@@ -42,9 +43,57 @@ def _list(request: Request, ctx: AppContext, error: str | None = None, notice: s
 @settings_router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     ctx: AppContext = request.app.state.ctx
+    users = getattr(request.app.state, "users", None)
     return templates.TemplateResponse(
-        request, "settings.html", {"config": ctx.config, "indexers": ctx.config.indexers, "channels": ctx.config.notifications, "categories": list(Category)}
+        request, "settings.html", {
+            "config": ctx.config, "indexers": ctx.config.indexers,
+            "channels": ctx.config.notifications, "categories": list(Category),
+            "users": users.list() if users else [],
+        }
     )
+
+
+def _user_list(request: Request, error: str | None = None, notice: str | None = None):
+    users = getattr(request.app.state, "users", None)
+    return templates.TemplateResponse(
+        request, "partials/user_list.html",
+        {"users": users.list() if users else [], "error": error, "notice": notice},
+    )
+
+
+@settings_router.post("/settings/users", response_class=HTMLResponse)
+async def add_user_route(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    role: str = Form("guest"),
+):
+    users = request.app.state.users
+    try:
+        users.add(username.strip(), password, Role(role))
+        return _user_list(request, notice=f"Utilisateur « {username} » ajoute.")
+    except (UserError, ValueError) as exc:
+        return _user_list(request, error=f"Erreur : {exc}")
+
+
+@settings_router.post("/settings/users/{username}/role", response_class=HTMLResponse)
+async def set_user_role_route(request: Request, username: str, role: str = Form(...)):
+    users = request.app.state.users
+    try:
+        users.set_role(username, Role(role))
+        return _user_list(request, notice="Role mis a jour.")
+    except (UserError, ValueError) as exc:
+        return _user_list(request, error=f"Erreur : {exc}")
+
+
+@settings_router.post("/settings/users/{username}/delete", response_class=HTMLResponse)
+async def delete_user_route(request: Request, username: str):
+    users = request.app.state.users
+    try:
+        users.remove(username)
+        return _user_list(request, notice=f"Utilisateur « {username} » supprime.")
+    except UserError as exc:
+        return _user_list(request, error=f"Erreur : {exc}")
 
 
 @settings_router.post("/settings/general", response_class=HTMLResponse)
