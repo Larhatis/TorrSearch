@@ -1,9 +1,11 @@
+from datetime import datetime, timezone
+
 from fastapi.testclient import TestClient
 
 from torsearch.config import Config
 from torsearch.library.movies import MovieLibrary
 from torsearch.library.series import SeriesLibrary
-from torsearch.models import MediaResult
+from torsearch.models import MediaResult, WantedMovie
 from torsearch.requests.store import RequestStatus, RequestStore
 from torsearch.search.service import SearchService
 from torsearch.users.store import Role, UserStore
@@ -137,3 +139,41 @@ def test_nav_hides_requests_from_guest(tmp_path):
     _login(client, "guest")
     html = client.get("/discover").text
     assert 'href="/requests"' not in html
+
+
+def test_guest_sees_own_requests_with_status(tmp_path):
+    client, store, _ = _client(tmp_path)
+    store.add("guest", "movie", 603, "The Matrix", "1999", None)
+    store.add("other", "tv", 1399, "GoT", "2011", None)
+    _login(client, "guest")
+    html = client.get("/requests/mine").text
+    assert "The Matrix" in html
+    assert "En attente" in html
+    assert "GoT" not in html  # not this user's request
+
+
+def test_nav_shows_my_requests_for_guest_not_admin(tmp_path):
+    client, _, _ = _client(tmp_path)
+    _login(client, "guest")
+    assert 'href="/requests/mine"' in client.get("/discover").text
+    _login(client, "admin")
+    assert 'href="/requests/mine"' not in client.get("/").text
+
+
+def test_discover_shows_in_library_badge_and_hides_button(tmp_path):
+    client, _, library = _client(tmp_path)
+    library.add(WantedMovie(tmdb_id=603, title="The Matrix", year="1999",
+                            added_at=datetime(2026, 1, 1, tzinfo=timezone.utc)))
+    _login(client, "guest")
+    html = client.get("/discover/trending").text
+    assert "Dans la bibliotheque" in html
+    assert "Demander" not in html
+
+
+def test_discover_shows_requested_badge_and_hides_button(tmp_path):
+    client, store, _ = _client(tmp_path)
+    store.add("guest", "movie", 603, "The Matrix", "1999", None)
+    _login(client, "guest")
+    html = client.get("/discover/trending").text
+    assert "Demande" in html
+    assert "Demander" not in html
