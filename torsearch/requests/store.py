@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 
@@ -48,10 +48,10 @@ class RequestStore:
     def list(self) -> list[MediaRequest]:
         return list(reversed(self._load()))
 
-    def pending(self) -> list[MediaRequest]:
+    def pending(self) -> list[MediaRequest]:  # type: ignore[valid-type]  # `list` method shadows builtin
         return [r for r in self.list() if r.status == RequestStatus.PENDING]
 
-    def for_user(self, username: str) -> list[MediaRequest]:
+    def for_user(self, username: str) -> list[MediaRequest]:  # type: ignore[valid-type]
         return [r for r in self.list() if r.username == username]
 
     def count_pending(self) -> int:
@@ -74,7 +74,7 @@ class RequestStore:
         request = MediaRequest(
             id=uuid.uuid4().hex, username=username, media_type=media_type,
             tmdb_id=tmdb_id, title=title, year=year, poster_path=poster_path,
-            requested_at=datetime.now(timezone.utc),
+            requested_at=datetime.now(UTC),
         )
         items.append(request)
         self._save(items)
@@ -88,7 +88,7 @@ class RequestStore:
             if r.id == request_id:
                 updated = r.model_copy(update={
                     "status": status,
-                    "decided_at": datetime.now(timezone.utc),
+                    "decided_at": datetime.now(UTC),
                     "decided_by": decided_by,
                 })
                 items[i] = updated

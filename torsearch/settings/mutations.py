@@ -1,6 +1,17 @@
 from __future__ import annotations
 
-from torsearch.config import Config, IndexerConfig, JellyfinConfig, LibraryConfig, MonitorConfig, NotificationChannel, PathsConfig, SavedSearch, SearchConfig, TransmissionConfig
+from torsearch.config import (
+    Config,
+    IndexerConfig,
+    JellyfinConfig,
+    LibraryConfig,
+    MonitorConfig,
+    NotificationChannel,
+    PathsConfig,
+    SavedSearch,
+    SearchConfig,
+    TransmissionConfig,
+)
 
 
 class SettingsError(Exception):

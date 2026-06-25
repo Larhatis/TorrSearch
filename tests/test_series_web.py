@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -8,7 +8,7 @@ from torsearch.library.series import SeriesLibrary
 from torsearch.models import MediaResult, WantedSeries
 from torsearch.web.routes import create_app
 
-NOW = datetime(2026, 6, 21, tzinfo=timezone.utc)
+NOW = datetime(2026, 6, 21, tzinfo=UTC)
 
 
 class FakeTmdb:

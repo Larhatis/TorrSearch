@@ -50,8 +50,6 @@ def test_general_update_rejects_bad_port(tmp_path):
 import httpx
 import respx
 
-from torsearch.config import IndexerConfig
-
 
 def test_add_indexer_appears_in_list_and_config(tmp_path):
     client, ctx, _ = _client(tmp_path)

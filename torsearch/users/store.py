@@ -61,7 +61,7 @@ class UserStore:
     def is_empty(self) -> bool:
         return not self._load()
 
-    def count_admins(self, users: list[User] | None = None) -> int:
+    def count_admins(self, users: list[User] | None = None) -> int:  # type: ignore[valid-type]  # `list` method shadows builtin
         return sum(1 for u in (users if users is not None else self._load()) if u.role == Role.ADMIN)
 
     def verify(self, username: str, password: str) -> User | None:

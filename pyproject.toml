@@ -21,6 +21,8 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "respx>=0.21",
+    "ruff>=0.6",
+    "mypy>=1.11",
 ]
 
 [build-system]
@@ -33,3 +35,28 @@ include = ["torsearch*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+# B008: FastAPI relies on Form()/Query()/Depends() as argument defaults by design.
+# UP042: `class X(str, Enum)` is intentional (code depends on str behaviour); StrEnum
+# would subtly change str() semantics.
+ignore = ["B008", "UP042"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests group imports near their sections and keep some long literal lines.
+"tests/**" = ["E402", "E501"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+files = ["torsearch"]
+# Pragmatic: catch real errors without forcing full annotation of an existing codebase.
+check_untyped_defs = true
+plugins = ["pydantic.mypy"]
+# prop-decorator: mypy can't model pydantic's @computed_field stacked on @property.
+disable_error_code = ["prop-decorator"]

@@ -110,3 +110,18 @@ def test_admin_allowed_everywhere(tmp_path):
     assert client.get("/settings").status_code == 200
     assert client.get("/surveillance").status_code == 200
     assert client.get("/search", params={"q": "x"}).status_code == 200
+
+
+def test_guest_redirected_to_discover_after_login(tmp_path):
+    client = _client(tmp_path)
+    resp = client.post("/login", data={"username": "guest", "password": "pw", "next": "/"},
+                       follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/discover"
+
+
+def test_member_lands_on_home_after_login(tmp_path):
+    client = _client(tmp_path)
+    resp = client.post("/login", data={"username": "mem", "password": "pw", "next": "/"},
+                       follow_redirects=False)
+    assert resp.headers["location"] == "/"

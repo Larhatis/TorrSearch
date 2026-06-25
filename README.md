@@ -1,6 +1,8 @@
 # TorrSearch
 
 ![CI](https://github.com/Larhatis/TorrSearch/actions/workflows/ci.yml/badge.svg)
+![Python](https://img.shields.io/badge/python-3.12+-blue)
+[![Ruff](https://img.shields.io/badge/lint-ruff-261230)](https://github.com/astral-sh/ruff)
 
 Recherche un film ou une serie sur **plusieurs trackers Torznab a la fois** et envoie le
 resultat choisi a **Transmission** — depuis une interface web. Une alternative legere et

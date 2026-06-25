@@ -43,14 +43,14 @@ def test_media_result_poster_url_none_without_path():
     assert m.poster_url is None
 
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from torsearch.models import WantedMovie
 
 
 def test_wanted_movie_defaults_and_poster_url():
     m = WantedMovie(tmdb_id=1, title="Dune", year="2024", poster_path="/p.jpg",
-                    added_at=datetime(2026, 6, 20, tzinfo=timezone.utc))
+                    added_at=datetime(2026, 6, 20, tzinfo=UTC))
     assert m.status == "wanted"
     assert m.grabbed_at is None
     assert m.poster_url == "https://image.tmdb.org/t/p/w342/p.jpg"
@@ -61,6 +61,6 @@ from torsearch.models import WantedSeries
 
 def test_wanted_series_defaults_and_poster_url():
     s = WantedSeries(tmdb_id=1, title="Show", year="2024", poster_path="/s.jpg",
-                     added_at=datetime(2026, 6, 21, tzinfo=timezone.utc))
+                     added_at=datetime(2026, 6, 21, tzinfo=UTC))
     assert s.grabbed == []
     assert s.poster_url == "https://image.tmdb.org/t/p/w342/s.jpg"

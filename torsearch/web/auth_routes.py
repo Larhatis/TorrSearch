@@ -54,7 +54,10 @@ async def login_submit(
     if role is not None:
         request.session["user"] = username
         request.session["role"] = role
-        return RedirectResponse(_safe_next(next), status_code=303)
+        target = _safe_next(next)
+        if role == "guest" and target == "/":
+            target = "/discover"  # guests can't use the search home
+        return RedirectResponse(target, status_code=303)
     return templates.TemplateResponse(
         request,
         "login.html",

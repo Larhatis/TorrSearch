@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -163,7 +163,7 @@ def test_nav_shows_my_requests_for_guest_not_admin(tmp_path):
 def test_discover_shows_in_library_badge_and_hides_button(tmp_path):
     client, _, library = _client(tmp_path)
     library.add(WantedMovie(tmdb_id=603, title="The Matrix", year="1999",
-                            added_at=datetime(2026, 1, 1, tzinfo=timezone.utc)))
+                            added_at=datetime(2026, 1, 1, tzinfo=UTC)))
     _login(client, "guest")
     html = client.get("/discover/trending").text
     assert "Dans la bibliotheque" in html

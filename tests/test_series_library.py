@@ -1,9 +1,9 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from torsearch.library.series import SeriesLibrary
 from torsearch.models import WantedSeries
 
-NOW = datetime(2026, 6, 21, tzinfo=timezone.utc)
+NOW = datetime(2026, 6, 21, tzinfo=UTC)
 
 
 def _series(tmdb_id=1, title="Show"):

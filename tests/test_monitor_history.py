@@ -1,11 +1,11 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from torsearch.monitor.history import MonitorHistory, MonitorRecord
 
 
 def _rec(search="s", title="T", infohash="H", url="magnet:?xt=urn:btih:H", kind="grabbed"):
     return MonitorRecord(search=search, title=title, source="src", infohash=infohash,
-                         download_url=url, kind=kind, at=datetime(2024, 1, 1, tzinfo=timezone.utc))
+                         download_url=url, kind=kind, at=datetime(2024, 1, 1, tzinfo=UTC))
 
 
 def test_records_empty_when_no_file(tmp_path):

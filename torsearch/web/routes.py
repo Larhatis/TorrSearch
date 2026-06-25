@@ -9,15 +9,15 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from torsearch.context import AppContext
 from torsearch.models import Category
-from torsearch.web.auth import AuthMiddleware, AuthSettings
-from torsearch.web.authz import require_admin, require_member
-from torsearch.web.auth_routes import auth_router
-from torsearch.web.discover_routes import discover_router
-from torsearch.web.library_routes import library_router
-from torsearch.web.series_routes import series_router
 from torsearch.search.filters import VALID_DIRECTIONS, VALID_SORTS, ResultFilters, apply
+from torsearch.web.auth import AuthMiddleware, AuthSettings
+from torsearch.web.auth_routes import auth_router
+from torsearch.web.authz import require_admin, require_member
+from torsearch.web.discover_routes import discover_router
 from torsearch.web.downloads_routes import downloads_router
+from torsearch.web.library_routes import library_router
 from torsearch.web.requests_routes import requests_router
+from torsearch.web.series_routes import series_router
 from torsearch.web.settings_routes import settings_router
 from torsearch.web.surveillance_routes import surveillance_router
 from torsearch.web.templating import templates
