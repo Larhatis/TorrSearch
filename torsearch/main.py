@@ -50,12 +50,13 @@ def build_app(
     requests_path: str = DEFAULT_REQUESTS_PATH,
     db_path: str = DEFAULT_DB_PATH,
 ) -> FastAPI:
-    store = SettingsStore(settings_path, bootstrap_config_path=bootstrap_config_path)
-    ctx = AppContext(store)
     db = Database(db_path)
-    history = MonitorHistory(monitor_path)
-    library = MovieLibrary(library_path)
-    series_library = SeriesLibrary(series_path)
+    store = SettingsStore(db.collection("settings"), bootstrap_config_path=bootstrap_config_path,
+                          migrate_from=settings_path)
+    ctx = AppContext(store)
+    history = MonitorHistory(db.collection("monitor"), migrate_from=monitor_path)
+    library = MovieLibrary(db.collection("movies"), migrate_from=library_path)
+    series_library = SeriesLibrary(db.collection("series"), migrate_from=series_path)
     monitor = MonitorRunner(ctx, history, library=library, series_library=series_library)
     auth = AuthSettings.from_env()
     users = UserStore(db.collection("users"), migrate_from=users_path)
@@ -63,7 +64,7 @@ def build_app(
         _warn_if_weak_admin_password(auth.username, auth.password)
         if users.is_empty():
             users.bootstrap_admin(auth.username, auth.password)
-    requests_store = RequestStore(requests_path)
+    requests_store = RequestStore(db.collection("requests"), migrate_from=requests_path)
     return create_app(
         ctx, history=history, monitor=monitor, auth=auth,
         library=library, series_library=series_library, users=users,

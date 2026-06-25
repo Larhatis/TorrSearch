@@ -8,9 +8,15 @@ services:
     env_file:
       - .env  # TORSEARCH_USERNAME/PASSWORD, TMDB_API_KEY, ... (cf. .env.example)
     environment:
+      - TORSEARCH_DB=/data/torsearch.db          # toutes les donnees (volume persistant)
+      - TORSEARCH_CONFIG=/bootstrap/bootstrap.yaml
+      # Chemins des anciens JSON : importes une fois dans la base s'ils existent (legacy).
       - TORSEARCH_SETTINGS=/data/settings.json
       - TORSEARCH_MONITOR=/data/monitor.json
-      - TORSEARCH_CONFIG=/bootstrap/bootstrap.yaml
+      - TORSEARCH_USERS=/data/users.json
+      - TORSEARCH_LIBRARY=/data/library.json
+      - TORSEARCH_SERIES=/data/series.json
+      - TORSEARCH_REQUESTS=/data/requests.json
     volumes:
       - ./data:/data
       - ./deploy/bootstrap.yaml:/bootstrap/bootstrap.yaml:ro

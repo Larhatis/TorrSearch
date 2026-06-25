@@ -1,50 +1,48 @@
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 
+from torsearch.db.database import Collection, as_collection
 from torsearch.models import WantedMovie
 
 
 class MovieLibrary:
-    def __init__(self, path: str | Path):
-        self._path = Path(path)
+    def __init__(self, source: Collection | str | Path, migrate_from: str | Path | None = None):
+        self._c = as_collection(source, "movies")
+        if migrate_from is not None:
+            self._migrate(Path(migrate_from))
 
-    def _load(self) -> list[WantedMovie]:
-        if not self._path.exists():
-            return []
-        return [WantedMovie.model_validate(item) for item in json.loads(self._path.read_text())]
-
-    def _save(self, movies: list[WantedMovie]) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._path.with_name(self._path.name + ".tmp")
-        tmp.write_text(json.dumps([m.model_dump(mode="json") for m in movies], indent=2))
-        os.replace(tmp, self._path)
+    def _migrate(self, path: Path) -> None:
+        if not path.exists() or not self._c.is_empty():
+            return
+        try:
+            items = json.loads(path.read_text())
+        except (OSError, ValueError):
+            return
+        self._c.replace_all([(str(m["tmdb_id"]), m) for m in items if "tmdb_id" in m])
 
     def list(self) -> list[WantedMovie]:
-        return self._load()
+        return [WantedMovie.model_validate(d) for d in self._c.all()]
 
     def wanted(self) -> list[WantedMovie]:  # type: ignore[valid-type]  # `list` method shadows builtin
-        return [m for m in self._load() if m.status == "wanted"]
+        return [m for m in self.list() if m.status == "wanted"]
 
     def add(self, movie: WantedMovie) -> bool:
-        movies = self._load()
-        if any(m.tmdb_id == movie.tmdb_id for m in movies):
+        if self._c.get(str(movie.tmdb_id)) is not None:
             return False
-        movies.append(movie)
-        self._save(movies)
+        self._c.upsert(str(movie.tmdb_id), movie.model_dump(mode="json"))
         return True
 
     def remove(self, tmdb_id: int) -> None:
-        self._save([m for m in self._load() if m.tmdb_id != tmdb_id])
+        self._c.delete(str(tmdb_id))
 
     def mark_grabbed(self, tmdb_id: int, grabbed_title: str, at: datetime) -> None:
-        movies = self._load()
-        for i, m in enumerate(movies):
-            if m.tmdb_id == tmdb_id:
-                movies[i] = m.model_copy(
-                    update={"status": "grabbed", "grabbed_title": grabbed_title, "grabbed_at": at}
-                )
-        self._save(movies)
+        data = self._c.get(str(tmdb_id))
+        if data is None:
+            return
+        movie = WantedMovie.model_validate(data).model_copy(
+            update={"status": "grabbed", "grabbed_title": grabbed_title, "grabbed_at": at}
+        )
+        self._c.upsert(str(tmdb_id), movie.model_dump(mode="json"))
