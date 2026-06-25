@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import respx
@@ -11,7 +11,7 @@ from torsearch.notifications.notifier import Notifier, format_record
 def _record(kind="grabbed"):
     return MonitorRecord(search="MaSerie", title="Show.S02E01.1080p", source="torr9",
                          infohash="H", download_url="magnet:?xt=urn:btih:H", kind=kind,
-                         at=datetime(2024, 1, 1, tzinfo=timezone.utc))
+                         at=datetime(2024, 1, 1, tzinfo=UTC))
 
 
 def test_format_record_grabbed_and_found():

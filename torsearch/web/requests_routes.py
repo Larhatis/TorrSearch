@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
@@ -82,7 +82,7 @@ async def requests_page(request: Request):
 
 
 def _add_to_library(request: Request, req) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if req.media_type == "movie":
         library = request.app.state.library
         if library is not None:

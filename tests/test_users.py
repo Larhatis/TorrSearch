@@ -3,7 +3,6 @@ import pytest
 from torsearch.users.passwords import hash_password, verify_password
 from torsearch.users.store import Role, UserError, UserStore
 
-
 # --- passwords ---
 
 def test_hash_verify_roundtrip():

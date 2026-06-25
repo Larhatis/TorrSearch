@@ -36,7 +36,7 @@ class AuthSettings:
     https_only: bool = False
 
     @classmethod
-    def from_env(cls, data_dir: str | Path = "data") -> "AuthSettings":
+    def from_env(cls, data_dir: str | Path = "data") -> AuthSettings:
         username = os.environ.get("TORSEARCH_USERNAME", "").strip()
         password = os.environ.get("TORSEARCH_PASSWORD", "")
         if not username or not password:

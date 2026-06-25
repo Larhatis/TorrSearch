@@ -26,7 +26,7 @@ class MovieLibrary:
     def list(self) -> list[WantedMovie]:
         return self._load()
 
-    def wanted(self) -> list[WantedMovie]:
+    def wanted(self) -> list[WantedMovie]:  # type: ignore[valid-type]  # `list` method shadows builtin
         return [m for m in self._load() if m.status == "wanted"]
 
     def add(self, movie: WantedMovie) -> bool:

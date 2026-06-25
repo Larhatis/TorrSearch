@@ -14,5 +14,9 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: pip install -e ".[dev]"
+      - name: Lint (ruff)
+        run: ruff check torsearch tests
+      - name: Type check (mypy)
+        run: mypy
       - name: Tests
         run: pytest

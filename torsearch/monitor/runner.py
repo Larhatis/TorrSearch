@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from torsearch.library.episodes import parse_episodes
 from torsearch.models import Category, SearchResult
@@ -89,7 +89,7 @@ async def run_cycle(config, search_service, transmission, history, notifier=None
         record = MonitorRecord(
             search=saved.name, title=pick.title, source=pick.source,
             infohash=pick.infohash, download_url=pick.download_url,
-            kind=kind, at=datetime.now(timezone.utc),
+            kind=kind, at=datetime.now(UTC),
         )
         history.add(record)
         created.append(record)
@@ -115,7 +115,7 @@ def _movie_needs_grab(movie, jellyfin, owned_map, now, window) -> bool:
     if f"movie:{movie.tmdb_id}" in owned_map:
         return False
     if movie.grabbed_at is not None:
-        at = movie.grabbed_at if movie.grabbed_at.tzinfo else movie.grabbed_at.replace(tzinfo=timezone.utc)
+        at = movie.grabbed_at if movie.grabbed_at.tzinfo else movie.grabbed_at.replace(tzinfo=UTC)
         if now - at <= window:
             return False
     return True
@@ -133,7 +133,7 @@ async def run_movie_cycle(config, library, search_service, transmission, history
             owned_map = await jellyfin.owned()
         except Exception as exc:
             logger.warning("Jellyfin owned() failed: %s", exc)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     window = timedelta(hours=config.monitor.regrab_hours)
     for movie in library.list():
         if not _movie_needs_grab(movie, jellyfin, owned_map, now, window):
@@ -156,7 +156,7 @@ async def run_movie_cycle(config, library, search_service, transmission, history
         except Exception as exc:
             logger.warning("Movie grab '%s' failed: %s", movie.title, exc)
             continue
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         library.mark_grabbed(movie.tmdb_id, pick.title, now)
         record = MonitorRecord(
             search=f"{movie.title} ({movie.year})", title=pick.title, source=pick.source,
@@ -185,7 +185,7 @@ def _history_episodes(series, records, now, window):
             continue
         keys = parse_episodes(r.title)
         historic |= keys
-        at = r.at if r.at.tzinfo else r.at.replace(tzinfo=timezone.utc)
+        at = r.at if r.at.tzinfo else r.at.replace(tzinfo=UTC)
         if now - at <= window:
             recent |= keys
     return recent, historic
@@ -238,7 +238,7 @@ async def run_series_cycle(config, series_library, search_service, transmission,
         except Exception as exc:
             logger.warning("Jellyfin owned() failed: %s", exc)
     records = history.records()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     window = timedelta(hours=config.monitor.regrab_hours)
     for series in series_library.list():
         have = await _series_have(series, jellyfin, owned_map, records, now, window)
@@ -276,7 +276,7 @@ async def run_series_cycle(config, series_library, search_service, transmission,
                 remaining -= covered
             have |= covered
             newly.extend(covered)
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             record = MonitorRecord(
                 search=series.title, title=r.title, source=r.source,
                 infohash=r.infohash, download_url=r.download_url, kind="grabbed", at=now,

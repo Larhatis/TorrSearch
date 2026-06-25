@@ -133,14 +133,14 @@ async def test_run_cycle_survives_notifier_error(tmp_path):
     assert [r.kind for r in created] == ["grabbed"]  # record created despite notif failure
 
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from torsearch.config import LibraryConfig
 from torsearch.library.movies import MovieLibrary
 from torsearch.models import WantedMovie
 from torsearch.monitor.runner import run_movie_cycle
 
-MNOW = datetime(2026, 6, 20, tzinfo=timezone.utc)
+MNOW = datetime(2026, 6, 20, tzinfo=UTC)
 
 
 def _lib(tmp_path):
@@ -417,7 +417,7 @@ async def test_series_cycle_season_pack_covers_missing(tmp_path):
     tr = FakeTransmission()
     jf = FakeJellyfin(owned={}, episodes={})  # nothing in Jellyfin
     tmdb = FakeTmdb(episodes={1: {"S02E01", "S02E02"}})
-    created = await run_series_cycle(cfg, lib, FakeSearch([
+    await run_series_cycle(cfg, lib, FakeSearch([
         _r("Show.S02.COMPLETE.1080p", seeders=60, infohash="P"),
     ]), tr, MonitorHistory(tmp_path / "m.json"), jellyfin=jf, tmdb=tmdb)
     assert len(tr.added) == 1
@@ -426,7 +426,7 @@ async def test_series_cycle_season_pack_covers_missing(tmp_path):
 
 # --- Improvement 1: re-grab failed downloads after cooldown ---
 
-from datetime import timedelta
+from datetime import UTC, timedelta
 
 
 def _grab_record(title, when, search="Show"):
@@ -438,7 +438,7 @@ def _grab_record(title, when, search="Show"):
 async def test_series_cycle_regrabs_failed_after_window(tmp_path):
     history = MonitorHistory(tmp_path / "m.json")
     # Episode was grabbed 3 days ago but never landed in Jellyfin.
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     history.add(_grab_record("Show.S01E02.1080p", now - timedelta(hours=72)))
     lib = _slib(tmp_path, grabbed=["S01E02"])
     cfg = Config(monitor=MonitorConfig(enabled=True, regrab_hours=48))
@@ -456,7 +456,7 @@ async def test_series_cycle_regrabs_failed_after_window(tmp_path):
 
 async def test_series_cycle_keeps_recent_grab_in_cooldown(tmp_path):
     history = MonitorHistory(tmp_path / "m.json")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     history.add(_grab_record("Show.S01E02.1080p", now - timedelta(hours=1)))  # still downloading
     lib = _slib(tmp_path, grabbed=["S01E02"])
     cfg = Config(monitor=MonitorConfig(enabled=True, regrab_hours=48))
@@ -503,7 +503,7 @@ async def test_series_cycle_fetches_owned_once(tmp_path):
 
 async def test_movie_cycle_regrabs_failed_after_window(tmp_path):
     lib = _lib(tmp_path)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     lib.mark_grabbed(1, "Dune.2024.old", now - timedelta(hours=72))  # grabbed long ago
     cfg = Config(monitor=MonitorConfig(enabled=True, regrab_hours=48))
     tr = FakeTransmission()
@@ -516,7 +516,7 @@ async def test_movie_cycle_regrabs_failed_after_window(tmp_path):
 
 async def test_movie_cycle_present_in_jellyfin_not_regrabbed(tmp_path):
     lib = _lib(tmp_path)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     lib.mark_grabbed(1, "Dune.2024.old", now - timedelta(hours=72))
     cfg = Config(monitor=MonitorConfig(enabled=True, regrab_hours=48))
     tr = FakeTransmission()
@@ -529,7 +529,7 @@ async def test_movie_cycle_present_in_jellyfin_not_regrabbed(tmp_path):
 
 async def test_movie_cycle_recent_grab_in_cooldown(tmp_path):
     lib = _lib(tmp_path)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     lib.mark_grabbed(1, "Dune.2024.old", now - timedelta(hours=1))  # still downloading
     cfg = Config(monitor=MonitorConfig(enabled=True, regrab_hours=48))
     tr = FakeTransmission()
@@ -542,7 +542,7 @@ async def test_movie_cycle_recent_grab_in_cooldown(tmp_path):
 
 async def test_movie_cycle_jellyfin_disabled_keeps_grabbed(tmp_path):
     lib = _lib(tmp_path)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     lib.mark_grabbed(1, "Dune.2024.old", now - timedelta(hours=72))
     cfg = Config(monitor=MonitorConfig(enabled=True, regrab_hours=48))
     tr = FakeTransmission()

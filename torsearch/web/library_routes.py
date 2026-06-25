@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
@@ -36,7 +36,7 @@ async def library_add(
     library = request.app.state.library
     added = library.add(WantedMovie(
         tmdb_id=tmdb_id, title=title, year=year or None, poster_path=poster_path or None,
-        status="wanted", added_at=datetime.now(timezone.utc),
+        status="wanted", added_at=datetime.now(UTC),
     ))
     message = "Ajoute a la bibliotheque." if added else "Deja dans la bibliotheque."
     return templates.TemplateResponse(request, "partials/toast.html", {"ok": True, "message": message})

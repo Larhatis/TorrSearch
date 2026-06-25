@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from torsearch.models import Category, SearchResult
 from torsearch.search.filters import ResultFilters, apply, detect_quality
@@ -65,8 +65,8 @@ def test_sort_title_asc_case_insensitive():
 
 
 def test_sort_date_desc_handles_missing_dates():
-    d_old = datetime(2020, 1, 1, tzinfo=timezone.utc)
-    d_new = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    d_old = datetime(2020, 1, 1, tzinfo=UTC)
+    d_new = datetime(2024, 1, 1, tzinfo=UTC)
     res = [_r("old", date=d_old), _r("new", date=d_new), _r("undated", date=None)]
     out = apply(res, ResultFilters(sort="date", direction="desc"))
     assert [r.title for r in out][:2] == ["new", "old"]

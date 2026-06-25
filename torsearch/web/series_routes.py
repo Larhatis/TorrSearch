@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
@@ -23,7 +23,7 @@ async def series_add(
     series_library = request.app.state.series_library
     added = series_library.add(WantedSeries(
         tmdb_id=tmdb_id, title=title, year=year or None, poster_path=poster_path or None,
-        added_at=datetime.now(timezone.utc),
+        added_at=datetime.now(UTC),
     ))
     message = "Serie suivie." if added else "Serie deja suivie."
     return templates.TemplateResponse(request, "partials/toast.html", {"ok": True, "message": message})

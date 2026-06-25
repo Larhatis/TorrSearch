@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -64,7 +64,7 @@ def test_history_found_item_has_send_button(tmp_path):
     history = MonitorHistory(tmp_path / "monitor.json")
     history.add(MonitorRecord(search="s", title="Found.It", source="trk", infohash="H",
                               download_url="magnet:?xt=urn:btih:H", kind="found",
-                              at=datetime(2024, 1, 1, tzinfo=timezone.utc)))
+                              at=datetime(2024, 1, 1, tzinfo=UTC)))
     client, _, _ = _client(tmp_path, history=history)
     resp = client.get("/surveillance")
     assert "Found.It" in resp.text

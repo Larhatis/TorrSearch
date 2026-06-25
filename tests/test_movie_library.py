@@ -1,9 +1,9 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from torsearch.library.movies import MovieLibrary
 from torsearch.models import WantedMovie
 
-NOW = datetime(2026, 6, 20, tzinfo=timezone.utc)
+NOW = datetime(2026, 6, 20, tzinfo=UTC)
 
 
 def _movie(tmdb_id=1, title="Dune"):

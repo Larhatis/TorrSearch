@@ -4,12 +4,19 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
-from torsearch.config import IndexerConfig, JellyfinConfig, LibraryConfig, NotificationChannel, PathsConfig, SearchConfig, TransmissionConfig
+from torsearch.config import (
+    IndexerConfig,
+    JellyfinConfig,
+    LibraryConfig,
+    NotificationChannel,
+    PathsConfig,
+    SearchConfig,
+    TransmissionConfig,
+)
 from torsearch.context import AppContext
 from torsearch.indexers.torznab import TorznabIndexer
 from torsearch.models import Category
 from torsearch.notifications.notifier import Notifier
-from torsearch.users.store import Role, UserError
 from torsearch.settings.mutations import (
     SettingsError,
     add_channel,
@@ -24,6 +31,7 @@ from torsearch.settings.mutations import (
     set_paths,
     update_indexer,
 )
+from torsearch.users.store import Role, UserError
 from torsearch.web.templating import templates
 
 settings_router = APIRouter()
@@ -154,7 +162,7 @@ async def update_paths(request: Request):
     for c in Category:
         if c == Category.ALL:
             continue
-        value = (form.get(f"path_{c.value}") or "").strip()
+        value = str(form.get(f"path_{c.value}") or "").strip()
         if value:
             by_category[c.value] = value
     try:

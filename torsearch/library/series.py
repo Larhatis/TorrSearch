@@ -36,7 +36,7 @@ class SeriesLibrary:
     def remove(self, tmdb_id: int) -> None:
         self._save([s for s in self._load() if s.tmdb_id != tmdb_id])
 
-    def mark_grabbed(self, tmdb_id: int, keys: list[str]) -> None:
+    def mark_grabbed(self, tmdb_id: int, keys: list[str]) -> None:  # type: ignore[valid-type]  # `list` method shadows builtin
         items = self._load()
         for i, s in enumerate(items):
             if s.tmdb_id == tmdb_id:
