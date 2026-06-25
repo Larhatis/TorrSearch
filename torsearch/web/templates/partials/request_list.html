@@ -1,0 +1,39 @@
+<div id="request-list" class="space-y-4">
+  {% if error %}<p class="rounded-lg border border-red-500/40 bg-red-500/15 px-3 py-2 text-xs text-red-300">{{ error }}</p>{% endif %}
+  {% if notice %}<p class="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">{{ notice }}</p>{% endif %}
+
+  {% if not pending %}
+  <p class="text-sm text-slate-400">Aucune demande en attente.</p>
+  {% else %}
+  <div class="space-y-2">
+    {% for r in pending %}
+    <div class="flex flex-wrap items-center gap-3 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2">
+      <span class="rounded px-1.5 py-0.5 text-[10px] {{ 'bg-sky-500/15 text-sky-300' if r.media_type == 'movie' else 'bg-violet-500/15 text-violet-300' }}">{{ 'Film' if r.media_type == 'movie' else 'Serie' }}</span>
+      <span class="text-sm text-white">{{ r.title }}{% if r.year %} <span class="text-slate-500">({{ r.year }})</span>{% endif %}</span>
+      <span class="text-xs text-slate-500">par {{ r.username }}</span>
+      <div class="ml-auto flex items-center gap-1.5">
+        <button hx-post="/requests/{{ r.id }}/approve" hx-target="#request-list" hx-swap="outerHTML"
+                class="flex items-center gap-1 rounded bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-500"><i class="ti ti-check"></i> Approuver</button>
+        <button hx-post="/requests/{{ r.id }}/reject" hx-target="#request-list" hx-swap="outerHTML"
+                class="flex items-center gap-1 rounded border border-slate-700 px-2.5 py-1 text-xs text-slate-400 hover:text-red-400"><i class="ti ti-x"></i> Refuser</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if recent %}
+  <div>
+    <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Recentes</h3>
+    <div class="space-y-1">
+      {% for r in recent %}
+      <div class="flex items-center gap-2 px-1 text-xs text-slate-400">
+        {% if r.status.value == 'approved' %}<i class="ti ti-check text-green-400"></i>{% else %}<i class="ti ti-x text-red-400"></i>{% endif %}
+        <span class="text-slate-300">{{ r.title }}</span>
+        <span class="text-slate-600">— {{ 'approuvee' if r.status.value == 'approved' else 'refusee' }} par {{ r.decided_by }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>

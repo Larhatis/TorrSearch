@@ -17,7 +17,7 @@ auto-hebergee a Prowlarr/Jackett + Sonarr/Radarr, a configurer entierement au cl
 - 🎛️ **Tout se configure dans l'UI** (page Reglages) : trackers, Transmission, profil de qualite — rien a coder.
 - 🧰 **Filtres & tri** : seeders, taille, qualite (4K/1080p…), exclusion de mots.
 - ⬇️ **Envoi a Transmission** en un clic + page **Telechargements** (suivi en direct, pause/reprise/suppression).
-- 🔒 **Auth optionnelle** (identifiant + mot de passe) activable par variables d'environnement.
+- 🔒 **Auth multi-utilisateur optionnelle** (admin / membre / invite) avec mots de passe hashes.
 
 ## Demarrage rapide (Docker)
 
@@ -42,7 +42,7 @@ trackers (URL Torznab + passkey). Transmission est inclus dans le compose et dej
 - **Transmission** : Reglages → hote / port / identifiants.
 - **Decouverte (TMDB)** : renseigne `TMDB_API_KEY` (cle gratuite sur [themoviedb.org](https://www.themoviedb.org/)) en variable d'environnement pour activer la page **Decouvrir** (tendances + recherche) et la **Bibliotheque**.
 - **Jellyfin (optionnel)** : Reglages → URL + cle API. TorrSearch marque alors les medias deja presents dans ton Jellyfin et propose un lien de lecture (Jellyfin reste ton serveur media).
-- **Auth (optionnelle)** : definis `TORSEARCH_USERNAME` et `TORSEARCH_PASSWORD` pour exiger un login (desactive si l'une manque). Voir `.env.example`.
+- **Auth & utilisateurs (optionnel)** : definis `TORSEARCH_USERNAME` et `TORSEARCH_PASSWORD` pour exiger un login (desactive si l'une manque). Ce compte devient l'**administrateur** au premier demarrage. L'admin gere ensuite les autres comptes dans Reglages → **Utilisateurs**, avec trois roles : **admin** (tout), **membre** (recherche manuelle + ajout direct), **invite** (parcourir et demander). Les demandes des invites arrivent dans l'ecran **Demandes** ou l'admin approuve (ajout a la bibliotheque) ou refuse. Mots de passe stockes hashes dans `data/users.json`, demandes dans `data/requests.json`. Voir `.env.example`.
 - Toute la config est persistee dans `data/settings.json` (volume, jamais versionne) ; les bibliotheques dans `data/library.json` (films) et `data/series.json` (series).
 
 ## Developpement

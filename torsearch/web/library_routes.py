@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
 from torsearch.models import WantedMovie
+from torsearch.web.authz import require_member
 from torsearch.web.templating import templates
 
 library_router = APIRouter()
@@ -24,7 +25,7 @@ async def library_page(request: Request):
     )
 
 
-@library_router.post("/library/add", response_class=HTMLResponse)
+@library_router.post("/library/add", response_class=HTMLResponse, dependencies=[Depends(require_member)])
 async def library_add(
     request: Request,
     tmdb_id: int = Form(...),
@@ -41,7 +42,7 @@ async def library_add(
     return templates.TemplateResponse(request, "partials/toast.html", {"ok": True, "message": message})
 
 
-@library_router.post("/library/{tmdb_id}/remove", response_class=HTMLResponse)
+@library_router.post("/library/{tmdb_id}/remove", response_class=HTMLResponse, dependencies=[Depends(require_member)])
 async def library_remove(request: Request, tmdb_id: int):
     library = request.app.state.library
     library.remove(tmdb_id)

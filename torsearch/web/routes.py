@@ -3,19 +3,21 @@ from __future__ import annotations
 import re
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI, Form, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from torsearch.context import AppContext
 from torsearch.models import Category
 from torsearch.web.auth import AuthMiddleware, AuthSettings
+from torsearch.web.authz import require_admin, require_member
 from torsearch.web.auth_routes import auth_router
 from torsearch.web.discover_routes import discover_router
 from torsearch.web.library_routes import library_router
 from torsearch.web.series_routes import series_router
 from torsearch.search.filters import VALID_DIRECTIONS, VALID_SORTS, ResultFilters, apply
 from torsearch.web.downloads_routes import downloads_router
+from torsearch.web.requests_routes import requests_router
 from torsearch.web.settings_routes import settings_router
 from torsearch.web.surveillance_routes import surveillance_router
 from torsearch.web.templating import templates
@@ -65,7 +67,7 @@ def _active_filters(filters: ResultFilters) -> list[dict]:
     return chips
 
 
-@router.get("/search", response_class=HTMLResponse)
+@router.get("/search", response_class=HTMLResponse, dependencies=[Depends(require_member)])
 async def search(
     request: Request,
     q: str = "",
@@ -112,7 +114,7 @@ async def search(
     )
 
 
-@router.post("/download", response_class=HTMLResponse)
+@router.post("/download", response_class=HTMLResponse, dependencies=[Depends(require_member)])
 async def download(request: Request, download_url: str = Form(...), category: str = Form("")):
     ctx: AppContext = request.app.state.ctx
     try:
@@ -129,7 +131,7 @@ async def download(request: Request, download_url: str = Form(...), category: st
 
 def create_app(
     ctx: AppContext, history=None, monitor=None, auth: AuthSettings | None = None, library=None,
-    series_library=None,
+    series_library=None, users=None, requests_store=None,
 ) -> FastAPI:
     if auth is None:
         auth = AuthSettings(enabled=False)
@@ -150,6 +152,8 @@ def create_app(
     app.state.auth = auth
     app.state.library = library
     app.state.series_library = series_library
+    app.state.users = users
+    app.state.requests = requests_store
     if auth.enabled:
         app.add_middleware(AuthMiddleware, settings=auth)
         app.add_middleware(
@@ -160,11 +164,12 @@ def create_app(
             max_age=60 * 60 * 24 * 14,
         )
     app.include_router(router)
-    app.include_router(settings_router)
-    app.include_router(downloads_router)
-    app.include_router(surveillance_router)
+    app.include_router(settings_router, dependencies=[Depends(require_admin)])
+    app.include_router(downloads_router, dependencies=[Depends(require_member)])
+    app.include_router(surveillance_router, dependencies=[Depends(require_admin)])
     app.include_router(auth_router)
     app.include_router(discover_router)
     app.include_router(library_router)
     app.include_router(series_router)
+    app.include_router(requests_router)
     return app
