@@ -15,6 +15,10 @@ def _safe_next(value: str) -> str:
     return "/"
 
 
+def _client_key(request: Request) -> str:
+    return request.client.host if request.client else "?"
+
+
 def _authenticate(request, username: str, password: str, auth: AuthSettings) -> str | None:
     """Return the role on success, else None.
 
@@ -50,14 +54,27 @@ async def login_submit(
     auth: AuthSettings = request.app.state.auth
     if not auth.enabled:
         return RedirectResponse("/", status_code=303)
+    throttle = getattr(request.app.state, "login_throttle", None)
+    key = _client_key(request)
+    if throttle is not None and throttle.is_blocked(key):
+        return templates.TemplateResponse(
+            request, "login.html",
+            {"next": _safe_next(next),
+             "error": "Trop de tentatives. Reessaie dans quelques minutes."},
+            status_code=429,
+        )
     role = _authenticate(request, username, password, auth)
     if role is not None:
+        if throttle is not None:
+            throttle.reset(key)
         request.session["user"] = username
         request.session["role"] = role
         target = _safe_next(next)
         if role == "guest" and target == "/":
             target = "/discover"  # guests can't use the search home
         return RedirectResponse(target, status_code=303)
+    if throttle is not None:
+        throttle.record_failure(key)
     return templates.TemplateResponse(
         request,
         "login.html",

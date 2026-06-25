@@ -10,7 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from torsearch.context import AppContext
 from torsearch.models import Category
 from torsearch.search.filters import VALID_DIRECTIONS, VALID_SORTS, ResultFilters, apply
-from torsearch.web.auth import AuthMiddleware, AuthSettings
+from torsearch.web.auth import AuthMiddleware, AuthSettings, LoginThrottle, SecurityHeadersMiddleware
 from torsearch.web.auth_routes import auth_router
 from torsearch.web.authz import require_admin, require_member
 from torsearch.web.discover_routes import discover_router
@@ -154,6 +154,8 @@ def create_app(
     app.state.series_library = series_library
     app.state.users = users
     app.state.requests = requests_store
+    app.state.login_throttle = LoginThrottle()
+    app.add_middleware(SecurityHeadersMiddleware)
     if auth.enabled:
         app.add_middleware(AuthMiddleware, settings=auth)
         app.add_middleware(

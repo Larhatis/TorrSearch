@@ -163,3 +163,25 @@ def test_logout_button_hidden_when_auth_disabled():
     resp = client.get("/")
     assert resp.status_code == 200
     assert "Deconnexion" not in resp.text
+
+
+def test_login_throttled_after_repeated_failures():
+    client = _client(_ENABLED)
+    for _ in range(5):
+        r = client.post("/login", data={"username": "admin", "password": "nope", "next": "/"},
+                        follow_redirects=False)
+        assert r.status_code == 401
+    blocked = client.post("/login", data={"username": "admin", "password": "nope", "next": "/"},
+                          follow_redirects=False)
+    assert blocked.status_code == 429
+    # even the correct password is refused while blocked
+    still = client.post("/login", data={"username": "admin", "password": "s3cret", "next": "/"},
+                        follow_redirects=False)
+    assert still.status_code == 429
+
+
+def test_security_headers_present():
+    client = _client(AuthSettings(enabled=False))
+    resp = client.get("/")
+    assert resp.headers["x-content-type-options"] == "nosniff"
+    assert resp.headers["x-frame-options"] == "DENY"

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hmac
 import os
 import secrets
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote
@@ -12,6 +13,34 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 
 _TRUE = {"1", "true", "yes", "on"}
+
+
+class LoginThrottle:
+    """In-memory sliding-window throttle: blocks a key after too many failures."""
+
+    def __init__(self, max_attempts: int = 5, window_seconds: float = 900.0, clock=time.monotonic):
+        self._max = max_attempts
+        self._window = window_seconds
+        self._clock = clock
+        self._failures: dict[str, list[float]] = {}
+
+    def _recent(self, key: str) -> list[float]:
+        now = self._clock()
+        recent = [t for t in self._failures.get(key, []) if now - t < self._window]
+        if recent:
+            self._failures[key] = recent
+        else:
+            self._failures.pop(key, None)
+        return recent
+
+    def is_blocked(self, key: str) -> bool:
+        return len(self._recent(key)) >= self._max
+
+    def record_failure(self, key: str) -> None:
+        self._failures.setdefault(key, []).append(self._clock())
+
+    def reset(self, key: str) -> None:
+        self._failures.pop(key, None)
 
 
 def _load_or_create_secret(path: Path) -> str:
@@ -59,6 +88,17 @@ class AuthSettings:
         user_ok = hmac.compare_digest(username.encode(), self.username.encode())
         pass_ok = hmac.compare_digest(password.encode(), self.password.encode())
         return user_ok and pass_ok
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Sane default security headers on every response."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        return response
 
 
 _PUBLIC_PATHS = {"/login", "/logout"}

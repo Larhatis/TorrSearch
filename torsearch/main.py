@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 
 from fastapi import FastAPI
@@ -23,6 +24,19 @@ DEFAULT_SERIES_PATH = os.environ.get("TORSEARCH_SERIES", "data/series.json")
 DEFAULT_USERS_PATH = os.environ.get("TORSEARCH_USERS", "data/users.json")
 DEFAULT_REQUESTS_PATH = os.environ.get("TORSEARCH_REQUESTS", "data/requests.json")
 
+logger = logging.getLogger(__name__)
+
+_WEAK_PASSWORDS = {"admin", "password", "changeme", "torrsearch", "123456", "root"}
+
+
+def _warn_if_weak_admin_password(username: str, password: str) -> None:
+    if password.lower() in _WEAK_PASSWORDS or password == username:
+        logger.warning(
+            "L'administrateur « %s » utilise un mot de passe faible. "
+            "Change TORSEARCH_PASSWORD avant d'exposer l'app.",
+            username,
+        )
+
 
 def build_app(
     settings_path: str = DEFAULT_SETTINGS_PATH,
@@ -41,8 +55,10 @@ def build_app(
     monitor = MonitorRunner(ctx, history, library=library, series_library=series_library)
     auth = AuthSettings.from_env()
     users = UserStore(users_path)
-    if auth.enabled and users.is_empty():
-        users.bootstrap_admin(auth.username, auth.password)
+    if auth.enabled:
+        _warn_if_weak_admin_password(auth.username, auth.password)
+        if users.is_empty():
+            users.bootstrap_admin(auth.username, auth.password)
     requests_store = RequestStore(requests_path)
     return create_app(
         ctx, history=history, monitor=monitor, auth=auth,
