@@ -1,0 +1,28 @@
+name: ✨ Fonctionnalité
+description: Proposer une amélioration ou une nouvelle fonctionnalité
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Le besoin
+      description: Quel problème ça résout ? Quel usage ?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solution envisagée
+      description: À quoi ressemblerait la fonctionnalité ?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives / contexte
+      description: Autres pistes envisagées, liens, captures…
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Périmètre
+      options:
+        - label: Ça reste dans le cadre du projet (recherche + Radarr/Sonarr/Jellyseerr-lite, pas de remplacement de Jellyfin)
+          required: true

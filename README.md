@@ -76,6 +76,12 @@ TorrSearch est un outil de **recherche et d'agregation** (comme Prowlarr/Jackett
 aucun contenu. L'usage que tu en fais, le respect du droit d'auteur et des regles des trackers
 relevent de **ta** responsabilite et des lois de ton pays.
 
+## Contribuer
+
+Les contributions sont bienvenues — voir [CONTRIBUTING.md](CONTRIBUTING.md) pour la mise en
+place et les conventions. Pour une faille de sécurité, suis [SECURITY.md](SECURITY.md)
+(signalement privé, pas d'issue publique).
+
 ## Licence
 
-[MIT](LICENSE) — contributions bienvenues (ouvre une issue ou une PR).
+[MIT](LICENSE).
