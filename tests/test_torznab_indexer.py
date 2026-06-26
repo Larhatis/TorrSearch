@@ -11,7 +11,7 @@ FIXTURE = (Path(__file__).parent / "fixtures" / "torznab_sample.xml").read_bytes
 
 
 def _cfg(**overrides):
-    base = dict(name="torr9", url="https://api.torr9.net/api/v1/torznab", api_key="KEY")
+    base = dict(name="tracker1", url="https://tracker1.example/api", api_key="KEY")
     base.update(overrides)
     return IndexerConfig(**base)
 
@@ -43,18 +43,18 @@ def test_category_override_from_config():
 async def test_search_success_returns_parsed_results():
     ix = TorznabIndexer(_cfg())
     with respx.mock:
-        respx.get("https://api.torr9.net/api/v1/torznab").mock(
+        respx.get("https://tracker1.example/api").mock(
             return_value=httpx.Response(200, content=FIXTURE)
         )
         results = await ix.search("cool", Category.ALL)
     assert len(results) == 2
-    assert results[0].source == "torr9"
+    assert results[0].source == "tracker1"
 
 
 async def test_search_http_error_returns_empty():
     ix = TorznabIndexer(_cfg())
     with respx.mock:
-        respx.get("https://api.torr9.net/api/v1/torznab").mock(
+        respx.get("https://tracker1.example/api").mock(
             return_value=httpx.Response(500)
         )
         assert await ix.search("cool", Category.ALL) == []
@@ -63,7 +63,7 @@ async def test_search_http_error_returns_empty():
 async def test_search_malformed_xml_returns_empty():
     ix = TorznabIndexer(_cfg())
     with respx.mock:
-        respx.get("https://api.torr9.net/api/v1/torznab").mock(
+        respx.get("https://tracker1.example/api").mock(
             return_value=httpx.Response(200, content=b"<not-xml")
         )
         assert await ix.search("cool", Category.ALL) == []

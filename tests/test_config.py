@@ -10,14 +10,14 @@ transmission:
 search:
   timeout_seconds: 5
 indexers:
-  - name: torr9
+  - name: tracker1
     type: torznab
-    url: https://api.torr9.net/api/v1/torznab
-    api_key: ${TORR9_API_KEY}
+    url: https://tracker1.example/api
+    api_key: ${TRACKER1_API_KEY}
     enabled: true
-  - name: c411
+  - name: tracker2
     type: torznab
-    url: https://c411.org/api
+    url: https://tracker2.example/api
     api_key: plain-key
     auth: bearer
     enabled: false
@@ -43,7 +43,7 @@ def test_load_config_parses_values(tmp_path):
 
 
 def test_load_config_interpolates_env(tmp_path, monkeypatch):
-    monkeypatch.setenv("TORR9_API_KEY", "secret-123")
+    monkeypatch.setenv("TRACKER1_API_KEY", "secret-123")
     path = tmp_path / "config.yaml"
     path.write_text(VALID_YAML)
     cfg = load_config(path)
@@ -51,7 +51,7 @@ def test_load_config_interpolates_env(tmp_path, monkeypatch):
 
 
 def test_load_config_missing_env_becomes_empty(tmp_path, monkeypatch):
-    monkeypatch.delenv("TORR9_API_KEY", raising=False)
+    monkeypatch.delenv("TRACKER1_API_KEY", raising=False)
     path = tmp_path / "config.yaml"
     path.write_text(VALID_YAML)
     cfg = load_config(path)

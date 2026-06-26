@@ -1,87 +1,137 @@
 # TorrSearch
 
-![CI](https://github.com/Larhatis/TorrSearch/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/Larhatis/TorrSearch/actions/workflows/ci.yml/badge.svg)](https://github.com/Larhatis/TorrSearch/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12+-blue)
-[![Ruff](https://img.shields.io/badge/lint-ruff-261230)](https://github.com/astral-sh/ruff)
+[![Lint: Ruff](https://img.shields.io/badge/lint-ruff-261230)](https://github.com/astral-sh/ruff)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Recherche un film ou une serie sur **plusieurs trackers Torznab a la fois** et envoie le
-resultat choisi a **Transmission** — depuis une interface web. Une alternative legere et
-auto-hebergee a Prowlarr/Jackett + Sonarr/Radarr, a configurer entierement au clic.
+Recherche un film ou une série sur **plusieurs trackers Torznab à la fois** et envoie le
+résultat choisi à **Transmission**, depuis une interface web. Une alternative légère,
+auto-hébergée et tout-en-un à la pile Prowlarr/Jackett + Radarr/Sonarr + Jellyseerr — qui
+se configure entièrement au clic et s'intègre à ton serveur Jellyfin.
 
-## Fonctionnalites
+---
 
-- 🔎 **Recherche multi-trackers** Torznab, en parallele, fusionnee et dedoublonnee.
-- 🎬 **Decouverte (TMDB)** : **tendances** au chargement + recherche par vrai titre (affiches), puis les torrents en un clic.
-- 📚 **Bibliotheque Films & Series** (Radarr-lite + Sonarr-lite) : ajoute un film/serie « voulu » ; **auto-grabbe** le film, ou **chaque nouvel episode** de la serie, des qu'une release conforme au profil de qualite apparait.
-- 🎞️ **Integration Jellyfin** : marque ce que tu **possedes deja** (« Dans Jellyfin ») et ouvre la **lecture** d'un clic.
-- 🛰️ **Surveillance auto** : recherches sauvegardees qui tournent en fond et envoient (ou signalent) les nouveaux resultats.
-- 🔔 **Notifications** (Discord / ntfy / Telegram / webhook) sur les grabs et les trouvailles.
-- 🎛️ **Tout se configure dans l'UI** (page Reglages) : trackers, Transmission, profil de qualite — rien a coder.
-- 🧰 **Filtres & tri** : seeders, taille, qualite (4K/1080p…), exclusion de mots.
-- ⬇️ **Envoi a Transmission** en un clic + page **Telechargements** (suivi en direct, pause/reprise/suppression).
-- 🔒 **Auth multi-utilisateur optionnelle** (admin / membre / invite) avec mots de passe hashes.
+## Sommaire
 
-## Demarrage rapide (Docker)
+- [Fonctionnalités](#fonctionnalités)
+- [Démarrage rapide](#démarrage-rapide-docker)
+- [Configuration](#configuration)
+- [Rôles & demandes](#rôles--demandes)
+- [Sécurité & exposition](#sécurité--exposition)
+- [Données](#données)
+- [Développement](#développement)
+- [Avertissement](#avertissement)
+- [Contribuer](#contribuer) · [Licence](#licence)
 
-Pre-requis : Docker + Docker Compose.
+## Fonctionnalités
+
+| Domaine | Détail |
+| --- | --- |
+| Recherche | Multi-trackers **Torznab** en parallèle, résultats fusionnés et dédoublonnés, avec filtres et tri (seeders, taille, qualité, exclusion de mots). |
+| Découverte | **TMDB** : tendances au chargement et recherche par vrai titre (affiches), puis les torrents en un clic. |
+| Bibliothèque | **Films & Séries** (Radarr-lite + Sonarr-lite) : marque un titre « voulu », l'app récupère automatiquement le film ou chaque nouvel épisode dès qu'une release conforme au profil de qualité apparaît. |
+| Jellyfin | Marque ce que tu possèdes déjà (« Dans Jellyfin ») et ouvre la lecture d'un clic ; Jellyfin reste ton serveur média. |
+| Surveillance | Recherches sauvegardées qui tournent en tâche de fond et grabbent (ou signalent) les nouveautés. |
+| Multi-utilisateur | Comptes **admin / membre / invité** avec mots de passe hachés, et une **file de demandes** validée par l'admin. |
+| Notifications | Discord, ntfy, Telegram ou webhook sur les grabs et les trouvailles. |
+| Téléchargements | Envoi à Transmission en un clic et page de suivi en direct (pause / reprise / suppression). |
+| Configuration | Tout depuis l'interface (page **Réglages**) : trackers, Transmission, profil de qualité, Jellyfin, dossiers, comptes. |
+
+## Démarrage rapide (Docker)
+
+Prérequis : Docker et Docker Compose.
 
 ```bash
 git clone https://github.com/Larhatis/TorrSearch.git
 cd TorrSearch
-cp .env.example .env        # renseigne login/mot de passe admin + cle TMDB (optionnel)
+cp .env.example .env        # identifiants admin + clé TMDB (facultatif)
 docker compose up -d
 ```
 
-Le compose tire l'image publiee `ghcr.io/larhatis/torrsearch`. Ouvre **http://localhost:8080**.
-L'app demarre **vide** : va dans **Reglages** pour ajouter tes trackers (URL Torznab + passkey).
-Transmission est inclus dans le compose et deja branche.
+Le compose tire l'image publiée `ghcr.io/larhatis/torrsearch` et démarre un Transmission
+déjà branché. Ouvre ensuite **http://localhost:8080**.
 
-> Tu as deja ton propre Transmission ? Dans **Reglages → Transmission**, remplace l'hote
-> `transmission` par l'adresse de ton instance (et retire le service `transmission` du
-> `docker-compose.yml` si tu n'en veux pas).
+L'application démarre vide : va dans **Réglages** pour ajouter tes trackers (URL Torznab +
+passkey).
+
+> **Déjà ton propre Transmission ?** Dans **Réglages → Transmission**, remplace l'hôte
+> `transmission` par l'adresse de ton instance, et retire le service `transmission` du
+> `docker-compose.yml` si tu n'en veux pas.
 
 ## Configuration
 
-- **Trackers** : Reglages → ajoute un tracker Torznab (nom, URL, passkey). Le bouton **Tester** verifie que ca repond.
-- **Transmission** : Reglages → hote / port / identifiants.
-- **Decouverte (TMDB)** : renseigne `TMDB_API_KEY` (cle gratuite sur [themoviedb.org](https://www.themoviedb.org/)) en variable d'environnement pour activer la page **Decouvrir** (tendances + recherche) et la **Bibliotheque**.
-- **Jellyfin (optionnel)** : Reglages → URL + cle API. TorrSearch marque alors les medias deja presents dans ton Jellyfin et propose un lien de lecture (Jellyfin reste ton serveur media).
-- **Auth & utilisateurs (optionnel)** : definis `TORSEARCH_USERNAME` et `TORSEARCH_PASSWORD` pour exiger un login (desactive si l'une manque). Ce compte devient l'**administrateur** au premier demarrage. L'admin gere ensuite les autres comptes dans Reglages → **Utilisateurs**, avec trois roles : **admin** (tout), **membre** (recherche manuelle + ajout direct), **invite** (parcourir et demander). Les demandes des invites arrivent dans l'ecran **Demandes** ou l'admin approuve (ajout a la bibliotheque) ou refuse. Mots de passe stockes hashes dans `data/users.json`, demandes dans `data/requests.json`. Voir `.env.example`.
-- Toutes les donnees (config, comptes, bibliotheques, demandes, historique) sont persistees dans une base **SQLite** `data/torsearch.db` (volume, jamais versionne). Les anciens fichiers `data/*.json` sont importes automatiquement au premier demarrage puis conserves en backup.
+Tout se règle dans l'interface ; quelques options passent par l'environnement (voir
+[`.env.example`](.env.example)).
 
-## Securite & exposition
+| Réglage | Où | Détail |
+| --- | --- | --- |
+| Trackers | Réglages → Trackers | Nom, URL Torznab, passkey. Le bouton **Tester** vérifie la connexion. |
+| Transmission | Réglages → Transmission | Hôte, port, identifiants. |
+| Découverte | `TMDB_API_KEY` | Clé gratuite sur [themoviedb.org](https://www.themoviedb.org/) (Réglages → API). Active la page **Découvrir** et la bibliothèque. |
+| Jellyfin | Réglages → Jellyfin | URL + clé API, pour marquer les médias déjà présents et proposer la lecture. |
+| Authentification | `TORSEARCH_USERNAME` / `TORSEARCH_PASSWORD` | Active la connexion ; ce compte devient l'**administrateur** au premier démarrage. Désactivée si l'une manque. |
 
-- TorrSearch **ne fait pas le TLS** : si tu l'exposes hors de ton reseau local, place-le
-  **derriere un reverse proxy HTTPS** (Caddy, Traefik, Nginx Proxy Manager…) et mets
+## Rôles & demandes
+
+L'authentification activée, l'admin gère les comptes dans **Réglages → Utilisateurs**.
+
+| Rôle | Réglages & comptes | Valider les demandes | Recherche manuelle + ajout direct | Découvrir & demander |
+| --- | :---: | :---: | :---: | :---: |
+| **Admin** | oui | oui | oui | oui |
+| **Membre** | — | — | oui | oui |
+| **Invité** | — | — | — | oui |
+
+Les demandes des invités arrivent dans l'écran **Demandes**, où l'admin approuve (le titre
+rejoint alors la bibliothèque et la surveillance le récupère) ou refuse. Chaque utilisateur
+suit l'état de ses propres demandes dans **Mes demandes**.
+
+## Sécurité & exposition
+
+- TorrSearch **ne gère pas le TLS**. Pour une exposition hors réseau local, place-le
+  **derrière un reverse proxy HTTPS** (Caddy, Traefik, Nginx Proxy Manager…) et mets
   `TORSEARCH_HTTPS=1` pour que le cookie de session soit `Secure`.
-- **Active l'auth** (`TORSEARCH_USERNAME`/`PASSWORD`) avant toute exposition, et choisis un
-  **mot de passe fort** (l'app previent au demarrage si le mot de passe admin est trivial).
-- Le login est protege par un **throttle** (blocage temporaire apres plusieurs echecs) et
-  l'app envoie des en-tetes de securite de base. Le conteneur tourne en **non-root**.
+- **Active l'authentification** et choisis un **mot de passe fort** : l'app prévient au
+  démarrage si le mot de passe administrateur est trivial.
+- Le login est protégé contre la force brute (blocage temporaire après plusieurs échecs),
+  l'app envoie des en-têtes de sécurité de base, et le conteneur tourne en **non-root**.
 
-## Developpement
+## Données
+
+Toutes les données (configuration, comptes, bibliothèques, demandes, historique) sont
+persistées dans une base **SQLite** `data/torsearch.db` (volume, jamais versionné). Les
+anciens fichiers `data/*.json` éventuels sont importés automatiquement au premier
+démarrage, puis conservés en sauvegarde.
+
+## Développement
 
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-pytest
+
+ruff check torsearch tests     # style
+mypy                           # typage
+pytest                         # tests
+
 uvicorn torsearch.main:get_app --factory --reload   # http://localhost:8000
 ```
 
+Stack : FastAPI, HTMX, Tailwind, Jinja2, SQLite — sans build front. La CI lance lint,
+typage et la suite de tests à chaque push.
+
 ## Avertissement
 
-TorrSearch est un outil de **recherche et d'agregation** (comme Prowlarr/Jackett). Il ne fournit
-aucun contenu. L'usage que tu en fais, le respect du droit d'auteur et des regles des trackers
-relevent de **ta** responsabilite et des lois de ton pays.
+TorrSearch est un outil de **recherche et d'agrégation** (comme Prowlarr/Jackett) : il ne
+fournit aucun contenu. L'usage que tu en fais, le respect du droit d'auteur et des règles
+des trackers relèvent de **ta** responsabilité et des lois de ton pays.
 
 ## Contribuer
 
 Les contributions sont bienvenues — voir [CONTRIBUTING.md](CONTRIBUTING.md) pour la mise en
 place et les conventions. Pour une faille de sécurité, suis [SECURITY.md](SECURITY.md)
-(signalement privé, pas d'issue publique).
+(signalement privé, jamais d'issue publique).
 
 ## Licence
 
-[MIT](LICENSE).
+Distribué sous licence [MIT](LICENSE).
