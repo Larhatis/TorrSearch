@@ -588,14 +588,14 @@ git commit -m "feat: add monitor cycle logic and background runner"
 Replace the body of `tests/test_main.py`'s test with this (keep the imports/`from torsearch import main`):
 ```python
 def test_build_app_wires_context_history_and_bootstraps(tmp_path, monkeypatch):
-    monkeypatch.setenv("TORR9_API_KEY", "secret")
+    monkeypatch.setenv("TRACKER1_API_KEY", "secret")
     config = tmp_path / "config.yaml"
     config.write_text(
         "indexers:\n"
-        "  - name: torr9\n"
+        "  - name: tracker1\n"
         "    type: torznab\n"
-        "    url: https://api.torr9.net/api/v1/torznab\n"
-        "    api_key: ${TORR9_API_KEY}\n"
+        "    url: https://tracker1.example/api\n"
+        "    api_key: ${TRACKER1_API_KEY}\n"
         "    enabled: true\n"
     )
     settings = tmp_path / "data" / "settings.json"
@@ -604,7 +604,7 @@ def test_build_app_wires_context_history_and_bootstraps(tmp_path, monkeypatch):
         bootstrap_config_path=str(config),
         monitor_path=str(tmp_path / "data" / "monitor.json"),
     )
-    assert [ix.name for ix in app.state.ctx.search_service.indexers] == ["torr9"]
+    assert [ix.name for ix in app.state.ctx.search_service.indexers] == ["tracker1"]
     assert settings.exists()
     assert app.state.history is not None
     assert app.state.history.records() == []

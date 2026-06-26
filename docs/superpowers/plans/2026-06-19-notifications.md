@@ -195,7 +195,7 @@ from torsearch.notifications.notifier import Notifier, format_record
 
 
 def _record(kind="grabbed"):
-    return MonitorRecord(search="MaSerie", title="Show.S02E01.1080p", source="torr9",
+    return MonitorRecord(search="MaSerie", title="Show.S02E01.1080p", source="tracker1",
                          infohash="H", download_url="magnet:?xt=urn:btih:H", kind=kind,
                          at=datetime(2024, 1, 1, tzinfo=timezone.utc))
 

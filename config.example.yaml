@@ -11,16 +11,16 @@ search:
   timeout_seconds: 10
 
 indexers:
-  - name: torr9
+  - name: tracker1
     type: torznab
-    url: https://api.torr9.net/api/v1/torznab
-    api_key: ${TORR9_API_KEY}
+    url: https://tracker1.example/api
+    api_key: ${TRACKER1_API_KEY}
     auth: query          # query (defaut) | bearer
     enabled: true
-  - name: c411
+  - name: tracker2
     type: torznab
-    url: https://c411.org/api
-    api_key: ${C411_API_KEY}
+    url: https://tracker2.example/api
+    api_key: ${TRACKER2_API_KEY}
     auth: query
     enabled: true
 

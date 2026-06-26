@@ -15,12 +15,12 @@ def _client(tmp_path, config=None, history=None):
 
 
 def test_settings_page_renders_general_and_trackers(tmp_path):
-    cfg = Config(indexers=[IndexerConfig(name="torr9", url="https://torr9/api", api_key="k")])
+    cfg = Config(indexers=[IndexerConfig(name="tracker1", url="https://tracker1.example/api", api_key="k")])
     client, _, _ = _client(tmp_path, cfg)
     resp = client.get("/settings")
     assert resp.status_code == 200
     assert "Transmission" in resp.text
-    assert "torr9" in resp.text
+    assert "tracker1" in resp.text
     assert 'name="timeout_seconds"' in resp.text
 
 
@@ -62,18 +62,18 @@ import respx
 def test_add_indexer_appears_in_list_and_config(tmp_path):
     client, ctx, _ = _client(tmp_path)
     resp = client.post("/settings/indexers", data={
-        "name": "torr9", "url": "https://torr9/api", "api_key": "k", "auth": "query",
+        "name": "tracker1", "url": "https://tracker1.example/api", "api_key": "k", "auth": "query",
     })
     assert resp.status_code == 200
-    assert "torr9" in resp.text
-    assert [ix.name for ix in ctx.config.indexers] == ["torr9"]
+    assert "tracker1" in resp.text
+    assert [ix.name for ix in ctx.config.indexers] == ["tracker1"]
 
 
 def test_add_indexer_duplicate_shows_error(tmp_path):
-    cfg = Config(indexers=[IndexerConfig(name="torr9", url="https://torr9/api", api_key="k")])
+    cfg = Config(indexers=[IndexerConfig(name="tracker1", url="https://tracker1.example/api", api_key="k")])
     client, ctx, _ = _client(tmp_path, cfg)
     resp = client.post("/settings/indexers", data={
-        "name": "torr9", "url": "https://other/api", "api_key": "k", "auth": "query",
+        "name": "tracker1", "url": "https://other/api", "api_key": "k", "auth": "query",
     })
     assert resp.status_code == 200
     assert "existe" in resp.text  # error banner
@@ -109,11 +109,11 @@ def test_delete_indexer_removes_it(tmp_path):
 def test_test_indexer_returns_ok_toast(tmp_path):
     client, _, _ = _client(tmp_path)
     with respx.mock:
-        respx.get("https://torr9/api").mock(
+        respx.get("https://tracker1.example/api").mock(
             return_value=httpx.Response(200, content=b'<?xml version="1.0"?><caps/>')
         )
         resp = client.post("/settings/indexers/test", data={
-            "name": "torr9", "url": "https://torr9/api", "api_key": "k", "auth": "query",
+            "name": "tracker1", "url": "https://tracker1.example/api", "api_key": "k", "auth": "query",
         })
     assert resp.status_code == 200
     assert "OK" in resp.text
@@ -122,9 +122,9 @@ def test_test_indexer_returns_ok_toast(tmp_path):
 def test_test_indexer_returns_error_toast_on_401(tmp_path):
     client, _, _ = _client(tmp_path)
     with respx.mock:
-        respx.get("https://torr9/api").mock(return_value=httpx.Response(401))
+        respx.get("https://tracker1.example/api").mock(return_value=httpx.Response(401))
         resp = client.post("/settings/indexers/test", data={
-            "name": "torr9", "url": "https://torr9/api", "api_key": "bad", "auth": "query",
+            "name": "tracker1", "url": "https://tracker1.example/api", "api_key": "bad", "auth": "query",
         })
     assert resp.status_code == 200
     assert "refus" in resp.text.lower()

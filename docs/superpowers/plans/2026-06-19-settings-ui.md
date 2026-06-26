@@ -725,20 +725,20 @@ from torsearch import main
 
 
 def test_build_app_wires_context_and_bootstraps(tmp_path, monkeypatch):
-    monkeypatch.setenv("TORR9_API_KEY", "secret")
+    monkeypatch.setenv("TRACKER1_API_KEY", "secret")
     config = tmp_path / "config.yaml"
     config.write_text(
         "indexers:\n"
-        "  - name: torr9\n"
+        "  - name: tracker1\n"
         "    type: torznab\n"
-        "    url: https://api.torr9.net/api/v1/torznab\n"
-        "    api_key: ${TORR9_API_KEY}\n"
+        "    url: https://tracker1.example/api\n"
+        "    api_key: ${TRACKER1_API_KEY}\n"
         "    enabled: true\n"
     )
     settings = tmp_path / "data" / "settings.json"
     app = main.build_app(settings_path=str(settings), bootstrap_config_path=str(config))
     assert isinstance(app, FastAPI)
-    assert [ix.name for ix in app.state.ctx.search_service.indexers] == ["torr9"]
+    assert [ix.name for ix in app.state.ctx.search_service.indexers] == ["tracker1"]
     assert settings.exists()
 ```
 
@@ -828,12 +828,12 @@ def _client(tmp_path, config=None):
 
 
 def test_settings_page_renders_general_and_trackers(tmp_path):
-    cfg = Config(indexers=[IndexerConfig(name="torr9", url="https://torr9/api", api_key="k")])
+    cfg = Config(indexers=[IndexerConfig(name="tracker1", url="https://tracker1.example/api", api_key="k")])
     client, _ = _client(tmp_path, cfg)
     resp = client.get("/settings")
     assert resp.status_code == 200
     assert "Transmission" in resp.text
-    assert "torr9" in resp.text
+    assert "tracker1" in resp.text
     assert 'name="timeout_seconds"' in resp.text
 
 
@@ -936,7 +936,7 @@ Expected: FAIL — `404` for `/settings` (router not mounted) / `ModuleNotFoundE
   <form hx-post="/settings/indexers" hx-target="#indexer-list" hx-swap="outerHTML"
         class="flex flex-wrap items-end gap-2 mb-4">
     <label class="text-xs text-slate-400">Nom<br>
-      <input name="name" placeholder="ex: torr9" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+      <input name="name" placeholder="ex: tracker1" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="text-xs text-slate-400">URL Torznab<br>
       <input name="url" placeholder="https://.../api" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-72"></label>
     <label class="text-xs text-slate-400">Passkey<br>
@@ -1074,18 +1074,18 @@ from torsearch.config import IndexerConfig
 def test_add_indexer_appears_in_list_and_config(tmp_path):
     client, ctx = _client(tmp_path)
     resp = client.post("/settings/indexers", data={
-        "name": "torr9", "url": "https://torr9/api", "api_key": "k", "auth": "query",
+        "name": "tracker1", "url": "https://tracker1.example/api", "api_key": "k", "auth": "query",
     })
     assert resp.status_code == 200
-    assert "torr9" in resp.text
-    assert [ix.name for ix in ctx.config.indexers] == ["torr9"]
+    assert "tracker1" in resp.text
+    assert [ix.name for ix in ctx.config.indexers] == ["tracker1"]
 
 
 def test_add_indexer_duplicate_shows_error(tmp_path):
-    cfg = Config(indexers=[IndexerConfig(name="torr9", url="https://torr9/api", api_key="k")])
+    cfg = Config(indexers=[IndexerConfig(name="tracker1", url="https://tracker1.example/api", api_key="k")])
     client, ctx = _client(tmp_path, cfg)
     resp = client.post("/settings/indexers", data={
-        "name": "torr9", "url": "https://other/api", "api_key": "k", "auth": "query",
+        "name": "tracker1", "url": "https://other/api", "api_key": "k", "auth": "query",
     })
     assert resp.status_code == 200
     assert "existe" in resp.text  # error banner
@@ -1121,11 +1121,11 @@ def test_delete_indexer_removes_it(tmp_path):
 def test_test_indexer_returns_ok_toast(tmp_path):
     client, _ = _client(tmp_path)
     with respx.mock:
-        respx.get("https://torr9/api").mock(
+        respx.get("https://tracker1.example/api").mock(
             return_value=httpx.Response(200, content=b'<?xml version="1.0"?><caps/>')
         )
         resp = client.post("/settings/indexers/test", data={
-            "name": "torr9", "url": "https://torr9/api", "api_key": "k", "auth": "query",
+            "name": "tracker1", "url": "https://tracker1.example/api", "api_key": "k", "auth": "query",
         })
     assert resp.status_code == 200
     assert "OK" in resp.text
@@ -1134,9 +1134,9 @@ def test_test_indexer_returns_ok_toast(tmp_path):
 def test_test_indexer_returns_error_toast_on_401(tmp_path):
     client, _ = _client(tmp_path)
     with respx.mock:
-        respx.get("https://torr9/api").mock(return_value=httpx.Response(401))
+        respx.get("https://tracker1.example/api").mock(return_value=httpx.Response(401))
         resp = client.post("/settings/indexers/test", data={
-            "name": "torr9", "url": "https://torr9/api", "api_key": "bad", "auth": "query",
+            "name": "tracker1", "url": "https://tracker1.example/api", "api_key": "bad", "auth": "query",
         })
     assert resp.status_code == 200
     assert "refus" in resp.text.lower()
@@ -1318,7 +1318,7 @@ git commit -m "chore: persist settings volume and document UI configuration"
 ## Notes de vérification finale (manuel, hors TDD)
 
 1. **Démarrage à blanc** : sans `config.yaml` ni `data/settings.json`, lancer
-   `uvicorn torsearch.main:get_app --factory --reload`, ouvrir `/settings`, ajouter torr9 puis c411
+   `uvicorn torsearch.main:get_app --factory --reload`, ouvrir `/settings`, ajouter tracker1 puis tracker2
    (URL + passkey), cliquer **Tester** sur chacun → toast OK attendu.
 2. **Hot-reload** : après ajout, faire une recherche immédiatement (sans redémarrer) et vérifier
    que les résultats des nouveaux trackers remontent.

@@ -182,4 +182,4 @@ deux routers (recherche + réglages).
 - **Secrets en clair dans `data/settings.json`** : assumé (fichier gitignoré, volume local). C'est le compromis voulu pour une édition 100 % UI.
 - **Identité par nom** : renommer un tracker = supprimer/recréer du point de vue de l'identité ; l'unicité est validée. Suffisant pour un usage perso.
 - **Concurrence** : mono-utilisateur ; l'écriture atomique évite un fichier corrompu en cas d'arrêt pendant la sauvegarde.
-- **`t=caps`** : standard Torznab ; si un tracker ne le supporte pas, le test pourra être basculé sur une recherche à vide plus tard (non nécessaire pour torr9/c411).
+- **`t=caps`** : standard Torznab ; si un tracker ne le supporte pas, le test pourra être basculé sur une recherche à vide plus tard (non nécessaire pour tracker1/tracker2).

@@ -57,7 +57,7 @@ Pures, frozen-safe, erreurs via `SettingsError` :
 
 - `format_record(record: MonitorRecord) -> tuple[str, str]` : `(title, body)`, ex.
   title `"TorrSearch — surveillance"`, body
-  `"grabbé · Ma Série : Great.Show.S02E01.1080p (torr9)"` (`grabbé`/`trouvé` selon `record.kind`).
+  `"grabbé · Ma Série : Great.Show.S02E01.1080p (tracker1)"` (`grabbé`/`trouvé` selon `record.kind`).
 - `Notifier` (httpx async, `client_factory` injectable pour les tests) :
   - `async send(channel, title, body)` : POST selon `channel.type` —
     - **discord** → `POST url` `json={"content": f"{title}\n{body}"}`

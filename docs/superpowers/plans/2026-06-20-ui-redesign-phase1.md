@@ -64,7 +64,7 @@ def test_badge_quality_labels():
 
 
 def test_source_chip_shows_name():
-    assert "torr9" in _render("{{ source_chip('torr9') }}")
+    assert "tracker1" in _render("{{ source_chip('tracker1') }}")
 ```
 
 - [ ] **Step 2 : Lancer les tests, vérifier l'échec**

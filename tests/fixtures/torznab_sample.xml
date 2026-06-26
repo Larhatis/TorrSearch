@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:torznab="http://torznab.com/schemas/2015/feed">
   <channel>
-    <title>torr9</title>
+    <title>tracker1</title>
     <item>
       <title>Cool.Movie.2024.1080p.BluRay.x264</title>
-      <guid>https://torr9/details/111</guid>
-      <comments>https://torr9/details/111</comments>
+      <guid>https://tracker1.example/details/111</guid>
+      <comments>https://tracker1.example/details/111</comments>
       <pubDate>Wed, 18 Jun 2025 12:00:00 +0000</pubDate>
       <size>2147483648</size>
       <link>magnet:?xt=urn:btih:AAAA1111</link>
@@ -17,9 +17,9 @@
     </item>
     <item>
       <title>Great.Show.S01E02.720p</title>
-      <guid>https://torr9/details/222</guid>
+      <guid>https://tracker1.example/details/222</guid>
       <pubDate>Tue, 17 Jun 2025 09:30:00 +0000</pubDate>
-      <enclosure url="https://torr9/download/222.torrent" length="734003200" type="application/x-bittorrent"/>
+      <enclosure url="https://tracker1.example/download/222.torrent" length="734003200" type="application/x-bittorrent"/>
       <torznab:attr name="category" value="5040"/>
       <torznab:attr name="seeders" value="40"/>
       <torznab:attr name="leechers" value="8"/>

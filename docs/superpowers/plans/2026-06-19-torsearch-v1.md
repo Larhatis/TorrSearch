@@ -246,14 +246,14 @@ transmission:
 search:
   timeout_seconds: 5
 indexers:
-  - name: torr9
+  - name: tracker1
     type: torznab
-    url: https://api.torr9.net/api/v1/torznab
-    api_key: ${TORR9_API_KEY}
+    url: https://tracker1.example/api
+    api_key: ${TRACKER1_API_KEY}
     enabled: true
-  - name: c411
+  - name: tracker2
     type: torznab
-    url: https://c411.org/api
+    url: https://tracker2.example/api
     api_key: plain-key
     auth: bearer
     enabled: false
@@ -279,7 +279,7 @@ def test_load_config_parses_values(tmp_path):
 
 
 def test_load_config_interpolates_env(tmp_path, monkeypatch):
-    monkeypatch.setenv("TORR9_API_KEY", "secret-123")
+    monkeypatch.setenv("TRACKER1_API_KEY", "secret-123")
     path = tmp_path / "config.yaml"
     path.write_text(VALID_YAML)
     cfg = load_config(path)
@@ -287,7 +287,7 @@ def test_load_config_interpolates_env(tmp_path, monkeypatch):
 
 
 def test_load_config_missing_env_becomes_empty(tmp_path, monkeypatch):
-    monkeypatch.delenv("TORR9_API_KEY", raising=False)
+    monkeypatch.delenv("TRACKER1_API_KEY", raising=False)
     path = tmp_path / "config.yaml"
     path.write_text(VALID_YAML)
     cfg = load_config(path)
@@ -485,11 +485,11 @@ git commit -m "feat: add Indexer abstract interface"
 <?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:torznab="http://torznab.com/schemas/2015/feed">
   <channel>
-    <title>torr9</title>
+    <title>tracker1</title>
     <item>
       <title>Cool.Movie.2024.1080p.BluRay.x264</title>
-      <guid>https://torr9/details/111</guid>
-      <comments>https://torr9/details/111</comments>
+      <guid>https://tracker1.example/details/111</guid>
+      <comments>https://tracker1.example/details/111</comments>
       <pubDate>Wed, 18 Jun 2025 12:00:00 +0000</pubDate>
       <size>2147483648</size>
       <link>magnet:?xt=urn:btih:AAAA1111</link>
@@ -501,9 +501,9 @@ git commit -m "feat: add Indexer abstract interface"
     </item>
     <item>
       <title>Great.Show.S01E02.720p</title>
-      <guid>https://torr9/details/222</guid>
+      <guid>https://tracker1.example/details/222</guid>
       <pubDate>Tue, 17 Jun 2025 09:30:00 +0000</pubDate>
-      <enclosure url="https://torr9/download/222.torrent" length="734003200" type="application/x-bittorrent"/>
+      <enclosure url="https://tracker1.example/download/222.torrent" length="734003200" type="application/x-bittorrent"/>
       <torznab:attr name="category" value="5040"/>
       <torznab:attr name="seeders" value="40"/>
       <torznab:attr name="leechers" value="8"/>
@@ -526,38 +526,38 @@ FIXTURE = (Path(__file__).parent / "fixtures" / "torznab_sample.xml").read_bytes
 
 
 def test_parse_returns_two_results():
-    results = parse_response(FIXTURE, "torr9")
+    results = parse_response(FIXTURE, "tracker1")
     assert len(results) == 2
 
 
 def test_parse_first_item_fields():
-    r = parse_response(FIXTURE, "torr9")[0]
+    r = parse_response(FIXTURE, "tracker1")[0]
     assert r.title == "Cool.Movie.2024.1080p.BluRay.x264"
     assert r.size == 2147483648
     assert r.seeders == 120
     assert r.leechers == 15  # peers(135) - seeders(120)
-    assert r.source == "torr9"
+    assert r.source == "tracker1"
     assert r.category == Category.MOVIES
     assert r.download_url == "magnet:?xt=urn:btih:AAAA1111"
     assert r.is_magnet is True
     assert r.infohash == "AAAA1111"
-    assert r.info_url == "https://torr9/details/111"
+    assert r.info_url == "https://tracker1.example/details/111"
 
 
 def test_parse_second_item_uses_enclosure_size_and_direct_leechers():
-    r = parse_response(FIXTURE, "torr9")[1]
+    r = parse_response(FIXTURE, "tracker1")[1]
     assert r.size == 734003200
     assert r.seeders == 40
     assert r.leechers == 8
     assert r.category == Category.TV
-    assert r.download_url == "https://torr9/download/222.torrent"
+    assert r.download_url == "https://tracker1.example/download/222.torrent"
     assert r.is_magnet is False
-    assert r.info_url == "https://torr9/details/222"
+    assert r.info_url == "https://tracker1.example/details/222"
 
 
 def test_parse_empty_feed_returns_empty_list():
     empty = b'<?xml version="1.0"?><rss><channel></channel></rss>'
-    assert parse_response(empty, "torr9") == []
+    assert parse_response(empty, "tracker1") == []
 
 
 def test_category_from_id_mapping():
@@ -721,7 +721,7 @@ FIXTURE = (Path(__file__).parent / "fixtures" / "torznab_sample.xml").read_bytes
 
 
 def _cfg(**overrides):
-    base = dict(name="torr9", url="https://api.torr9.net/api/v1/torznab", api_key="KEY")
+    base = dict(name="tracker1", url="https://tracker1.example/api", api_key="KEY")
     base.update(overrides)
     return IndexerConfig(**base)
 
@@ -753,18 +753,18 @@ def test_category_override_from_config():
 async def test_search_success_returns_parsed_results():
     ix = TorznabIndexer(_cfg())
     with respx.mock:
-        respx.get("https://api.torr9.net/api/v1/torznab").mock(
+        respx.get("https://tracker1.example/api").mock(
             return_value=httpx.Response(200, content=FIXTURE)
         )
         results = await ix.search("cool", Category.ALL)
     assert len(results) == 2
-    assert results[0].source == "torr9"
+    assert results[0].source == "tracker1"
 
 
 async def test_search_http_error_returns_empty():
     ix = TorznabIndexer(_cfg())
     with respx.mock:
-        respx.get("https://api.torr9.net/api/v1/torznab").mock(
+        respx.get("https://tracker1.example/api").mock(
             return_value=httpx.Response(500)
         )
         assert await ix.search("cool", Category.ALL) == []
@@ -773,7 +773,7 @@ async def test_search_http_error_returns_empty():
 async def test_search_malformed_xml_returns_empty():
     ix = TorznabIndexer(_cfg())
     with respx.mock:
-        respx.get("https://api.torr9.net/api/v1/torznab").mock(
+        respx.get("https://tracker1.example/api").mock(
             return_value=httpx.Response(200, content=b"<not-xml")
         )
         assert await ix.search("cool", Category.ALL) == []
@@ -886,15 +886,15 @@ from torsearch.indexers.torznab import TorznabIndexer
 def test_builds_only_enabled_torznab_indexers():
     cfg = Config(
         indexers=[
-            IndexerConfig(name="torr9", url="https://a/api", api_key="x", enabled=True),
-            IndexerConfig(name="c411", url="https://b/api", api_key="y", enabled=True),
+            IndexerConfig(name="tracker1", url="https://a/api", api_key="x", enabled=True),
+            IndexerConfig(name="tracker2", url="https://b/api", api_key="y", enabled=True),
             IndexerConfig(name="off", url="https://c/api", api_key="z", enabled=False),
         ]
     )
     indexers = build_indexers(cfg)
     assert len(indexers) == 2
     assert all(isinstance(ix, TorznabIndexer) for ix in indexers)
-    assert {ix.name for ix in indexers} == {"torr9", "c411"}
+    assert {ix.name for ix in indexers} == {"tracker1", "tracker2"}
 
 
 def test_skips_unknown_indexer_type():
@@ -1545,23 +1545,23 @@ from torsearch import main
 
 
 def test_build_app_wires_services(tmp_path, monkeypatch):
-    monkeypatch.setenv("TORR9_API_KEY", "secret")
+    monkeypatch.setenv("TRACKER1_API_KEY", "secret")
     config = tmp_path / "config.yaml"
     config.write_text(
         """
 transmission:
   host: localhost
 indexers:
-  - name: torr9
+  - name: tracker1
     type: torznab
-    url: https://api.torr9.net/api/v1/torznab
-    api_key: ${TORR9_API_KEY}
+    url: https://tracker1.example/api
+    api_key: ${TRACKER1_API_KEY}
     enabled: true
 """
     )
     app = main.build_app(str(config))
     assert isinstance(app, FastAPI)
-    assert [ix.name for ix in app.state.search_service.indexers] == ["torr9"]
+    assert [ix.name for ix in app.state.search_service.indexers] == ["tracker1"]
     assert app.state.transmission is not None
 ```
 
@@ -1651,16 +1651,16 @@ search:
   timeout_seconds: 10
 
 indexers:
-  - name: torr9
+  - name: tracker1
     type: torznab
-    url: https://api.torr9.net/api/v1/torznab
-    api_key: ${TORR9_API_KEY}
+    url: https://tracker1.example/api
+    api_key: ${TRACKER1_API_KEY}
     auth: query          # query (defaut) | bearer
     enabled: true
-  - name: c411
+  - name: tracker2
     type: torznab
-    url: https://c411.org/api
-    api_key: ${C411_API_KEY}
+    url: https://tracker2.example/api
+    api_key: ${TRACKER2_API_KEY}
     auth: query
     enabled: true
 ```
@@ -1669,8 +1669,8 @@ indexers:
 
 ```bash
 # Copier vers .env et renseigner tes passkeys (jamais commite)
-TORR9_API_KEY=ta-passkey-torr9
-C411_API_KEY=ta-cle-c411
+TRACKER1_API_KEY=ta-passkey-tracker1
+TRACKER2_API_KEY=ta-cle-tracker2
 ```
 
 - [ ] **Step 3: Create `Dockerfile`**
@@ -1773,10 +1773,10 @@ git commit -m "chore: add config examples, docker packaging and readme"
 
 Après la Task 12, avant de considérer la v1 terminée :
 
-1. **Smoke test réel** : avec un `config.yaml` rempli (vraies passkeys torr9/c411), lancer
+1. **Smoke test réel** : avec un `config.yaml` rempli (vraies passkeys tracker1/tracker2), lancer
    `uvicorn torsearch.main:get_app --factory --reload`, chercher un titre, vérifier que des
    résultats des deux trackers remontent.
-2. **Auth c411** : si c411 renvoie 401/403 en mode `auth: query`, basculer son entrée sur
+2. **Auth tracker2** : si tracker2 renvoie 401/403 en mode `auth: query`, basculer son entrée sur
    `auth: bearer` dans `config.yaml` et re-tester (l'`IndexerConfig` le supporte déjà).
 3. **Transmission** : avec un Transmission joignable (Web UI/RPC activé), cliquer
    « + Transmission » sur un résultat et confirmer l'ajout côté Transmission.

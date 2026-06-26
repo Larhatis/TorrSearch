@@ -26,8 +26,8 @@ C'est l'équivalent allégé et sur-mesure de Prowlarr, sans la lourdeur de conf
 
 - Recherche **agrégée multi-trackers** via le protocole **Torznab**.
 - 2 trackers préconfigurés, tous deux en Torznab :
-  - **torr9** — `https://api.torr9.net/api/v1/torznab` + passkey (API key).
-  - **c411** — `https://c411.org/api` + API key.
+  - **tracker1** — `https://tracker1.example/api` + passkey (API key).
+  - **tracker2** — `https://tracker2.example/api` + API key.
 - Résultats **normalisés**, **dédoublonnés**, **triés par seeders** (décroissant).
 - Filtre par **catégorie** : Tout / Films / Séries / Anime.
 - **Envoi à Transmission** (magnet ou `.torrent`) via son API RPC.
@@ -58,8 +58,8 @@ FastAPI  ──────────────┐  (sert l'UI + l'API)
   ▼                    ▼
 SearchService      TransmissionClient
   │ (asyncio.gather)        │ (RPC)
-  ├── TorznabIndexer(torr9) ▼
-  └── TorznabIndexer(c411)  Transmission
+  ├── TorznabIndexer(tracker1) ▼
+  └── TorznabIndexer(tracker2)  Transmission
 ```
 
 Chaque indexer implémente la même interface, donc l'orchestrateur est agnostique du type
@@ -87,7 +87,7 @@ de tracker (Torznab aujourd'hui, scraper HTML demain).
 | `size` | `int` | Octets. |
 | `seeders` | `int` | |
 | `leechers` | `int` | |
-| `source` | `str` | Nom du tracker (`torr9`, `c411`). |
+| `source` | `str` | Nom du tracker (`tracker1`, `tracker2`). |
 | `category` | `Category` | Enum normalisée. |
 | `download_url` | `str` | Magnet ou URL `.torrent`. |
 | `is_magnet` | `bool` | Dérivé de `download_url`. |
@@ -110,7 +110,7 @@ tracker** dans le `config.yaml` (les trackers ne numérotent pas toujours pareil
 - **Réponse** : flux RSS/XML ; chaque `<item>` porte titre, `<enclosure url=... length=...>`
   (URL de téléchargement + taille) et des `<torznab:attr name="seeders|peers|..." value=...>`.
 - **Auth** : la clé passe en **paramètre d'URL `apikey`** (standard Torznab pour la recherche).
-  Le `Authorization: Bearer` vu côté c411 concerne l'endpoint d'**upload**, non utilisé ici.
+  Le `Authorization: Bearer` vu côté tracker2 concerne l'endpoint d'**upload**, non utilisé ici.
   → `TorznabIndexer` supporte néanmoins deux modes d'auth configurables
   (`auth: query` par défaut, ou `auth: bearer`) pour ne pas être bloqué si un tracker diffère.
 - **Parsing XML** : via `defusedxml` (parsing sûr).
@@ -162,16 +162,16 @@ search:
   timeout_seconds: 10
 
 indexers:
-  - name: torr9
+  - name: tracker1
     type: torznab
-    url: https://api.torr9.net/api/v1/torznab
-    api_key: ${TORR9_API_KEY}     # interpolé depuis l'env / .env
+    url: https://tracker1.example/api
+    api_key: ${TRACKER1_API_KEY}     # interpolé depuis l'env / .env
     auth: query                   # query (défaut) | bearer
     enabled: true
-  - name: c411
+  - name: tracker2
     type: torznab
-    url: https://c411.org/api
-    api_key: ${C411_API_KEY}
+    url: https://tracker2.example/api
+    api_key: ${TRACKER2_API_KEY}
     auth: query
     enabled: true
 ```
@@ -250,12 +250,12 @@ torsearch/
 
 ## 11. Risques & points ouverts
 
-- **Mode d'auth c411** : on part sur `apikey` en query (standard Torznab). Si l'API de c411
+- **Mode d'auth tracker2** : on part sur `apikey` en query (standard Torznab). Si l'API de tracker2
   exige la clé autrement, le mode `auth: bearer` du `TorznabIndexer` couvre le cas → à
   vérifier au premier test réel.
 - **Catégories hétérogènes** : numérotation Newznab variable selon les trackers → defaults +
   override par tracker dans le YAML.
-- **Domaines mouvants** : torr9/c411 peuvent changer de domaine → l'URL étant en config, on
+- **Domaines mouvants** : tracker1/tracker2 peuvent changer de domaine → l'URL étant en config, on
   édite une ligne (pas de code).
 - **Cadre légal** : TorSearch est un outil de recherche/agrégation (comme Prowlarr/Jackett) ;
   l'usage et le respect du droit d'auteur relèvent de l'utilisateur. Aucun identifiant n'est
