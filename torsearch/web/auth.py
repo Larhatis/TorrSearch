@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import hmac
 import os
 import secrets
@@ -129,27 +130,45 @@ def _is_public(path: str) -> bool:
     return path in _PUBLIC_PATHS or path.startswith(_PUBLIC_PREFIXES)
 
 
+def _route_path(request: Request) -> str:
+    """The path the router matches, from the ASGI scope (never from the Host header)."""
+    path = request.scope["path"]
+    root = request.scope.get("root_path", "")
+    return path[len(root):] if root and path.startswith(root) else path
+
+
+def session_fingerprint(password_hash: str, secret_key: str) -> str:
+    """Short HMAC of the password hash, stored in the session at login.
+
+    Re-creating an account (or changing its password) changes the hash, which revokes every
+    session issued before.
+    """
+    return hmac.new(secret_key.encode(), password_hash.encode(), hashlib.sha256).hexdigest()[:16]
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, settings: AuthSettings):
         super().__init__(app)
         self.settings = settings
 
     async def dispatch(self, request: Request, call_next):
-        if not self.settings.enabled or _is_public(request.url.path):
+        if not self.settings.enabled or _is_public(_route_path(request)):
             return await call_next(request)
         username = request.session.get("user")
         if username:
             users = getattr(request.app.state, "users", None)
             user = users.get(username) if users is not None else None
             if user is not None:
-                # Authorization uses the role stored in the DB, not the one frozen in the
-                # cookie at login: demotions and promotions apply on the next request.
-                request.state.role = user.role.value
+                fingerprint = session_fingerprint(user.password_hash, self.settings.secret_key)
+                if hmac.compare_digest(request.session.get("pwd", ""), fingerprint):
+                    # Authorization uses the role stored in the DB, not the one frozen in
+                    # the cookie at login: demotions and promotions apply on the next request.
+                    request.state.role = user.role.value
+                    return await call_next(request)
+            elif (users is None or users.is_empty()) and username == self.settings.username:
+                # Single-credential mode (no user store yet): only the env admin can log in.
                 return await call_next(request)
-            if users is None or users.is_empty():
-                # Single-credential mode (no user store yet): the session is the truth.
-                return await call_next(request)
-            # The account was deleted after login: drop the stale session.
+            # Account deleted or re-created since login: drop the stale session.
             request.session.clear()
         return _unauthenticated(request)
 

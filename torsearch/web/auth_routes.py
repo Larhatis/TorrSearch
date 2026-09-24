@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
-from torsearch.web.auth import AuthSettings
+from torsearch.web.auth import AuthSettings, session_fingerprint
 from torsearch.web.templating import templates
 
 auth_router = APIRouter()
@@ -19,18 +19,20 @@ def _client_key(request: Request) -> str:
     return request.client.host if request.client else "?"
 
 
-def _authenticate(request, username: str, password: str, auth: AuthSettings) -> str | None:
-    """Return the role on success, else None.
+def _authenticate(request, username: str, password: str, auth: AuthSettings) -> tuple[str, str] | None:
+    """Return ``(role, session fingerprint)`` on success, else None.
 
     Prefers the multi-user store; falls back to the single env credential (treated as
-    admin) when no store is wired or it is still empty.
+    admin, no fingerprint) when no store is wired or it is still empty.
     """
     users = getattr(request.app.state, "users", None)
     if users is not None and not users.is_empty():
         user = users.verify(username, password)
-        return user.role.value if user else None
+        if user is None:
+            return None
+        return user.role.value, session_fingerprint(user.password_hash, auth.secret_key)
     if auth.check(username, password):
-        return "admin"
+        return "admin", ""
     return None
 
 
@@ -63,12 +65,14 @@ async def login_submit(
              "error": "Trop de tentatives. Reessaie dans quelques minutes."},
             status_code=429,
         )
-    role = _authenticate(request, username, password, auth)
-    if role is not None:
+    result = _authenticate(request, username, password, auth)
+    if result is not None:
+        role, fingerprint = result
         if throttle is not None:
             throttle.reset(key)
         request.session["user"] = username
         request.session["role"] = role
+        request.session["pwd"] = fingerprint
         target = _safe_next(next)
         if role == "guest" and target == "/":
             target = "/discover"  # guests can't use the search home

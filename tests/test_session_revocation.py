@@ -74,3 +74,42 @@ def test_nav_reflects_role_from_store(tmp_path):
     store.add("admin2", "pw", Role.ADMIN)  # keep an admin: the last one can't be demoted
     store.set_role("admin", Role.MEMBER)
     assert "ti-settings" not in client.get("/").text
+
+
+def test_revocation_clears_the_session_cookie(tmp_path):
+    client, store = _setup(tmp_path)
+    _login(client, "bob")
+    store.remove("bob")
+    resp = client.get("/search", params={"q": ""}, follow_redirects=False)
+    assert "session=null" in resp.headers.get("set-cookie", "")
+
+
+def test_recreated_account_does_not_revive_an_old_session(tmp_path):
+    client, store = _setup(tmp_path)
+    _login(client, "bob")
+    store.remove("bob")
+    store.add("bob", "new-pw", Role.MEMBER)  # the only way to reset a password today
+    assert client.get("/search", params={"q": ""}, follow_redirects=False).status_code == 303
+
+
+def test_empty_store_only_trusts_the_configured_admin(tmp_path):
+    db = Database(tmp_path / "t.db")
+    store = UserStore(db.collection("users"))
+    store.add("admin", "pw", Role.ADMIN)
+    store.add("bob", "pw", Role.MEMBER)
+    auth = AuthSettings(enabled=True, username="admin", password="pw", secret_key="k")
+    client = TestClient(create_app(_Ctx(), auth=auth, users=store))
+    _login(client, "bob")
+    for name in ("admin", "bob"):
+        db.collection("users").delete(name)  # store emptied behind the app's back
+    assert client.get("/", follow_redirects=False).status_code == 303
+
+
+def test_public_path_check_ignores_the_host_header():
+    from starlette.requests import Request
+
+    from torsearch.web.auth import _route_path
+
+    scope = {"type": "http", "method": "GET", "path": "/discover", "root_path": "",
+             "query_string": b"", "headers": [(b"host", b"evil/static")]}
+    assert _route_path(Request(scope)) == "/discover"
