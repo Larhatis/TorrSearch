@@ -45,7 +45,7 @@ async def run_jellyfin_refresh(transmission, jellyfin, completed_seen: set[int])
     if jellyfin is None or not getattr(jellyfin, "enabled", False):
         return completed_seen
     try:
-        torrents = transmission.list_torrents()
+        torrents = await transmission.list_torrents()
     except Exception as exc:
         logger.warning("Jellyfin refresh: listing torrents failed: %s", exc)
         return completed_seen
@@ -79,7 +79,7 @@ async def run_cycle(config, search_service, transmission, history, notifier=None
             continue
         if saved.mode == "auto":
             try:
-                transmission.add(pick.download_url)
+                await transmission.add(pick.download_url)
             except Exception as exc:
                 logger.warning("Monitor grab for '%s' failed: %s", saved.name, exc)
                 continue
@@ -123,7 +123,7 @@ def _movie_needs_grab(movie, jellyfin, owned_map, now, window) -> bool:
 
 async def _grab_movie(config, movie, pick, transmission, library, history, notifier, created) -> None:
     try:
-        transmission.add(pick.download_url, download_dir=config.paths.for_category(Category.MOVIES))
+        await transmission.add(pick.download_url, download_dir=config.paths.for_category(Category.MOVIES))
     except Exception as exc:
         logger.warning("Movie grab '%s' failed: %s", movie.title, exc)
         return
@@ -284,7 +284,7 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             if not covered:
                 continue
             try:
-                transmission.add(r.download_url, download_dir=config.paths.for_category(Category.TV))
+                await transmission.add(r.download_url, download_dir=config.paths.for_category(Category.TV))
             except Exception as exc:
                 logger.warning("Series grab '%s' failed: %s", series.title, exc)
                 continue

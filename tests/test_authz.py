@@ -20,7 +20,7 @@ class FakeIndexer:
 
 
 class FakeTransmission:
-    def add(self, url, download_dir=None):
+    async def add(self, url, download_dir=None):
         return 1
 
 

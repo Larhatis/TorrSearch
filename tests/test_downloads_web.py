@@ -11,18 +11,18 @@ class FakeTransmission:
         self._fail = fail
         self.calls = []
 
-    def list_torrents(self):
+    async def list_torrents(self):
         if self._fail:
             raise RuntimeError("down")
         return self._torrents
 
-    def pause(self, tid):
+    async def pause(self, tid):
         self.calls.append(("pause", tid))
 
-    def resume(self, tid):
+    async def resume(self, tid):
         self.calls.append(("resume", tid))
 
-    def remove(self, tid):
+    async def remove(self, tid):
         self.calls.append(("remove", tid))
 
 

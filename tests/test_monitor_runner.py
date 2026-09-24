@@ -27,7 +27,7 @@ class FakeTransmission:
         self.added = []
         self.dirs = []
 
-    def add(self, url, download_dir=None):
+    async def add(self, url, download_dir=None):
         self.added.append(url)
         self.dirs.append(download_dir)
         return 1
@@ -293,7 +293,7 @@ class FakeTransmissionList:
         self._torrents = torrents
         self._error = error
 
-    def list_torrents(self):
+    async def list_torrents(self):
         if self._error:
             raise RuntimeError("boom")
         return list(self._torrents)

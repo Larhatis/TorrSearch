@@ -106,7 +106,7 @@ async def download(request: Request, download_url: str = Form(...), category: st
     except ValueError:
         cat = Category.OTHER
     try:
-        torrent_id = ctx.transmission.add(download_url, ctx.config.paths.for_category(cat))
+        torrent_id = await ctx.transmission.add(download_url, ctx.config.paths.for_category(cat))
         message, ok = f"Ajoute a Transmission (#{torrent_id})", True
     except Exception as exc:
         message, ok = f"Erreur Transmission : {exc}", False

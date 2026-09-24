@@ -23,7 +23,7 @@ class FakeTransmission:
         self.added = []
         self.dirs = []
 
-    def add(self, download_url, download_dir=None):
+    async def add(self, download_url, download_dir=None):
         self.added.append(download_url)
         self.dirs.append(download_dir)
         return 7
