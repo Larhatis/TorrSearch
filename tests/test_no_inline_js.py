@@ -9,7 +9,15 @@ from torsearch.web.auth import AuthSettings
 from torsearch.web.routes import create_app
 from torsearch.web.templating import TEMPLATES_DIR
 
-_INLINE_HANDLER = re.compile(r"\son[a-z]+\s*=", re.IGNORECASE)
+# Every way a template could turn data into executable JS.
+_FORBIDDEN = [
+    re.compile(r"\son[a-z]+\s*=", re.IGNORECASE),  # onclick=, onerror=, ...
+    re.compile(r"\shx-on", re.IGNORECASE),  # hx-on:click, hx-on::after-request
+    re.compile(r"\shx-vars\s*=", re.IGNORECASE),  # evaluated as JS by htmx
+    re.compile(r"javascript:", re.IGNORECASE),
+    re.compile(r"""hx-(?:vals|headers)\s*=\s*['"]\s*js:""", re.IGNORECASE),
+]
+_SCRIPT_BLOCK = re.compile(r"<script\b[^>]*>(.*?)</script>", re.IGNORECASE | re.DOTALL)
 
 
 class _Indexer:
@@ -39,7 +47,18 @@ def test_templates_have_no_inline_event_handlers():
     offenders = [
         f"{path.relative_to(TEMPLATES_DIR)}: {m.group(0).strip()}"
         for path in sorted(TEMPLATES_DIR.rglob("*.html"))
-        for m in _INLINE_HANDLER.finditer(path.read_text())
+        for pattern in _FORBIDDEN
+        for m in pattern.finditer(path.read_text())
+    ]
+    assert offenders == []
+
+
+def test_inline_scripts_interpolate_nothing():
+    offenders = [
+        str(path.relative_to(TEMPLATES_DIR))
+        for path in sorted(TEMPLATES_DIR.rglob("*.html"))
+        for block in _SCRIPT_BLOCK.findall(path.read_text())
+        if "{{" in block or "{%" in block
     ]
     assert offenders == []
 
