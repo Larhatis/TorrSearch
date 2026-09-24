@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, Depends, FastAPI, Form, Query, Request
@@ -15,6 +14,7 @@ from torsearch.web.auth_routes import auth_router
 from torsearch.web.authz import require_admin, require_member
 from torsearch.web.discover_routes import discover_router
 from torsearch.web.downloads_routes import downloads_router
+from torsearch.web.forms import GB, split_words, to_int, to_size_bytes
 from torsearch.web.library_routes import library_router
 from torsearch.web.requests_routes import requests_router
 from torsearch.web.series_routes import series_router
@@ -23,23 +23,6 @@ from torsearch.web.surveillance_routes import surveillance_router
 from torsearch.web.templating import templates
 
 router = APIRouter()
-
-_GB = 1024 ** 3
-
-
-def _to_int(value: str, default: int = 0) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _to_size_bytes(value: str) -> int | None:
-    try:
-        gb = float(value)
-    except (TypeError, ValueError):
-        return None
-    return int(gb * _GB) if gb > 0 else None
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -57,9 +40,9 @@ def _active_filters(filters: ResultFilters) -> list[dict]:
     if filters.min_seeders > 0:
         chips.append({"label": f"Seeders ≥ {filters.min_seeders}", "name": "min_seeders"})
     if filters.min_size is not None:
-        chips.append({"label": f"≥ {round(filters.min_size / _GB, 1)} Go", "name": "min_size_gb"})
+        chips.append({"label": f"≥ {round(filters.min_size / GB, 1)} Go", "name": "min_size_gb"})
     if filters.max_size is not None:
-        chips.append({"label": f"≤ {round(filters.max_size / _GB, 1)} Go", "name": "max_size_gb"})
+        chips.append({"label": f"≤ {round(filters.max_size / GB, 1)} Go", "name": "max_size_gb"})
     for q in filters.qualities:
         chips.append({"label": q, "name": "quality", "value": q})
     if filters.exclude:
@@ -90,11 +73,11 @@ async def search(
     effective_sort = sort if sort in VALID_SORTS else "seeders"
     effective_dir = dir if dir in VALID_DIRECTIONS else "desc"
     filters = ResultFilters(
-        min_seeders=max(_to_int(min_seeders), 0),
-        min_size=_to_size_bytes(min_size_gb),
-        max_size=_to_size_bytes(max_size_gb),
+        min_seeders=max(to_int(min_seeders), 0),
+        min_size=to_size_bytes(min_size_gb),
+        max_size=to_size_bytes(max_size_gb),
         qualities=[item for item in quality if item],
-        exclude=[w for w in re.split(r"[\s,]+", exclude) if w],
+        exclude=split_words(exclude),
         sort=effective_sort,
         direction=effective_dir,
     )

@@ -32,6 +32,7 @@ from torsearch.settings.mutations import (
     update_indexer,
 )
 from torsearch.users.store import Role, UserError
+from torsearch.web.forms import to_int
 from torsearch.web.templating import templates
 
 settings_router = APIRouter()
@@ -137,7 +138,7 @@ async def update_library(
     try:
         profile = LibraryConfig(
             qualities=[q for q in quality if q],
-            min_seeders=int(min_seeders) if min_seeders.lstrip("-").isdigit() else 0,
+            min_seeders=to_int(min_seeders),
             upgrades=upgrades is not None,
         )
         ctx.update_settings(set_library(ctx.config, profile))
