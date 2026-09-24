@@ -43,22 +43,4 @@
   </details>
 </form>
 <div id="results"></div>
-<script>
-function clearFilter(name, value) {
-  const form = document.getElementById('search-form');
-  if (!form) return;
-  if (name === 'quality' && value) {
-    form.querySelectorAll('input[name="quality"]').forEach(function (cb) {
-      if (cb.value === value) cb.checked = false;
-    });
-  } else if (name === 'min_seeders') {
-    const el = form.querySelector('[name="min_seeders"]');
-    if (el) el.value = '0';
-  } else {
-    const el = form.querySelector('[name="' + name + '"]');
-    if (el) el.value = '';
-  }
-  htmx.trigger(form, 'submit');
-}
-</script>
 {% endblock %}

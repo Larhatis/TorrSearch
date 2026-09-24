@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import re
-
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
@@ -15,26 +13,10 @@ from torsearch.settings.mutations import (
     set_monitor,
     set_saved_search_enabled,
 )
+from torsearch.web.forms import split_words, to_int, to_size_bytes
 from torsearch.web.templating import templates
 
 surveillance_router = APIRouter()
-
-_GB = 1024 ** 3
-
-
-def _to_int(value: str, default: int = 0) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _to_size_bytes(value: str) -> int | None:
-    try:
-        gb = float(value)
-    except (TypeError, ValueError):
-        return None
-    return int(gb * _GB) if gb > 0 else None
 
 
 def _context(request: Request, error=None, notice=None):
@@ -65,7 +47,15 @@ async def page(request: Request):
 async def update_monitor(request: Request, enabled: str | None = Form(None), interval_minutes: str = Form("30")):
     ctx: AppContext = request.app.state.ctx
     try:
-        monitor = MonitorConfig(enabled=enabled is not None, interval_minutes=interval_minutes)
+        # Rebuild from the current config (keeps regrab_hours) and validate the form values;
+        # model_copy(update=...) would skip validation and store "30" as a string.
+        monitor = MonitorConfig.model_validate({
+            **ctx.config.monitor.model_dump(),
+            "enabled": enabled is not None,
+            "interval_minutes": interval_minutes,
+        })
+        if monitor.interval_minutes < 1:
+            raise SettingsError("l'intervalle doit etre d'au moins 1 minute.")
         ctx.update_settings(set_monitor(ctx.config, monitor))
         return _body(request, notice="Surveillance mise a jour.")
     except (ValidationError, SettingsError) as exc:
@@ -93,11 +83,11 @@ async def add_search(
     try:
         saved = SavedSearch(
             name=name, query=query, category=category, mode=mode,
-            min_seeders=max(_to_int(min_seeders), 0),
-            min_size=_to_size_bytes(min_size_gb),
-            max_size=_to_size_bytes(max_size_gb),
+            min_seeders=max(to_int(min_seeders), 0),
+            min_size=to_size_bytes(min_size_gb),
+            max_size=to_size_bytes(max_size_gb),
             qualities=[q for q in quality if q],
-            exclude=[w for w in re.split(r"[\s,]+", exclude) if w],
+            exclude=split_words(exclude),
         )
         ctx.update_settings(add_saved_search(ctx.config, saved))
         return _body(request, notice=f"Recherche « {name} » enregistree.")

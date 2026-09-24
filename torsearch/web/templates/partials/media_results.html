@@ -6,7 +6,7 @@
   <div class="overflow-hidden rounded-lg border border-slate-800 bg-slate-800/40">
     <div class="relative flex aspect-[2/3] items-center justify-center bg-slate-900 text-slate-600">
       <i class="ti ti-photo text-3xl"></i>
-      {% if m.poster_url %}<img src="{{ m.poster_url }}" alt="{{ m.title }}" class="absolute inset-0 h-full w-full object-cover" loading="lazy" onerror="this.remove()">{% endif %}
+      {% if m.poster_url %}<img src="{{ m.poster_url }}" alt="{{ m.title }}" class="absolute inset-0 h-full w-full object-cover" loading="lazy" data-poster>{% endif %}
     </div>
     <div class="p-2.5">
       {% set key = m.media_type ~ ':' ~ m.tmdb_id %}

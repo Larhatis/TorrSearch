@@ -23,7 +23,7 @@ class FakeTransmission:
         self.added = []
         self.dirs = []
 
-    def add(self, download_url, download_dir=None):
+    async def add(self, download_url, download_dir=None):
         self.added.append(download_url)
         self.dirs.append(download_dir)
         return 7
@@ -172,9 +172,10 @@ def test_index_has_filter_panel_fields():
     assert 'name="exclude"' in html
 
 
-def test_index_defines_clear_filter_helper():
+def test_index_loads_clear_filter_helper():
     client, _ = _make()
-    assert "function clearFilter" in client.get("/").text
+    assert '<script src="/static/app.js" defer></script>' in client.get("/").text
+    assert "function clearFilter" in client.get("/static/app.js").text
 
 
 def test_search_renders_quality_badge():
@@ -200,7 +201,7 @@ def test_search_renders_active_filter_chip():
     client, _ = _make([_result("KeepMe", seeders=80)])
     resp = client.get("/search", params={"q": "x", "min_seeders": "10"})
     assert 'data-filter="min_seeders"' in resp.text
-    assert "clearFilter('min_seeders')" in resp.text
+    assert "onclick" not in resp.text
 
 
 def test_download_routes_to_category_path():
@@ -230,3 +231,15 @@ def test_download_toast_auto_dismisses():
 def test_cyan_accent_palette_configured():
     client, _ = _make()
     assert "#00d4e8" in client.get("/").text
+
+
+def test_download_error_toast_never_shows_credentials():
+    class LeakyTransmission(FakeTransmission):
+        async def add(self, download_url, download_dir=None):
+            raise RuntimeError("Invalid URL 'http://u:TR-SECRET@:9091/transmission/rpc'")
+
+    service = SearchService([FakeIndexer("t1", [])])
+    client = TestClient(create_app(FakeContext(service, LeakyTransmission(), Config())))
+    resp = client.post("/download", data={"download_url": "magnet:?x"})
+    assert "Erreur Transmission" in resp.text
+    assert "TR-SECRET" not in resp.text

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from torsearch.config import Config
+import os
+
+from torsearch.config import Config, MetadataConfig
 from torsearch.indexers.registry import build_indexers
 from torsearch.jellyfin.client import JellyfinClient
 from torsearch.metadata.tmdb import TmdbClient
@@ -39,8 +41,14 @@ class AppContext:
         indexers = build_indexers(self._config)
         self._search_service = SearchService(indexers, timeout=self._config.search.timeout_seconds)
         self._transmission = TransmissionClient(self._config.transmission)
-        self._tmdb = TmdbClient(self._config.metadata)
+        self._tmdb = TmdbClient(self._effective_metadata())
         self._jellyfin = JellyfinClient(self._config.jellyfin)
+
+    def _effective_metadata(self) -> MetadataConfig:
+        """Stored TMDB key first; else fall back to TMDB_API_KEY (never persisted)."""
+        if self._config.metadata.tmdb_api_key:
+            return self._config.metadata
+        return MetadataConfig(tmdb_api_key=os.environ.get("TMDB_API_KEY", ""))
 
     def update_settings(self, new_config: Config) -> None:
         self._store.save(new_config)

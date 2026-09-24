@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 from torsearch.search.filters import detect_quality
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+STATIC_DIR = Path(__file__).parent / "static"
 
 
 def _auth_context(request):

@@ -108,6 +108,13 @@ def test_discover_marks_owned_in_jellyfin():
     assert "item-xyz" in resp.text
 
 
-def test_discover_poster_has_onerror_fallback():
+def test_discover_poster_has_fallback_hook():
     resp = _client(FakeTmdb(results=[_media()])).get("/discover/search", params={"q": "dune"})
-    assert 'onerror="this.remove()"' in resp.text
+    assert "data-poster" in resp.text
+    assert "onerror" not in resp.text
+
+
+def test_discover_onboarding_points_admin_to_settings():
+    resp = _client(FakeTmdb(enabled=False)).get("/discover")
+    assert "Renseigne-la dans" in resp.text
+    assert "TMDB_API_KEY" in resp.text

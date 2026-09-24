@@ -39,7 +39,9 @@
     <label class="text-xs text-slate-400">Utilisateur<br>
       <input name="username" value="{{ config.transmission.username }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="text-xs text-slate-400">Mot de passe<br>
-      <input name="password" type="password" value="{{ config.transmission.password }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+      <input name="password" type="password" value="" autocomplete="new-password"
+             placeholder="{{ '•••••• (inchange si vide)' if config.transmission.password else '' }}"
+             class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="text-xs text-slate-400 flex items-center gap-1">
       <input type="checkbox" name="https" {% if config.transmission.https %}checked{% endif %}> https</label>
     <label class="text-xs text-slate-400">Timeout (s)<br>
@@ -116,6 +118,21 @@
 
 <section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
   <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+    <i class="ti ti-compass text-slate-500"></i>
+    <h2 class="text-sm font-semibold text-white">Decouverte (TMDB)</h2>
+  </div>
+  <form hx-post="/settings/metadata" hx-target="#toast" class="flex flex-wrap items-end gap-3">
+    <label class="text-xs text-slate-400">Cle API TMDB<br>
+      <input name="tmdb_api_key" type="password" value="" autocomplete="new-password"
+             placeholder="{% if config.metadata.tmdb_api_key %}•••••• (inchange si vide){% elif tmdb_from_env %}definie par TMDB_API_KEY{% endif %}"
+             class="mt-1 w-72 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+  </form>
+  <p class="mt-2 text-xs text-slate-500">Cle gratuite sur themoviedb.org (Parametres &gt; API).</p>
+</section>
+
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
     <i class="ti ti-device-tv text-slate-500"></i>
     <h2 class="text-sm font-semibold text-white">Jellyfin (lecture)</h2>
   </div>
@@ -123,7 +140,9 @@
     <label class="text-xs text-slate-400">URL<br>
       <input name="url" value="{{ config.jellyfin.url }}" placeholder="http://jellyfin:8096" class="mt-1 w-72 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="text-xs text-slate-400">Cle API<br>
-      <input name="api_key" value="{{ config.jellyfin.api_key }}" class="mt-1 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+      <input name="api_key" type="password" value="" autocomplete="new-password"
+             placeholder="{{ '•••••• (inchange si vide)' if config.jellyfin.api_key else '' }}"
+             class="mt-1 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
 </section>

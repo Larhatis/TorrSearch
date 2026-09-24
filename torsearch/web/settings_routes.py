@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
@@ -8,6 +10,7 @@ from torsearch.config import (
     IndexerConfig,
     JellyfinConfig,
     LibraryConfig,
+    MetadataConfig,
     NotificationChannel,
     PathsConfig,
     SearchConfig,
@@ -28,10 +31,12 @@ from torsearch.settings.mutations import (
     set_indexer_enabled,
     set_jellyfin,
     set_library,
+    set_metadata,
     set_paths,
     update_indexer,
 )
 from torsearch.users.store import Role, UserError
+from torsearch.web.forms import to_int
 from torsearch.web.templating import templates
 
 settings_router = APIRouter()
@@ -57,6 +62,7 @@ async def settings_page(request: Request):
             "config": ctx.config, "indexers": ctx.config.indexers,
             "channels": ctx.config.notifications, "categories": list(Category),
             "users": users.list() if users else [],
+            "tmdb_from_env": bool(os.environ.get("TMDB_API_KEY")),
         }
     )
 
@@ -115,10 +121,20 @@ async def update_general(
     timeout_seconds: str = Form(...),
 ):
     ctx: AppContext = request.app.state.ctx
+    current = ctx.config.transmission
     try:
         transmission = TransmissionConfig(
             host=host, port=port, username=username, password=password, https=https is not None
         )
+        if not password and current.password:
+            # Blank = keep (never rendered), but only towards the same server: a stored
+            # secret must never follow a new destination.
+            if (transmission.host, transmission.port, transmission.https) != (
+                current.host, current.port, current.https
+            ):
+                return _toast(request, False,
+                              "Ressaisis le mot de passe Transmission pour changer d'hote, de port ou de protocole.")
+            transmission = transmission.model_copy(update={"password": current.password})
         search = SearchConfig(timeout_seconds=timeout_seconds)
         ctx.update_settings(set_general(ctx.config, transmission, search))
         return _toast(request, True, "Reglages enregistres.")
@@ -137,7 +153,7 @@ async def update_library(
     try:
         profile = LibraryConfig(
             qualities=[q for q in quality if q],
-            min_seeders=int(min_seeders) if min_seeders.lstrip("-").isdigit() else 0,
+            min_seeders=to_int(min_seeders),
             upgrades=upgrades is not None,
         )
         ctx.update_settings(set_library(ctx.config, profile))
@@ -149,9 +165,26 @@ async def update_library(
 @settings_router.post("/settings/jellyfin", response_class=HTMLResponse)
 async def update_jellyfin(request: Request, url: str = Form(""), api_key: str = Form("")):
     ctx: AppContext = request.app.state.ctx
+    current = ctx.config.jellyfin
+    if not api_key and current.api_key:
+        # Blank = keep (never rendered), but only for the same server (or to disable it).
+        if url and url.rstrip("/") != current.url.rstrip("/"):
+            return _toast(request, False, "Ressaisis la cle API Jellyfin pour changer d'URL.")
+        api_key = current.api_key
     try:
         ctx.update_settings(set_jellyfin(ctx.config, JellyfinConfig(url=url, api_key=api_key)))
         return _toast(request, True, "Jellyfin enregistre.")
+    except (ValidationError, SettingsError) as exc:
+        return _toast(request, False, f"Erreur : {exc}")
+
+
+@settings_router.post("/settings/metadata", response_class=HTMLResponse)
+async def update_metadata(request: Request, tmdb_api_key: str = Form("")):
+    ctx: AppContext = request.app.state.ctx
+    try:
+        key = tmdb_api_key.strip() or ctx.config.metadata.tmdb_api_key  # blank = keep
+        ctx.update_settings(set_metadata(ctx.config, MetadataConfig(tmdb_api_key=key)))
+        return _toast(request, True, "Cle TMDB enregistree.")
     except (ValidationError, SettingsError) as exc:
         return _toast(request, False, f"Erreur : {exc}")
 
@@ -191,14 +224,24 @@ async def add_indexer_route(
         return _list(request, ctx, error=f"Erreur : {exc}")
 
 
-@settings_router.post("/settings/indexers/test", response_class=HTMLResponse)
+@settings_router.post("/settings/indexer-test", response_class=HTMLResponse)
 async def test_indexer_route(
     request: Request,
     name: str = Form(...),
     url: str = Form(...),
     api_key: str = Form(""),
     auth: str = Form("query"),
+    original_name: str = Form(""),
 ):
+    if not api_key and original_name:
+        # The passkey is never sent to the browser: test with the stored one, but only
+        # against the stored URL (a secret must never follow a new destination).
+        ctx: AppContext = request.app.state.ctx
+        stored = next((ix for ix in ctx.config.indexers if ix.name == original_name), None)
+        if stored is not None and stored.api_key:
+            if url != stored.url:
+                return _toast(request, False, "Ressaisis la passkey pour tester une autre URL.")
+            api_key = stored.api_key
     try:
         indexer = TorznabIndexer(IndexerConfig(name=name, url=url, api_key=api_key, auth=auth))
     except ValidationError as exc:
@@ -220,8 +263,16 @@ async def update_indexer_route(
     new_name = str(form.get("name", name))
     current = next((ix for ix in ctx.config.indexers if ix.name == name), None)
     enabled = current.enabled if current else True
+    if not api_key and current is not None and current.api_key:
+        # Blank = keep (never rendered), but only for the same URL.
+        if url != current.url:
+            return _list(request, ctx, error="Ressaisis la passkey pour changer l'URL du tracker.")
+        api_key = current.api_key
     try:
-        indexer = IndexerConfig(name=new_name, url=url, api_key=api_key, auth=auth, enabled=enabled)
+        indexer = IndexerConfig(
+            name=new_name, url=url, api_key=api_key, auth=auth, enabled=enabled,
+            categories=current.categories if current else {},  # not editable here: keep them
+        )
         ctx.update_settings(update_indexer(ctx.config, name, indexer))
         return _list(request, ctx, notice="Tracker mis a jour.")
     except (ValidationError, SettingsError) as exc:

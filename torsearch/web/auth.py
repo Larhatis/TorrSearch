@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import hmac
 import os
 import secrets
@@ -101,7 +102,48 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+_TRUSTED_FETCH_SITES = {"same-origin", "none"}
+
+
+class CrossSiteGuardMiddleware(BaseHTTPMiddleware):
+    """Refuse state-changing requests the browser flags as coming from another site.
+
+    CSRF protection without tokens, via Fetch Metadata: modern browsers always send
+    ``Sec-Fetch-Site``, so a forged cross-site form is rejected even when auth is
+    disabled. Clients that don't send the header (curl, scripts) are let through.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method not in _SAFE_METHODS:
+            site = request.headers.get("sec-fetch-site")
+            if site and site not in _TRUSTED_FETCH_SITES:
+                return Response("Requete inter-sites refusee.", status_code=403)
+        return await call_next(request)
+
+
 _PUBLIC_PATHS = {"/login", "/logout"}
+_PUBLIC_PREFIXES = ("/static/",)
+
+
+def _is_public(path: str) -> bool:
+    return path in _PUBLIC_PATHS or path.startswith(_PUBLIC_PREFIXES)
+
+
+def _route_path(request: Request) -> str:
+    """The path the router matches, from the ASGI scope (never from the Host header)."""
+    path = request.scope["path"]
+    root = request.scope.get("root_path", "")
+    return path[len(root):] if root and path.startswith(root) else path
+
+
+def session_fingerprint(password_hash: str, secret_key: str) -> str:
+    """Short HMAC of the password hash, stored in the session at login.
+
+    Re-creating an account (or changing its password) changes the hash, which revokes every
+    session issued before.
+    """
+    return hmac.new(secret_key.encode(), password_hash.encode(), hashlib.sha256).hexdigest()[:16]
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -110,15 +152,33 @@ class AuthMiddleware(BaseHTTPMiddleware):
         self.settings = settings
 
     async def dispatch(self, request: Request, call_next):
-        if not self.settings.enabled or request.url.path in _PUBLIC_PATHS:
+        if not self.settings.enabled or _is_public(_route_path(request)):
             return await call_next(request)
-        if request.session.get("user"):
-            return await call_next(request)
-        if request.headers.get("HX-Request") == "true":
-            resp = Response(status_code=401)
-            resp.headers["HX-Redirect"] = "/login"
-            return resp
-        target = request.url.path
-        if request.url.query:
-            target = f"{target}?{request.url.query}"
-        return RedirectResponse(f"/login?next={quote(target, safe='')}", status_code=303)
+        username = request.session.get("user")
+        if username:
+            users = getattr(request.app.state, "users", None)
+            user = users.get(username) if users is not None else None
+            if user is not None:
+                fingerprint = session_fingerprint(user.password_hash, self.settings.secret_key)
+                if hmac.compare_digest(request.session.get("pwd", ""), fingerprint):
+                    # Authorization uses the role stored in the DB, not the one frozen in
+                    # the cookie at login: demotions and promotions apply on the next request.
+                    request.state.role = user.role.value
+                    return await call_next(request)
+            elif (users is None or users.is_empty()) and username == self.settings.username:
+                # Single-credential mode (no user store yet): only the env admin can log in.
+                return await call_next(request)
+            # Account deleted or re-created since login: drop the stale session.
+            request.session.clear()
+        return _unauthenticated(request)
+
+
+def _unauthenticated(request: Request) -> Response:
+    if request.headers.get("HX-Request") == "true":
+        resp = Response(status_code=401)
+        resp.headers["HX-Redirect"] = "/login"
+        return resp
+    target = request.url.path
+    if request.url.query:
+        target = f"{target}?{request.url.query}"
+    return RedirectResponse(f"/login?next={quote(target, safe='')}", status_code=303)

@@ -12,7 +12,7 @@
       {% endfor %}
     </select>
     <button hx-get="/search" hx-include="#search-form" hx-target="#results"
-            hx-vals='{"sort": "{{ sort }}", "dir": "{{ 'asc' if dir == 'desc' else 'desc' }}"}'
+            hx-vals='{{ {"sort": sort, "dir": ("asc" if dir == "desc" else "desc")} | tojson }}'
             class="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-300 hover:text-emerald-400"
             aria-label="Inverser le sens du tri"><i class="ti ti-arrow-{{ 'down' if dir == 'desc' else 'up' }}"></i></button>
   </span>
@@ -20,8 +20,7 @@
 {% if active_filters %}
 <div class="mb-3 flex flex-wrap items-center gap-2">
   {% for f in active_filters %}
-  <button type="button" data-filter="{{ f.name }}"
-          onclick="clearFilter('{{ f.name }}'{% if f.value is defined and f.value %}, '{{ f.value }}'{% endif %})"
+  <button type="button" data-filter="{{ f.name }}"{% if f.value is defined and f.value %} data-value="{{ f.value }}"{% endif %}
           class="inline-flex items-center gap-1.5 rounded-full border border-emerald-700/60 bg-emerald-900/20 px-2.5 py-1 text-xs text-emerald-200">
     {{ f.label }} <i class="ti ti-x text-[13px]"></i>
   </button>
@@ -46,8 +45,8 @@
       <input type="hidden" name="category" value="{{ r.category.value }}">
       <button class="flex items-center gap-1 rounded bg-emerald-500 px-2.5 py-1.5 text-xs font-semibold text-slate-900 hover:bg-emerald-400"><i class="ti ti-plus"></i>Envoyer</button>
     </form>
-    <button class="rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-400 hover:text-emerald-400"
-            aria-label="Copier le lien" onclick="navigator.clipboard.writeText('{{ r.download_url }}')"><i class="ti ti-copy"></i></button>
+    <button type="button" class="rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-400 hover:text-emerald-400"
+            aria-label="Copier le lien" data-copy="{{ r.download_url }}"><i class="ti ti-copy"></i></button>
   </div>
   {% endfor %}
 </div>
