@@ -82,10 +82,12 @@ pas réaffichés.
   valeur est enregistrée ; `autocomplete="new-password"` pour que le navigateur n'y colle
   pas le mot de passe de connexion à TorrSearch.
 - **Enregistrement** : dans `update_general` (mot de passe), `update_jellyfin` (clé API) et
-  `update_indexer_route` (passkey), une valeur vide conserve la valeur enregistrée.
+  `update_indexer_route` (passkey), une valeur vide conserve la valeur enregistrée — **à
+  destination inchangée seulement** (voir « Suites de la revue »).
 - **Tester** : `test_indexer_route` accepte un champ optionnel `original_name` (champ
   caché dans `indexer_row.html`). Si `api_key` est vide et qu'`original_name` désigne un
-  tracker existant, sa passkey enregistrée est utilisée.
+  tracker existant, sa passkey enregistrée est utilisée — pour son URL enregistrée
+  uniquement.
 
 Limite assumée : effacer le mot de passe Transmission n'est plus possible depuis
 l'interface. Pour désactiver Jellyfin, vider l'URL suffit.
@@ -96,12 +98,14 @@ l'interface. Pour désactiver Jellyfin, vider l'URL suffit.
 
 - `__init__(config, client_factory=Client, timeout=10.0)` ; le client `transmission_rpc`
   est créé avec `timeout=self._timeout` (au lieu des 30 s par défaut) ;
-- `_get_client()` est protégé par un `threading.Lock` : une seule création paresseuse,
-  même si deux appels arrivent en même temps ;
+- `_get_client()` crée le client paresseusement ; le handshake réseau se fait hors verrou,
+  seul l'enregistrement du client gagnant est protégé par un `threading.Lock` ;
 - les méthodes publiques `add`, `list_torrents`, `pause`, `resume`, `remove` deviennent
-  `async` et exécutent l'appel synchrone via `asyncio.to_thread` ;
+  `async` et exécutent l'appel synchrone dans un pool de 4 threads dédié à Transmission ;
+- `add` a son propre délai de 60 s (l'ajout par URL attend le téléchargement du
+  `.torrent` par Transmission) ; les autres appels sont bornés à 10 s par connexion/lecture ;
 - aucun verrou autour des appels RPC eux-mêmes : si Transmission ne répond pas, les
-  appels ne font pas la queue, chacun est borné par le délai de 10 s.
+  appels ne font pas la queue les uns derrière les autres.
 
 Appelants passés en `await` : `web/routes.py` (`/download`), `web/downloads_routes.py`
 (liste, pause, reprise, suppression), `monitor/runner.py` (`run_cycle`, `_grab_movie`,
@@ -206,10 +210,49 @@ Aucun changement de code : uvicorn active déjà `proxy_headers` et lit la varia
 - **D5, D9** : pas de test automatisé (documentation ; contenu de la wheel vérifié à la
   main avec `uv build --wheel`).
 
+## Suites de la revue (2026-09-24)
+
+Une revue de code indépendante (sécurité + fiabilité) et une revue de sécurité ciblée ont
+relevé des points corrigés dans la même PR (un commit chacun, test rouge d'abord) :
+
+- **D4 — secret lié à sa destination.** « Champ vide = valeur conservée » ne s'applique que
+  si la destination est inchangée : même hôte/port/protocole (Transmission), même URL
+  (Jellyfin, tracker ; vider l'URL Jellyfin pour la désactiver reste permis). Sinon le secret
+  doit être ressaisi. Le bouton Tester n'utilise la passkey enregistrée que pour l'URL
+  enregistrée. Sans cela, repointer une destination (y compris par une requête forgée
+  quand l'auth est désactivée) faisait sortir le secret.
+- **D4 — messages d'erreur.** Les erreurs affichées n'embarquent plus d'URL secrète : code
+  HTTP seul pour Tester et les tests de notification (token Telegram), masquage via
+  `torsearch/redact.py` pour le reste (identifiants Transmission, visibles des membres).
+- **D11 — requêtes inter-sites refusées.** `CrossSiteGuardMiddleware` (toujours actif, même
+  sans auth) renvoie 403 pour toute requête non sûre (POST…) que le navigateur marque
+  `Sec-Fetch-Site: cross-site` ou `same-site` ; sans en-tête (curl, scripts) : accepté.
+- **D3.** Ajout d'un torrent : délai dédié de 60 s (Transmission ne répond qu'après avoir
+  récupéré le `.torrent`, 10 s provoquait de faux échecs et des doublons côté
+  surveillance). Le handshake de création se fait hors verrou (les appels ne font plus la
+  queue pendant une panne) et les appels passent par un pool de 4 threads dédié (ils ne
+  peuvent plus saturer l'exécuteur par défaut, utilisé pour le DNS).
+- **D1.** Une empreinte HMAC du hash du mot de passe est stockée en session : un compte
+  supprimé puis recréé ne réactive plus les anciens cookies (les sessions antérieures à la
+  mise à jour se reconnectent une fois). En mode identifiant unique, seule la session de
+  l'admin configuré est acceptée. Le chemin public est lu dans le scope ASGI, jamais depuis
+  l'en-tête Host.
+- **Divers.** Garde anti-JS-inline élargie (`hx-on`, `hx-vars`, `javascript:`, `js:`,
+  interpolation dans `<script>`) ; noms refusés aussi pour `\`, `.`, `..`, espaces en
+  bordure et caractères de contrôle ; intervalle de surveillance < 1 min refusé ;
+  `to_size_bytes("inf")` ne provoque plus de 500 ; l'édition d'un tracker conserve ses
+  catégories ; la route Tester devient `/settings/indexer-test` (un tracker nommé « test »
+  redevient modifiable) ; doc proxy : IP exacte plutôt qu'une plage ; `.gitignore` ancré.
+
 ## Hors périmètre
 
 - En-tête Content-Security-Policy : chantier 4 (il faut d'abord supprimer les CDN et le
   script inline de configuration Tailwind).
+- Masquage des secrets dans les logs serveur (URLs avec `apikey` dans les avertissements).
+- `download_url` des résultats contient souvent la passkey et arrive chez les membres :
+  nécessite des identifiants de résultat côté serveur (chantiers 2/4).
+- `get_torrents()` limité aux champs utiles, et après un échec d'ajout, vérifier la présence
+  du torrent plutôt que tenter le candidat suivant : chantier 3 (suivi par hash).
 - Identifiants stables à la place des noms dans les URLs : chantiers 2 et 4.
 - Client Transmission natif sur httpx, suivi des torrents par hash : chantier 3.
 - Changement de mot de passe depuis l'interface, « déconnecter toutes les sessions ».
