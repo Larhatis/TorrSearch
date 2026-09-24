@@ -18,3 +18,9 @@ def test_to_size_bytes_converts_gb():
 def test_split_words_on_spaces_and_commas():
     assert split_words("cam, ts  multi") == ["cam", "ts", "multi"]
     assert split_words("") == []
+
+
+def test_to_size_bytes_rejects_non_finite_values():
+    assert to_size_bytes("inf") is None
+    assert to_size_bytes("1e400") is None
+    assert to_size_bytes("nan") is None

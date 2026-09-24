@@ -8,7 +8,7 @@
       <label class="text-xs text-slate-400 flex items-center gap-1">
         <input type="checkbox" name="enabled" {% if monitor.enabled %}checked{% endif %}> activee</label>
       <label class="text-xs text-slate-400">Intervalle (min)<br>
-        <input name="interval_minutes" value="{{ monitor.interval_minutes }}" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+        <input type="number" min="1" name="interval_minutes" value="{{ monitor.interval_minutes }}" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
       <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
     </form>
   </section>

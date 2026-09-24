@@ -54,6 +54,8 @@ async def update_monitor(request: Request, enabled: str | None = Form(None), int
             "enabled": enabled is not None,
             "interval_minutes": interval_minutes,
         })
+        if monitor.interval_minutes < 1:
+            raise SettingsError("l'intervalle doit etre d'au moins 1 minute.")
         ctx.update_settings(set_monitor(ctx.config, monitor))
         return _body(request, notice="Surveillance mise a jour.")
     except (ValidationError, SettingsError) as exc:

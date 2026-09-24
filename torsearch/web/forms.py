@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 
 GB = 1024 ** 3
@@ -14,12 +15,14 @@ def to_int(value: str, default: int = 0) -> int:
 
 
 def to_size_bytes(value_gb: str) -> int | None:
-    """Size typed in GB -> bytes; ``None`` when blank, invalid or <= 0."""
+    """Size typed in GB -> bytes; ``None`` when blank, invalid, infinite or <= 0."""
     try:
         gb = float(value_gb)
     except (TypeError, ValueError):
         return None
-    return int(gb * GB) if gb > 0 else None
+    if not math.isfinite(gb) or gb <= 0:
+        return None
+    return int(gb * GB)
 
 
 def split_words(value: str) -> list[str]:

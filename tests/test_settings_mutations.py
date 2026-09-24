@@ -121,7 +121,7 @@ def test_remove_and_toggle_channel():
         remove_channel(cfg, "nope")
 
 
-@pytest.mark.parametrize("bad", ["a/b", "quoi?", "x#1", "50%", "   ", ""])
+@pytest.mark.parametrize("bad", ["a/b", "a\\b", "quoi?", "x#1", "50%", ".", "..", "tab\there", " lead", "trail ", "   ", ""])
 def test_add_indexer_rejects_names_that_break_urls(bad):
     with pytest.raises(SettingsError):
         add_indexer(Config(), _ix(bad))
@@ -144,3 +144,9 @@ def test_saved_search_and_channel_names_are_validated():
         add_saved_search(Config(), SavedSearch(name="a/b", query="q"))
     with pytest.raises(SettingsError):
         add_channel(Config(), NotificationChannel(name="c?d", type="discord", url="https://x"))
+
+
+def test_update_indexer_accepts_a_valid_rename():
+    cfg = Config(indexers=[_ix("old")])
+    new = update_indexer(cfg, "old", _ix("Mon tracker é"))
+    assert new.indexers[0].name == "Mon tracker é"

@@ -79,3 +79,11 @@ def test_update_monitor_preserves_regrab_hours(tmp_path):
     assert resp.status_code == 200
     assert ctx.config.monitor.regrab_hours == 72
     assert ctx.config.monitor.interval_minutes == 15
+
+
+def test_update_monitor_rejects_an_interval_below_one_minute(tmp_path):
+    client, ctx, _ = _client(tmp_path)
+    resp = client.post("/surveillance/monitor", data={"enabled": "on", "interval_minutes": "0"})
+    assert "Erreur" in resp.text
+    assert ctx.config.monitor.interval_minutes == 30
+    assert ctx.config.monitor.enabled is False

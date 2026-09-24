@@ -19,16 +19,22 @@ class SettingsError(Exception):
     """Raised when a settings mutation is invalid (e.g. duplicate tracker name)."""
 
 
-_URL_BREAKING = set("/?#%")
+_URL_BREAKING = set("/\\?#%")  # browsers also treat "\" as "/" in http(s) paths
 
 
 def _check_name(name: str, what: str) -> None:
-    """Names are used as URL path segments: refuse blanks and URL-breaking characters."""
+    """Names are used as URL path segments: refuse anything that would not round-trip."""
     if not name.strip():
         raise SettingsError(f"Nom obligatoire ({what}).")
+    if name != name.strip():
+        raise SettingsError(f"Nom invalide ({what}) : pas d'espace au début ni à la fin.")
+    if name in (".", ".."):  # dot-segments are normalised away by URL parsers
+        raise SettingsError(f"Nom invalide ({what}) : « {name} » est réservé.")
     bad = sorted(_URL_BREAKING & set(name))
     if bad:
         raise SettingsError(f"Nom invalide ({what}) : caractères interdits {' '.join(bad)}.")
+    if not name.isprintable():  # tabs/control characters are stripped by URL parsers
+        raise SettingsError(f"Nom invalide ({what}) : caractère non imprimable.")
 
 
 def _index_of(config: Config, name: str) -> int:
