@@ -239,3 +239,17 @@ async def test_test_never_raises_and_masks_credentials():
     ok, message = await TransmissionClient(TransmissionConfig(), client_factory=factory).test()
     assert ok is False
     assert "TR-SECRET" not in message
+
+
+async def test_test_explains_unreachable_host_and_rejected_credentials():
+    from transmission_rpc import TransmissionAuthError, TransmissionConnectError
+
+    def unreachable(**kwargs):
+        raise TransmissionConnectError("can't connect to transmission daemon: HTTPConnectionPool(...)")
+
+    def rejected(**kwargs):
+        raise TransmissionAuthError("transmission daemon require auth")
+
+    cfg = TransmissionConfig(host="omv", port=9091)
+    assert await TransmissionClient(cfg, client_factory=unreachable).test() == (False, "Injoignable (omv:9091).")
+    assert await TransmissionClient(cfg, client_factory=rejected).test() == (False, "Identifiants refusés (401).")

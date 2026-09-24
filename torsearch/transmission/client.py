@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
-from transmission_rpc import Client
+from transmission_rpc import Client, TransmissionAuthError, TransmissionConnectError, TransmissionTimeoutError
 
 from torsearch.config import TransmissionConfig
 from torsearch.redact import redact
@@ -107,6 +107,12 @@ class TransmissionClient:
             version, count = await self._run(
                 lambda c: (c.get_session().version, c.session_stats().torrent_count)
             )
+        except TransmissionAuthError:
+            return False, "Identifiants refusés (401)."
+        except TransmissionTimeoutError:  # subclass of TransmissionConnectError: keep it first
+            return False, "Pas de réponse (timeout)."
+        except TransmissionConnectError:
+            return False, f"Injoignable ({self._config.host}:{self._config.port})."
         except Exception as exc:
             return False, redact(str(exc))
         label = str(version).split()[0] if version else "?"

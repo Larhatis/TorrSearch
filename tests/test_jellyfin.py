@@ -113,3 +113,11 @@ async def test_test_error_never_echoes_the_key():
         ok, message = await client.test()
     assert ok is False
     assert "500" in message and "JF-SECRET" not in message
+
+
+async def test_test_reports_unreachable_server_plainly():
+    client = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        respx.get("http://jelly/System/Info").mock(side_effect=httpx.ConnectError("[Errno 111] Connection refused"))
+        ok, message = await client.test()
+    assert ok is False and "injoignable" in message.lower() and "Errno" not in message

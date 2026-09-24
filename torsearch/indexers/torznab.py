@@ -185,6 +185,8 @@ class TorznabIndexer(Indexer):
             return True, "OK"
         except httpx.TimeoutException:
             return False, "Pas de réponse (timeout)."
+        except httpx.ConnectError:
+            return False, "Serveur injoignable (adresse introuvable ou connexion refusée)."
         except httpx.HTTPStatusError as exc:
             # The exception text embeds the request URL, passkey included: status only.
             return False, f"Erreur HTTP {exc.response.status_code}."

@@ -113,6 +113,8 @@ class JellyfinClient:
             return True, f"{info.get('ServerName', '?')} · Jellyfin {info.get('Version', '?')}"
         except httpx.TimeoutException:
             return False, "Pas de réponse (timeout)."
+        except httpx.ConnectError:
+            return False, "Serveur injoignable (adresse introuvable ou connexion refusée)."
         except httpx.HTTPStatusError as exc:
             return False, f"Erreur HTTP {exc.response.status_code}."
         except httpx.HTTPError as exc:

@@ -188,3 +188,13 @@ async def test_test_rejected_key_never_echoed():
         respx.get("https://api.themoviedb.org/3/configuration").mock(return_value=httpx.Response(401))
         ok, message = await TmdbClient(MetadataConfig(tmdb_api_key="TMDB-SECRET")).test()
     assert ok is False and "refusée" in message and "TMDB-SECRET" not in message
+
+
+async def test_test_reports_unreachable_server_plainly():
+    from torsearch.config import MetadataConfig
+    from torsearch.metadata.tmdb import TmdbClient
+
+    with respx.mock:
+        respx.get("https://api.themoviedb.org/3/configuration").mock(side_effect=httpx.ConnectError("[Errno 8] dns"))
+        ok, message = await TmdbClient(MetadataConfig(tmdb_api_key="k")).test()
+    assert ok is False and "injoignable" in message.lower() and "Errno" not in message

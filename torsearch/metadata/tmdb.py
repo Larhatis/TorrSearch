@@ -115,6 +115,8 @@ class TmdbClient:
             return True, "OK"
         except httpx.TimeoutException:
             return False, "Pas de réponse (timeout)."
+        except httpx.ConnectError:
+            return False, "Serveur injoignable (adresse introuvable ou connexion refusée)."
         except httpx.HTTPStatusError as exc:
             return False, f"Erreur HTTP {exc.response.status_code}."
         except httpx.HTTPError as exc:
