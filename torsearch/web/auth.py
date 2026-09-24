@@ -112,13 +112,29 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if not self.settings.enabled or request.url.path in _PUBLIC_PATHS:
             return await call_next(request)
-        if request.session.get("user"):
-            return await call_next(request)
-        if request.headers.get("HX-Request") == "true":
-            resp = Response(status_code=401)
-            resp.headers["HX-Redirect"] = "/login"
-            return resp
-        target = request.url.path
-        if request.url.query:
-            target = f"{target}?{request.url.query}"
-        return RedirectResponse(f"/login?next={quote(target, safe='')}", status_code=303)
+        username = request.session.get("user")
+        if username:
+            users = getattr(request.app.state, "users", None)
+            user = users.get(username) if users is not None else None
+            if user is not None:
+                # Authorization uses the role stored in the DB, not the one frozen in the
+                # cookie at login: demotions and promotions apply on the next request.
+                request.state.role = user.role.value
+                return await call_next(request)
+            if users is None or users.is_empty():
+                # Single-credential mode (no user store yet): the session is the truth.
+                return await call_next(request)
+            # The account was deleted after login: drop the stale session.
+            request.session.clear()
+        return _unauthenticated(request)
+
+
+def _unauthenticated(request: Request) -> Response:
+    if request.headers.get("HX-Request") == "true":
+        resp = Response(status_code=401)
+        resp.headers["HX-Redirect"] = "/login"
+        return resp
+    target = request.url.path
+    if request.url.query:
+        target = f"{target}?{request.url.query}"
+    return RedirectResponse(f"/login?next={quote(target, safe='')}", status_code=303)

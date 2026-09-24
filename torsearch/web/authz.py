@@ -10,6 +10,9 @@ def effective_role(request: Request) -> str:
     auth = getattr(request.app.state, "auth", None)
     if not (auth and getattr(auth, "enabled", False)):
         return Role.ADMIN.value
+    role = getattr(request.state, "role", None)  # set by AuthMiddleware from the user store
+    if role:
+        return role
     try:
         return request.session.get("role") or Role.GUEST.value
     except (AssertionError, AttributeError):
