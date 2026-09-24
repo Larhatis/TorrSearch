@@ -197,3 +197,58 @@ def test_update_paths(tmp_path):
     assert ctx.config.paths.for_category(Category.MOVIES) == "/data/films"
     assert ctx.config.paths.for_category(Category.TV) == "/data/series"
     assert ctx.config.paths.for_category(Category.ANIME) is None
+
+
+from torsearch.config import JellyfinConfig, TransmissionConfig
+
+
+def _secret_config():
+    return Config(
+        transmission=TransmissionConfig(password="tr-secret-pw"),
+        indexers=[IndexerConfig(name="t", url="https://t/api", api_key="passkey-secret")],
+        jellyfin=JellyfinConfig(url="http://jelly:8096", api_key="jf-secret-key"),
+    )
+
+
+def test_settings_page_never_renders_secrets(tmp_path):
+    client, _, _ = _client(tmp_path, _secret_config())
+    html = client.get("/settings").text
+    for secret in ("tr-secret-pw", "passkey-secret", "jf-secret-key"):
+        assert secret not in html
+    assert "inchange si vide" in html
+    assert 'autocomplete="new-password"' in html
+
+
+def test_blank_secret_fields_keep_stored_values(tmp_path):
+    client, ctx, _ = _client(tmp_path, _secret_config())
+    client.post("/settings/general", data={"host": "h", "port": "9091", "username": "u",
+                                           "password": "", "timeout_seconds": "10"})
+    client.post("/settings/indexers/t", data={"name": "t", "url": "https://t2/api",
+                                              "api_key": "", "auth": "query"})
+    client.post("/settings/jellyfin", data={"url": "http://jelly:8096", "api_key": ""})
+    assert ctx.config.transmission.password == "tr-secret-pw"
+    assert ctx.config.indexers[0].api_key == "passkey-secret"
+    assert ctx.config.indexers[0].url == "https://t2/api"
+    assert ctx.config.jellyfin.api_key == "jf-secret-key"
+
+
+def test_new_secret_value_replaces_stored_one(tmp_path):
+    client, ctx, _ = _client(tmp_path, _secret_config())
+    client.post("/settings/general", data={"host": "h", "port": "9091", "password": "new-pw",
+                                           "timeout_seconds": "10"})
+    assert ctx.config.transmission.password == "new-pw"
+
+
+def test_test_indexer_uses_stored_passkey_when_blank(tmp_path):
+    cfg = Config(indexers=[IndexerConfig(name="t", url="https://tracker1.example/api", api_key="stored-key")])
+    client, _, _ = _client(tmp_path, cfg)
+    with respx.mock:
+        route = respx.get("https://tracker1.example/api").mock(
+            return_value=httpx.Response(200, content=b'<?xml version="1.0"?><caps/>')
+        )
+        resp = client.post("/settings/indexers/test", data={
+            "name": "t", "original_name": "t", "url": "https://tracker1.example/api",
+            "api_key": "", "auth": "query",
+        })
+    assert "OK" in resp.text
+    assert route.calls.last.request.url.params["apikey"] == "stored-key"

@@ -39,7 +39,9 @@
     <label class="text-xs text-slate-400">Utilisateur<br>
       <input name="username" value="{{ config.transmission.username }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="text-xs text-slate-400">Mot de passe<br>
-      <input name="password" type="password" value="{{ config.transmission.password }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+      <input name="password" type="password" value="" autocomplete="new-password"
+             placeholder="{{ '•••••• (inchange si vide)' if config.transmission.password else '' }}"
+             class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="text-xs text-slate-400 flex items-center gap-1">
       <input type="checkbox" name="https" {% if config.transmission.https %}checked{% endif %}> https</label>
     <label class="text-xs text-slate-400">Timeout (s)<br>
@@ -123,7 +125,9 @@
     <label class="text-xs text-slate-400">URL<br>
       <input name="url" value="{{ config.jellyfin.url }}" placeholder="http://jellyfin:8096" class="mt-1 w-72 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="text-xs text-slate-400">Cle API<br>
-      <input name="api_key" value="{{ config.jellyfin.api_key }}" class="mt-1 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+      <input name="api_key" type="password" value="" autocomplete="new-password"
+             placeholder="{{ '•••••• (inchange si vide)' if config.jellyfin.api_key else '' }}"
+             class="mt-1 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
 </section>

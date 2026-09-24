@@ -118,7 +118,9 @@ async def update_general(
     ctx: AppContext = request.app.state.ctx
     try:
         transmission = TransmissionConfig(
-            host=host, port=port, username=username, password=password, https=https is not None
+            host=host, port=port, username=username,
+            password=password or ctx.config.transmission.password,  # blank = keep (never rendered)
+            https=https is not None,
         )
         search = SearchConfig(timeout_seconds=timeout_seconds)
         ctx.update_settings(set_general(ctx.config, transmission, search))
@@ -151,6 +153,7 @@ async def update_library(
 async def update_jellyfin(request: Request, url: str = Form(""), api_key: str = Form("")):
     ctx: AppContext = request.app.state.ctx
     try:
+        api_key = api_key or ctx.config.jellyfin.api_key  # blank = keep (never rendered)
         ctx.update_settings(set_jellyfin(ctx.config, JellyfinConfig(url=url, api_key=api_key)))
         return _toast(request, True, "Jellyfin enregistre.")
     except (ValidationError, SettingsError) as exc:
@@ -199,7 +202,14 @@ async def test_indexer_route(
     url: str = Form(...),
     api_key: str = Form(""),
     auth: str = Form("query"),
+    original_name: str = Form(""),
 ):
+    if not api_key and original_name:
+        # The passkey is never sent to the browser: test with the stored one.
+        ctx: AppContext = request.app.state.ctx
+        stored = next((ix for ix in ctx.config.indexers if ix.name == original_name), None)
+        if stored is not None:
+            api_key = stored.api_key
     try:
         indexer = TorznabIndexer(IndexerConfig(name=name, url=url, api_key=api_key, auth=auth))
     except ValidationError as exc:
@@ -221,6 +231,8 @@ async def update_indexer_route(
     new_name = str(form.get("name", name))
     current = next((ix for ix in ctx.config.indexers if ix.name == name), None)
     enabled = current.enabled if current else True
+    if not api_key and current is not None:
+        api_key = current.api_key  # blank = keep (never rendered)
     try:
         indexer = IndexerConfig(name=new_name, url=url, api_key=api_key, auth=auth, enabled=enabled)
         ctx.update_settings(update_indexer(ctx.config, name, indexer))
