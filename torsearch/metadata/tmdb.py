@@ -8,12 +8,14 @@ import httpx
 
 from torsearch.config import MetadataConfig
 from torsearch.models import MediaResult
+from torsearch.redact import redact
 
 logger = logging.getLogger(__name__)
 
 _SEARCH_URL = "https://api.themoviedb.org/3/search/multi"
 _TRENDING_URL = "https://api.themoviedb.org/3/trending/all/week"
 _TV_URL = "https://api.themoviedb.org/3/tv"
+_CONFIG_URL = "https://api.themoviedb.org/3/configuration"
 
 
 def parse_multi(payload: dict) -> list[MediaResult]:
@@ -97,6 +99,26 @@ class TmdbClient:
         except Exception as exc:  # resilience
             logger.warning("TMDB trending failed: %s", exc)
             return []
+        finally:
+            if owns_client:
+                await client.aclose()
+
+    async def test(self) -> tuple[bool, str]:
+        """Key check for the status panel: never raises, never echoes the key."""
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        try:
+            response = await client.get(_CONFIG_URL, params={"api_key": self._api_key})
+            if response.status_code == 401:
+                return False, "Clé API refusée (401)."
+            response.raise_for_status()
+            return True, "OK"
+        except httpx.TimeoutException:
+            return False, "Pas de réponse (timeout)."
+        except httpx.HTTPStatusError as exc:
+            return False, f"Erreur HTTP {exc.response.status_code}."
+        except httpx.HTTPError as exc:
+            return False, f"Erreur réseau : {redact(str(exc))}."
         finally:
             if owns_client:
                 await client.aclose()
