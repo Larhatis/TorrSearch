@@ -220,15 +220,17 @@ def test_settings_page_never_renders_secrets(tmp_path):
 
 
 def test_blank_secret_fields_keep_stored_values(tmp_path):
+    # Same destination (host/URL unchanged): a blank secret field keeps the stored value.
     client, ctx, _ = _client(tmp_path, _secret_config())
-    client.post("/settings/general", data={"host": "h", "port": "9091", "username": "u",
+    client.post("/settings/general", data={"host": "localhost", "port": "9091", "username": "u",
                                            "password": "", "timeout_seconds": "10"})
-    client.post("/settings/indexers/t", data={"name": "t", "url": "https://t2/api",
+    client.post("/settings/indexers/t", data={"name": "t2", "url": "https://t/api",
                                               "api_key": "", "auth": "query"})
     client.post("/settings/jellyfin", data={"url": "http://jelly:8096", "api_key": ""})
     assert ctx.config.transmission.password == "tr-secret-pw"
+    assert ctx.config.transmission.username == "u"
     assert ctx.config.indexers[0].api_key == "passkey-secret"
-    assert ctx.config.indexers[0].url == "https://t2/api"
+    assert ctx.config.indexers[0].name == "t2"  # a rename keeps the passkey (same URL)
     assert ctx.config.jellyfin.api_key == "jf-secret-key"
 
 
@@ -288,3 +290,42 @@ def test_update_indexer_keeps_custom_categories(tmp_path):
     client, ctx, _ = _client(tmp_path, cfg)
     client.post("/settings/indexers/t", data={"name": "t", "url": "https://t/api", "api_key": "", "auth": "query"})
     assert ctx.config.indexers[0].categories == {"movies": [2040]}
+
+
+def test_blank_secret_is_never_sent_to_a_new_destination(tmp_path):
+    client, ctx, _ = _client(tmp_path, _secret_config())
+    r1 = client.post("/settings/general", data={"host": "evil.example", "port": "9091",
+                                                "password": "", "timeout_seconds": "10"})
+    r2 = client.post("/settings/jellyfin", data={"url": "https://evil.example", "api_key": ""})
+    r3 = client.post("/settings/indexers/t", data={"name": "t", "url": "https://evil.example/api",
+                                                   "api_key": "", "auth": "query"})
+    for resp in (r1, r2, r3):
+        assert "Ressaisis" in resp.text
+    assert ctx.config.transmission.host != "evil.example"
+    assert ctx.config.jellyfin.url == "http://jelly:8096"
+    assert ctx.config.indexers[0].url == "https://t/api"
+
+
+def test_new_destination_with_new_secret_is_accepted(tmp_path):
+    client, ctx, _ = _client(tmp_path, _secret_config())
+    client.post("/settings/jellyfin", data={"url": "https://jelly2", "api_key": "new-key"})
+    assert (ctx.config.jellyfin.url, ctx.config.jellyfin.api_key) == ("https://jelly2", "new-key")
+
+
+def test_disabling_jellyfin_keeps_the_stored_key(tmp_path):
+    client, ctx, _ = _client(tmp_path, _secret_config())
+    client.post("/settings/jellyfin", data={"url": "", "api_key": ""})
+    assert (ctx.config.jellyfin.url, ctx.config.jellyfin.api_key) == ("", "jf-secret-key")
+
+
+def test_tester_never_sends_the_stored_passkey_to_another_url(tmp_path):
+    cfg = Config(indexers=[IndexerConfig(name="t", url="https://tracker1.example/api", api_key="stored-key")])
+    client, _, _ = _client(tmp_path, cfg)
+    with respx.mock:
+        evil = respx.get("https://evil.example/api").mock(return_value=httpx.Response(200, content=b"<caps/>"))
+        resp = client.post("/settings/indexer-test", data={
+            "name": "t", "original_name": "t", "url": "https://evil.example/api",
+            "api_key": "", "auth": "query",
+        })
+    assert "Ressaisis" in resp.text
+    assert not evil.called
