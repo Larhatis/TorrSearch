@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from transmission_rpc import Client
 
 from torsearch.config import TransmissionConfig
+from torsearch.redact import redact
 
 T = TypeVar("T")
 
@@ -99,3 +100,14 @@ class TransmissionClient:
 
     async def remove(self, torrent_id: int) -> None:
         await self._run(lambda c: c.remove_torrent(torrent_id, delete_data=False))
+
+    async def test(self) -> tuple[bool, str]:
+        """Connection check for the status panel: never raises, never echoes credentials."""
+        try:
+            version, count = await self._run(
+                lambda c: (c.get_session().version, c.session_stats().torrent_count)
+            )
+        except Exception as exc:
+            return False, redact(str(exc))
+        label = str(version).split()[0] if version else "?"
+        return True, f"v{label} · {count} torrent{'s' if count != 1 else ''}"
