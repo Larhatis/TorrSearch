@@ -91,9 +91,11 @@ suit l'état de ses propres demandes dans **Mes demandes**.
 - TorrSearch **ne gère pas le TLS**. Pour une exposition hors réseau local, place-le
   **derrière un reverse proxy HTTPS** (Caddy, Traefik, Nginx Proxy Manager…) et mets
   `TORSEARCH_HTTPS=1` pour que le cookie de session soit `Secure`.
-- Derrière un reverse proxy, renseigne aussi `FORWARDED_ALLOW_IPS` (IP ou plage du
-  proxy) : sinon tous les clients partagent l'IP du proxy et quelques échecs de connexion
-  bloquent tout le monde.
+- Derrière un reverse proxy, renseigne aussi `FORWARDED_ALLOW_IPS` avec l'**IP exacte** du
+  proxy : sinon tous les clients partagent l'IP du proxy et quelques échecs de connexion
+  bloquent tout le monde. Évite les plages larges et `*`, qui laisseraient un client direct
+  usurper son IP ; si le proxy est sur la même machine, publie le port en local
+  (`127.0.0.1:8080:8000`).
 - **Active l'authentification** et choisis un **mot de passe fort** : l'app prévient au
   démarrage si le mot de passe administrateur est trivial.
 - Le login est protégé contre la force brute (blocage temporaire après plusieurs échecs),

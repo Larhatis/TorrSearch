@@ -10,8 +10,8 @@ services:
     environment:
       - TORSEARCH_DB=/data/torsearch.db          # toutes les donnees (volume persistant)
       - TORSEARCH_CONFIG=/bootstrap/bootstrap.yaml
-      # Derriere un reverse proxy : IP/plage du proxy (cf. .env.example).
-      # - FORWARDED_ALLOW_IPS=172.18.0.0/16
+      # Derriere un reverse proxy : IP exacte du proxy (cf. .env.example).
+      # - FORWARDED_ALLOW_IPS=172.18.0.2
       # Chemins des anciens JSON : importes une fois dans la base s'ils existent (legacy).
       - TORSEARCH_SETTINGS=/data/settings.json
       - TORSEARCH_MONITOR=/data/monitor.json

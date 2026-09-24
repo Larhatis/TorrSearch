@@ -1,7 +1,7 @@
 # Secrets / config locale
 .env
-config.yaml
-data/
+/config.yaml
+/data/
 /transmission/
 
 # Python
