@@ -47,7 +47,13 @@ async def page(request: Request):
 async def update_monitor(request: Request, enabled: str | None = Form(None), interval_minutes: str = Form("30")):
     ctx: AppContext = request.app.state.ctx
     try:
-        monitor = MonitorConfig(enabled=enabled is not None, interval_minutes=interval_minutes)
+        # Rebuild from the current config (keeps regrab_hours) and validate the form values;
+        # model_copy(update=...) would skip validation and store "30" as a string.
+        monitor = MonitorConfig.model_validate({
+            **ctx.config.monitor.model_dump(),
+            "enabled": enabled is not None,
+            "interval_minutes": interval_minutes,
+        })
         ctx.update_settings(set_monitor(ctx.config, monitor))
         return _body(request, notice="Surveillance mise a jour.")
     except (ValidationError, SettingsError) as exc:
