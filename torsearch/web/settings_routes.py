@@ -211,7 +211,7 @@ async def add_indexer_route(
         return _list(request, ctx, error=f"Erreur : {exc}")
 
 
-@settings_router.post("/settings/indexers/test", response_class=HTMLResponse)
+@settings_router.post("/settings/indexer-test", response_class=HTMLResponse)
 async def test_indexer_route(
     request: Request,
     name: str = Form(...),
@@ -250,7 +250,10 @@ async def update_indexer_route(
     if not api_key and current is not None:
         api_key = current.api_key  # blank = keep (never rendered)
     try:
-        indexer = IndexerConfig(name=new_name, url=url, api_key=api_key, auth=auth, enabled=enabled)
+        indexer = IndexerConfig(
+            name=new_name, url=url, api_key=api_key, auth=auth, enabled=enabled,
+            categories=current.categories if current else {},  # not editable here: keep them
+        )
         ctx.update_settings(update_indexer(ctx.config, name, indexer))
         return _list(request, ctx, notice="Tracker mis a jour.")
     except (ValidationError, SettingsError) as exc:

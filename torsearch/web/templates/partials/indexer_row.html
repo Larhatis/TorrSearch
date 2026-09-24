@@ -18,7 +18,7 @@
   <button type="button" hx-post="/settings/indexers/{{ ix.name }}/toggle" hx-target="#indexer-list" hx-swap="outerHTML"
           class="rounded {% if ix.enabled %}bg-amber-600 hover:bg-amber-500{% else %}bg-slate-600 hover:bg-slate-500{% endif %} px-2 py-1 text-xs">
     {{ "Desactiver" if ix.enabled else "Activer" }}</button>
-  <button type="button" hx-post="/settings/indexers/test" hx-include="closest form" hx-target="#toast"
+  <button type="button" hx-post="/settings/indexer-test" hx-include="closest form" hx-target="#toast"
           class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-1 text-xs">Tester</button>
   <button type="button" hx-post="/settings/indexers/{{ ix.name }}/delete" hx-target="#indexer-list" hx-swap="outerHTML"
           class="rounded bg-red-700 hover:bg-red-600 px-2 py-1 text-xs">Supprimer</button>

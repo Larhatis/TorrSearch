@@ -112,7 +112,7 @@ def test_test_indexer_returns_ok_toast(tmp_path):
         respx.get("https://tracker1.example/api").mock(
             return_value=httpx.Response(200, content=b'<?xml version="1.0"?><caps/>')
         )
-        resp = client.post("/settings/indexers/test", data={
+        resp = client.post("/settings/indexer-test", data={
             "name": "tracker1", "url": "https://tracker1.example/api", "api_key": "k", "auth": "query",
         })
     assert resp.status_code == 200
@@ -123,7 +123,7 @@ def test_test_indexer_returns_error_toast_on_401(tmp_path):
     client, _, _ = _client(tmp_path)
     with respx.mock:
         respx.get("https://tracker1.example/api").mock(return_value=httpx.Response(401))
-        resp = client.post("/settings/indexers/test", data={
+        resp = client.post("/settings/indexer-test", data={
             "name": "tracker1", "url": "https://tracker1.example/api", "api_key": "bad", "auth": "query",
         })
     assert resp.status_code == 200
@@ -246,7 +246,7 @@ def test_test_indexer_uses_stored_passkey_when_blank(tmp_path):
         route = respx.get("https://tracker1.example/api").mock(
             return_value=httpx.Response(200, content=b'<?xml version="1.0"?><caps/>')
         )
-        resp = client.post("/settings/indexers/test", data={
+        resp = client.post("/settings/indexer-test", data={
             "name": "t", "original_name": "t", "url": "https://tracker1.example/api",
             "api_key": "", "auth": "query",
         })
@@ -272,3 +272,19 @@ def test_update_metadata_sets_and_keeps_tmdb_key(tmp_path, monkeypatch):
     assert ctx.tmdb.enabled is True
     client.post("/settings/metadata", data={"tmdb_api_key": ""})
     assert ctx.config.metadata.tmdb_api_key == "k1"  # blank keeps the stored key
+
+
+def test_tracker_named_test_can_be_updated(tmp_path):
+    cfg = Config(indexers=[IndexerConfig(name="test", url="https://old/api", api_key="k")])
+    client, ctx, _ = _client(tmp_path, cfg)
+    client.post("/settings/indexers/test", data={"name": "test", "url": "https://old/api",
+                                                 "api_key": "k2", "auth": "query"})
+    assert ctx.config.indexers[0].api_key == "k2"
+
+
+def test_update_indexer_keeps_custom_categories(tmp_path):
+    cfg = Config(indexers=[IndexerConfig(name="t", url="https://t/api", api_key="k",
+                                         categories={"movies": [2040]})])
+    client, ctx, _ = _client(tmp_path, cfg)
+    client.post("/settings/indexers/t", data={"name": "t", "url": "https://t/api", "api_key": "", "auth": "query"})
+    assert ctx.config.indexers[0].categories == {"movies": [2040]}
