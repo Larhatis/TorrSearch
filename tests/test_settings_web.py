@@ -342,3 +342,28 @@ def test_tester_error_never_echoes_the_passkey(tmp_path):
         })
     assert "404" in resp.text
     assert "stored-key" not in resp.text
+
+
+def test_settings_page_lazy_loads_the_status_panel(tmp_path):
+    client, _, _ = _client(tmp_path)
+    html = client.get("/settings").text
+    assert 'id="status-panel"' in html
+    assert 'hx-get="/settings/status"' in html
+    assert "settings-saved from:body" in html
+
+
+def test_status_route_renders_one_row_per_service(tmp_path, monkeypatch):
+    from torsearch.health import ServiceStatus
+    from torsearch.web import settings_routes
+
+    async def fake_check_all(ctx):
+        return [ServiceStatus(name="Transmission", state="ok", message="OK · v4.0.6 · 3 torrents"),
+                ServiceStatus(name="Jellyfin", state="off", message="Non configuré"),
+                ServiceStatus(name="t1", state="error", message="Clé API refusée (401/403).")]
+
+    monkeypatch.setattr(settings_routes, "check_all", fake_check_all)
+    client, _, _ = _client(tmp_path)
+    html = client.get("/settings/status").text
+    assert html.count("data-state=") == 3
+    assert 'data-state="ok"' in html and 'data-state="off"' in html and 'data-state="error"' in html
+    assert "v4.0.6" in html and "Reverifier" in html

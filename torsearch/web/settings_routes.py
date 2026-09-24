@@ -17,6 +17,7 @@ from torsearch.config import (
     TransmissionConfig,
 )
 from torsearch.context import AppContext
+from torsearch.health import check_all
 from torsearch.indexers.torznab import TorznabIndexer
 from torsearch.models import Category
 from torsearch.notifications.notifier import Notifier
@@ -65,6 +66,13 @@ async def settings_page(request: Request):
             "tmdb_from_env": bool(os.environ.get("TMDB_API_KEY")),
         }
     )
+
+
+@settings_router.get("/settings/status", response_class=HTMLResponse)
+async def settings_status(request: Request):
+    ctx: AppContext = request.app.state.ctx
+    statuses = await check_all(ctx)
+    return templates.TemplateResponse(request, "partials/status_panel.html", {"statuses": statuses})
 
 
 def _user_list(request: Request, error: str | None = None, notice: str | None = None):

@@ -1,0 +1,18 @@
+{% set dot = {'ok': 'bg-green-500', 'error': 'bg-red-500', 'off': 'bg-slate-500'} %}
+{% set txt = {'ok': 'text-green-300', 'error': 'text-red-300', 'off': 'text-slate-500'} %}
+<div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+  <i class="ti ti-heartbeat text-slate-500"></i>
+  <h2 class="text-sm font-semibold text-white">Etat des connexions</h2>
+  <button type="button" hx-get="/settings/status" hx-target="#status-panel"
+          class="ml-auto flex items-center gap-1 rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:text-emerald-400">
+    <i class="ti ti-refresh"></i> Reverifier</button>
+</div>
+<ul class="space-y-1.5 text-sm">
+  {% for s in statuses %}
+  <li data-state="{{ s.state }}" class="flex items-center gap-3">
+    <span class="h-2 w-2 shrink-0 rounded-full {{ dot[s.state] }}"></span>
+    <span class="w-32 shrink-0 truncate text-slate-200">{{ s.name }}</span>
+    <span class="min-w-0 truncate {{ txt[s.state] }}" title="{{ s.message }}">{{ s.message }}</span>
+  </li>
+  {% endfor %}
+</ul>

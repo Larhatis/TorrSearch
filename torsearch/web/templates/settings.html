@@ -6,6 +6,11 @@
 
 <div class="space-y-5">
 
+<section id="status-panel" class="rounded-xl border border-slate-700 bg-slate-800/40 p-5"
+         hx-get="/settings/status" hx-trigger="load, settings-saved from:body">
+  <p class="text-xs text-slate-500"><i class="ti ti-loader"></i> Verification des connexions...</p>
+</section>
+
 {% if auth_enabled %}
 <section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
   <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
