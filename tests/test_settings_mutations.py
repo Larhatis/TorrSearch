@@ -119,3 +119,28 @@ def test_remove_and_toggle_channel():
     assert remove_channel(cfg, "d").notifications == []
     with pytest.raises(SettingsError):
         remove_channel(cfg, "nope")
+
+
+@pytest.mark.parametrize("bad", ["a/b", "quoi?", "x#1", "50%", "   ", ""])
+def test_add_indexer_rejects_names_that_break_urls(bad):
+    with pytest.raises(SettingsError):
+        add_indexer(Config(), _ix(bad))
+
+
+def test_update_indexer_validates_only_renames():
+    cfg = Config(indexers=[_ix("old/name")])  # legacy config: still loads
+    with pytest.raises(SettingsError):
+        update_indexer(cfg, "old/name", _ix("new/name"))
+    kept = update_indexer(cfg, "old/name", _ix("old/name", url="https://x/api"))
+    assert kept.indexers[0].url == "https://x/api"
+
+
+def test_saved_search_and_channel_names_are_validated():
+    # Local imports, like the rest of this file (a module-level import would clash with them: F811).
+    from torsearch.config import NotificationChannel, SavedSearch
+    from torsearch.settings.mutations import add_channel, add_saved_search
+
+    with pytest.raises(SettingsError):
+        add_saved_search(Config(), SavedSearch(name="a/b", query="q"))
+    with pytest.raises(SettingsError):
+        add_channel(Config(), NotificationChannel(name="c?d", type="discord", url="https://x"))

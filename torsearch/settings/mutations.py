@@ -18,6 +18,18 @@ class SettingsError(Exception):
     """Raised when a settings mutation is invalid (e.g. duplicate tracker name)."""
 
 
+_URL_BREAKING = set("/?#%")
+
+
+def _check_name(name: str, what: str) -> None:
+    """Names are used as URL path segments: refuse blanks and URL-breaking characters."""
+    if not name.strip():
+        raise SettingsError(f"Nom obligatoire ({what}).")
+    bad = sorted(_URL_BREAKING & set(name))
+    if bad:
+        raise SettingsError(f"Nom invalide ({what}) : caractères interdits {' '.join(bad)}.")
+
+
 def _index_of(config: Config, name: str) -> int:
     for i, ix in enumerate(config.indexers):
         if ix.name == name:
@@ -26,6 +38,7 @@ def _index_of(config: Config, name: str) -> int:
 
 
 def add_indexer(config: Config, indexer: IndexerConfig) -> Config:
+    _check_name(indexer.name, "tracker")
     if _index_of(config, indexer.name) != -1:
         raise SettingsError(f"Un tracker nommé « {indexer.name} » existe déjà.")
     return config.model_copy(update={"indexers": [*config.indexers, indexer]})
@@ -35,8 +48,10 @@ def update_indexer(config: Config, name: str, indexer: IndexerConfig) -> Config:
     idx = _index_of(config, name)
     if idx == -1:
         raise SettingsError(f"Tracker introuvable : « {name} ».")
-    if indexer.name != name and _index_of(config, indexer.name) != -1:
-        raise SettingsError(f"Un tracker nommé « {indexer.name} » existe déjà.")
+    if indexer.name != name:
+        _check_name(indexer.name, "tracker")
+        if _index_of(config, indexer.name) != -1:
+            raise SettingsError(f"Un tracker nommé « {indexer.name} » existe déjà.")
     new_indexers = list(config.indexers)
     new_indexers[idx] = indexer
     return config.model_copy(update={"indexers": new_indexers})
@@ -70,6 +85,7 @@ def _saved_index(config: Config, name: str) -> int:
 
 
 def add_saved_search(config: Config, saved_search: SavedSearch) -> Config:
+    _check_name(saved_search.name, "recherche")
     if _saved_index(config, saved_search.name) != -1:
         raise SettingsError(f"Une recherche nommée « {saved_search.name} » existe déjà.")
     return config.model_copy(update={"saved_searches": [*config.saved_searches, saved_search]})
@@ -116,6 +132,7 @@ def _channel_index(config: Config, name: str) -> int:
 
 
 def add_channel(config: Config, channel: NotificationChannel) -> Config:
+    _check_name(channel.name, "canal")
     if _channel_index(config, channel.name) != -1:
         raise SettingsError(f"Un canal nommé « {channel.name} » existe déjà.")
     return config.model_copy(update={"notifications": [*config.notifications, channel]})
