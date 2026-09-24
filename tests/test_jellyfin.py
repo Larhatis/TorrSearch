@@ -88,3 +88,28 @@ async def test_episodes_error_returns_empty():
     with respx.mock:
         respx.get("http://jelly/Shows/bbb/Episodes").mock(return_value=httpx.Response(500))
         assert await c.episodes("bbb") == set()
+
+
+async def test_test_reports_server_name_and_version():
+    client = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        respx.get("http://jelly/System/Info").mock(
+            return_value=httpx.Response(200, json={"ServerName": "omvnas", "Version": "10.10.3"}))
+        assert await client.test() == (True, "omvnas · Jellyfin 10.10.3")
+
+
+async def test_test_rejected_key():
+    client = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="BAD"))
+    with respx.mock:
+        respx.get("http://jelly/System/Info").mock(return_value=httpx.Response(401))
+        ok, message = await client.test()
+    assert ok is False and "refusée" in message
+
+
+async def test_test_error_never_echoes_the_key():
+    client = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="JF-SECRET"))
+    with respx.mock:
+        respx.get("http://jelly/System/Info").mock(return_value=httpx.Response(500))
+        ok, message = await client.test()
+    assert ok is False
+    assert "500" in message and "JF-SECRET" not in message
