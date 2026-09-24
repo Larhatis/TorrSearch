@@ -252,3 +252,23 @@ def test_test_indexer_uses_stored_passkey_when_blank(tmp_path):
         })
     assert "OK" in resp.text
     assert route.calls.last.request.url.params["apikey"] == "stored-key"
+
+
+def test_settings_page_has_tmdb_field_without_leaking_key(tmp_path):
+    from torsearch.config import MetadataConfig
+
+    client, _, _ = _client(tmp_path, Config(metadata=MetadataConfig(tmdb_api_key="tmdb-secret")))
+    html = client.get("/settings").text
+    assert 'name="tmdb_api_key"' in html
+    assert "tmdb-secret" not in html
+
+
+def test_update_metadata_sets_and_keeps_tmdb_key(tmp_path, monkeypatch):
+    monkeypatch.delenv("TMDB_API_KEY", raising=False)
+    client, ctx, _ = _client(tmp_path)
+    resp = client.post("/settings/metadata", data={"tmdb_api_key": "k1"})
+    assert resp.status_code == 200
+    assert ctx.config.metadata.tmdb_api_key == "k1"
+    assert ctx.tmdb.enabled is True
+    client.post("/settings/metadata", data={"tmdb_api_key": ""})
+    assert ctx.config.metadata.tmdb_api_key == "k1"  # blank keeps the stored key

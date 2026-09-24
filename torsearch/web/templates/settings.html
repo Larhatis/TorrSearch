@@ -118,6 +118,21 @@
 
 <section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
   <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+    <i class="ti ti-compass text-slate-500"></i>
+    <h2 class="text-sm font-semibold text-white">Decouverte (TMDB)</h2>
+  </div>
+  <form hx-post="/settings/metadata" hx-target="#toast" class="flex flex-wrap items-end gap-3">
+    <label class="text-xs text-slate-400">Cle API TMDB<br>
+      <input name="tmdb_api_key" type="password" value="" autocomplete="new-password"
+             placeholder="{% if config.metadata.tmdb_api_key %}•••••• (inchange si vide){% elif tmdb_from_env %}definie par TMDB_API_KEY{% endif %}"
+             class="mt-1 w-72 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+  </form>
+  <p class="mt-2 text-xs text-slate-500">Cle gratuite sur themoviedb.org (Parametres &gt; API).</p>
+</section>
+
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
     <i class="ti ti-device-tv text-slate-500"></i>
     <h2 class="text-sm font-semibold text-white">Jellyfin (lecture)</h2>
   </div>

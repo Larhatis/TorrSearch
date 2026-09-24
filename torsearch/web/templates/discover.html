@@ -2,7 +2,7 @@
 {% block content %}
 {% if not has_tmdb %}
 <div class="mb-5 rounded-lg border border-amber-600/40 bg-amber-600/10 px-4 py-3 text-sm">
-  <i class="ti ti-alert-triangle text-amber-400"></i> Cle TMDB absente. Renseigne <code class="rounded bg-slate-800 px-1">TMDB_API_KEY</code> pour activer la decouverte par titre.
+  <i class="ti ti-alert-triangle text-amber-400"></i> Cle TMDB absente.{% if is_admin %} Renseigne-la dans <a href="/settings" class="underline text-amber-300 hover:text-amber-200">Reglages</a> (ou via la variable <code class="rounded bg-slate-800 px-1">TMDB_API_KEY</code>) pour activer la decouverte par titre.{% else %} Demande a l'administrateur de la configurer.{% endif %}
 </div>
 {% else %}
 <form hx-get="/discover/search" hx-target="#media-results" hx-indicator="#dspin" class="mb-5">

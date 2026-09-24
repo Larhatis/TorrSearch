@@ -5,6 +5,7 @@ from torsearch.config import (
     IndexerConfig,
     JellyfinConfig,
     LibraryConfig,
+    MetadataConfig,
     MonitorConfig,
     NotificationChannel,
     PathsConfig,
@@ -118,6 +119,10 @@ def set_library(config: Config, library: LibraryConfig) -> Config:
 
 def set_jellyfin(config: Config, jellyfin: JellyfinConfig) -> Config:
     return config.model_copy(update={"jellyfin": jellyfin})
+
+
+def set_metadata(config: Config, metadata: MetadataConfig) -> Config:
+    return config.model_copy(update={"metadata": metadata})
 
 
 def set_paths(config: Config, paths: PathsConfig) -> Config:
