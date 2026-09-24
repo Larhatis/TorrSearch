@@ -24,6 +24,7 @@ test rouge, puis corrigé.
 | D7 | Les helpers de formulaire (`_to_int`, `_to_size_bytes`, `_GB`) sont dupliqués. | `web/routes.py`, `web/surveillance_routes.py`. |
 | D8 | Un nom de tracker, de recherche ou de canal contenant `/`, `?`, `#` ou `%` rend ses URLs d'édition inutilisables (les noms servent d'identifiants dans les chemins). | `hx-post="/settings/indexers/{{ ix.name }}"`, etc. |
 | D9 | Templates non déclarés comme données du paquet : l'image Docker ne fonctionne que parce qu'elle importe `torsearch` depuis les sources (`/app`). | `torsearch.egg-info/SOURCES.txt` ne liste aucun template. |
+| D10 | La clé TMDB ne se règle pas dans l'interface, et `TMDB_API_KEY` n'est lue qu'au tout premier démarrage (interpolation du fichier d'amorçage). Ajouter la variable après coup n'a aucun effet, alors que la page Découvrir demande justement de la renseigner. | Constaté en lançant l'app en local ; `SettingsStore.load()` n'interpole rien une fois la config en base. |
 
 ## Conception
 
@@ -133,6 +134,20 @@ Aucun changement de code : uvicorn active déjà `proxy_headers` et lit la varia
 - **D9** : `pyproject.toml` déclare
   `[tool.setuptools.package-data] torsearch = ["web/templates/**/*.html", "web/static/**/*"]`.
 
+### 7. Clé TMDB réglable (D10)
+
+- **Réglages** : nouvelle section « Découverte (TMDB) » avec un champ `tmdb_api_key`,
+  masqué comme les autres secrets (section 3) ; `POST /settings/metadata` enregistre via
+  une nouvelle mutation `set_metadata(config, metadata)` ; une valeur vide conserve la clé
+  enregistrée.
+- **Repli sur l'environnement** : dans `AppContext._rebuild`, si la clé enregistrée est
+  vide, le `TmdbClient` est construit avec `os.environ.get("TMDB_API_KEY", "")`. La clé
+  enregistrée reste prioritaire ; la variable n'est jamais écrite en base.
+- **Indication** : si aucune clé n'est enregistrée mais que `TMDB_API_KEY` est définie, le
+  placeholder du champ l'indique (« définie par TMDB_API_KEY »).
+- **Page Découvrir** : l'avertissement « Clé TMDB absente » renvoie vers Réglages (lien
+  pour l'admin) et mentionne `TMDB_API_KEY` comme alternative.
+
 ## Gestion d'erreurs
 
 - Transmission : les exceptions remontent comme aujourd'hui (message ou bandeau d'erreur
@@ -148,6 +163,8 @@ Aucun changement de code : uvicorn active déjà `proxy_headers` et lit la varia
 - Les sessions existantes restent valides si le compte existe ; le rôle effectif devient
   celui en base.
 - Mode identifiant unique (store vide ou absent) et auth désactivée : inchangés.
+- Clé TMDB : une clé déjà enregistrée n'est pas affectée ; le repli sur `TMDB_API_KEY`
+  ne joue que si aucune clé n'est enregistrée.
 
 ## Tests (TDD)
 
@@ -178,6 +195,14 @@ Aucun changement de code : uvicorn active déjà `proxy_headers` et lit la varia
 - **D7** : tests unitaires de `web/forms.py` ; le reste est couvert par les tests existants.
 - **D8** : un nom contenant `/` est refusé à l'ajout et au renommage (tracker, recherche,
   canal) ; une config existante avec un tel nom se charge toujours.
+- **D10** :
+  - la page `/settings` contient le champ TMDB, jamais la clé enregistrée ;
+  - `POST /settings/metadata` enregistre une nouvelle clé et conserve l'ancienne si le
+    champ est vide ;
+  - clé enregistrée vide + `TMDB_API_KEY` définie → `ctx.tmdb.enabled` vrai ; clé
+    enregistrée présente → elle l'emporte sur la variable ;
+  - le test existant « TMDB désactivé par défaut » neutralise `TMDB_API_KEY`
+    (`monkeypatch.delenv`) pour ne pas dépendre de l'environnement.
 - **D5, D9** : pas de test automatisé (documentation ; contenu de la wheel vérifié à la
   main avec `pip wheel`).
 
