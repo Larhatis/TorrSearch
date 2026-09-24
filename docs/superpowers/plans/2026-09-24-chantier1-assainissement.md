@@ -758,9 +758,9 @@ git commit -m "fix(web): supprimer le JS inline (XSS) au profit de static/app.js
 
 Run:
 ```bash
-WHEEL_DIR=$(mktemp -d) && .venv/bin/python -m pip wheel . --no-deps -q -w "$WHEEL_DIR" && unzip -l "$WHEEL_DIR"/torsearch-*.whl | grep -cE "torsearch/web/(templates|static)/"
+WHEEL_DIR=$(mktemp -d) && uv build --wheel -q -o "$WHEEL_DIR" && unzip -l "$WHEEL_DIR"/torsearch-*.whl | grep -cE "torsearch/web/(templates|static)/"
 ```
-Expected: `0` (aucun template ni fichier statique dans la wheel). Nécessite l'accès réseau (pip télécharge setuptools pour la construction isolée).
+Expected: `0` (aucun template ni fichier statique dans la wheel). `uv build` construit dans un environnement isolé (le venv du worktree n'a pas pip) ; nécessite l'accès réseau pour télécharger setuptools.
 
 - [ ] **Step 2 : Déclarer les données du paquet**
 

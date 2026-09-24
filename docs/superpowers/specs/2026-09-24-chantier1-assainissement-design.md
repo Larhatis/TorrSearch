@@ -204,7 +204,7 @@ Aucun changement de code : uvicorn active déjà `proxy_headers` et lit la varia
   - le test existant « TMDB désactivé par défaut » neutralise `TMDB_API_KEY`
     (`monkeypatch.delenv`) pour ne pas dépendre de l'environnement.
 - **D5, D9** : pas de test automatisé (documentation ; contenu de la wheel vérifié à la
-  main avec `pip wheel`).
+  main avec `uv build --wheel`).
 
 ## Hors périmètre
 
