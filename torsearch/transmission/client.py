@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
@@ -12,7 +13,12 @@ from torsearch.config import TransmissionConfig
 
 T = TypeVar("T")
 
-DEFAULT_TIMEOUT = 10.0  # seconds (transmission-rpc defaults to 30)
+DEFAULT_TIMEOUT = 10.0  # seconds per connect/read (transmission-rpc defaults to 30)
+ADD_TIMEOUT = 60.0  # adding by URL: Transmission replies only once it has fetched the .torrent
+
+# Dedicated pool: an unreachable Transmission can only tie up these threads, never the
+# default executor that asyncio also uses for DNS lookups (searches, TMDB, Jellyfin).
+_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="transmission")
 
 
 class TorrentInfo(BaseModel):
@@ -28,8 +34,9 @@ class TorrentInfo(BaseModel):
 class TransmissionClient:
     """Async facade over the blocking ``transmission_rpc`` client.
 
-    Each RPC runs in a worker thread (``asyncio.to_thread``) so a slow or unreachable
-    Transmission never blocks the event loop; every call is bounded by ``timeout``.
+    Each RPC runs in a dedicated worker thread so a slow or unreachable Transmission never
+    blocks the event loop. Connect/read waits are bounded by ``timeout`` (``ADD_TIMEOUT``
+    when adding a torrent).
     """
 
     def __init__(self, config: TransmissionConfig, client_factory=Client, timeout: float = DEFAULT_TIMEOUT):
@@ -40,25 +47,33 @@ class TransmissionClient:
         self._lock = threading.Lock()
 
     def _get_client(self):
-        # Creating the client already performs a network call: do it once, even when two
-        # worker threads race for it. RPC calls themselves are not serialized.
-        with self._lock:
-            if self._client is None:
-                self._client = self._client_factory(
-                    protocol="https" if self._config.https else "http",
-                    host=self._config.host,
-                    port=self._config.port,
-                    username=self._config.username or None,
-                    password=self._config.password or None,
-                    timeout=self._timeout,
-                )
-            return self._client
+        client = self._client
+        if client is None:
+            # Creating the client is itself a network call (handshake): run it outside the
+            # lock so callers never queue behind an unreachable host, and keep whichever
+            # client wins the race. RPC calls themselves are not serialized either.
+            client = self._client_factory(
+                protocol="https" if self._config.https else "http",
+                host=self._config.host,
+                port=self._config.port,
+                username=self._config.username or None,
+                password=self._config.password or None,
+                timeout=self._timeout,
+            )
+            with self._lock:
+                if self._client is None:
+                    self._client = client
+                client = self._client
+        return client
 
     async def _run(self, fn: Callable[[Any], T]) -> T:
-        return await asyncio.to_thread(lambda: fn(self._get_client()))
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(_EXECUTOR, lambda: fn(self._get_client()))
 
     async def add(self, download_url: str, download_dir: str | None = None) -> int:
-        torrent = await self._run(lambda c: c.add_torrent(download_url, download_dir=download_dir))
+        torrent = await self._run(
+            lambda c: c.add_torrent(download_url, download_dir=download_dir, timeout=ADD_TIMEOUT)
+        )
         return torrent.id
 
     async def list_torrents(self) -> list[TorrentInfo]:

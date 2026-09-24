@@ -1,4 +1,6 @@
 import asyncio
+import contextlib
+import threading
 import time
 from types import SimpleNamespace
 
@@ -11,9 +13,10 @@ class FakeRpc:
         self.kwargs = kwargs
         self.added = []
 
-    def add_torrent(self, url, download_dir=None):
+    def add_torrent(self, url, download_dir=None, timeout=None):
         self.added.append(url)
         self.last_download_dir = download_dir
+        self.last_timeout = timeout
         return SimpleNamespace(id=42)
 
 
@@ -165,5 +168,53 @@ async def test_rpc_does_not_block_the_event_loop():
     task = asyncio.create_task(ticker())
     infos = await _client_with(SlowRpc()).list_torrents()
     task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
     assert [i.name for i in infos] == ["A", "B"]
     assert ticks >= 10  # the loop kept running while the RPC was in flight
+
+
+async def test_add_gets_a_longer_timeout_than_other_calls():
+    # Adding by URL: Transmission answers only after fetching the .torrent itself.
+    rpc = FakeRpc()
+    await TransmissionClient(TransmissionConfig(), client_factory=lambda **k: rpc).add("https://t/x.torrent")
+    assert rpc.last_timeout == 60.0
+
+
+async def test_handshake_runs_off_the_event_loop_thread():
+    seen = {}
+
+    def factory(**kwargs):
+        seen["thread"] = threading.get_ident()
+        return FakeRpc(**kwargs)
+
+    await TransmissionClient(TransmissionConfig(), client_factory=factory).add("magnet:?xt=urn:btih:A")
+    assert seen["thread"] != threading.get_ident()
+
+
+async def test_failed_handshake_is_retried_on_next_call():
+    attempts = []
+
+    def factory(**kwargs):
+        attempts.append(kwargs)
+        if len(attempts) == 1:
+            raise ConnectionError("down")
+        return FakeRpc(**kwargs)
+
+    tc = TransmissionClient(TransmissionConfig(), client_factory=factory)
+    with contextlib.suppress(ConnectionError):
+        await tc.add("magnet:?xt=urn:btih:A")
+    assert await tc.add("magnet:?xt=urn:btih:A") == 42
+    assert len(attempts) == 2
+
+
+async def test_calls_do_not_queue_behind_a_dead_host():
+    def factory(**kwargs):
+        time.sleep(0.3)  # handshake timing out against an unreachable host
+        raise ConnectionError("down")
+
+    tc = TransmissionClient(TransmissionConfig(), client_factory=factory)
+    start = time.monotonic()
+    results = await asyncio.gather(*(tc.list_torrents() for _ in range(4)), return_exceptions=True)
+    assert all(isinstance(r, ConnectionError) for r in results)
+    assert time.monotonic() - start < 0.6  # in parallel (~0.3 s), not one after another (~1.2 s)
