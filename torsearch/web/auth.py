@@ -102,6 +102,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 _PUBLIC_PATHS = {"/login", "/logout"}
+_PUBLIC_PREFIXES = ("/static/",)
+
+
+def _is_public(path: str) -> bool:
+    return path in _PUBLIC_PATHS or path.startswith(_PUBLIC_PREFIXES)
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -110,7 +115,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         self.settings = settings
 
     async def dispatch(self, request: Request, call_next):
-        if not self.settings.enabled or request.url.path in _PUBLIC_PATHS:
+        if not self.settings.enabled or _is_public(request.url.path):
             return await call_next(request)
         username = request.session.get("user")
         if username:

@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, Depends, FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from torsearch.context import AppContext
@@ -20,7 +21,7 @@ from torsearch.web.requests_routes import requests_router
 from torsearch.web.series_routes import series_router
 from torsearch.web.settings_routes import settings_router
 from torsearch.web.surveillance_routes import surveillance_router
-from torsearch.web.templating import templates
+from torsearch.web.templating import STATIC_DIR, templates
 
 router = APIRouter()
 
@@ -157,4 +158,5 @@ def create_app(
     app.include_router(library_router)
     app.include_router(series_router)
     app.include_router(requests_router)
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app

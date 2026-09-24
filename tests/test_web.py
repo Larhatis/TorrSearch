@@ -172,9 +172,10 @@ def test_index_has_filter_panel_fields():
     assert 'name="exclude"' in html
 
 
-def test_index_defines_clear_filter_helper():
+def test_index_loads_clear_filter_helper():
     client, _ = _make()
-    assert "function clearFilter" in client.get("/").text
+    assert '<script src="/static/app.js" defer></script>' in client.get("/").text
+    assert "function clearFilter" in client.get("/static/app.js").text
 
 
 def test_search_renders_quality_badge():
@@ -200,7 +201,7 @@ def test_search_renders_active_filter_chip():
     client, _ = _make([_result("KeepMe", seeders=80)])
     resp = client.get("/search", params={"q": "x", "min_seeders": "10"})
     assert 'data-filter="min_seeders"' in resp.text
-    assert "clearFilter('min_seeders')" in resp.text
+    assert "onclick" not in resp.text
 
 
 def test_download_routes_to_category_path():
