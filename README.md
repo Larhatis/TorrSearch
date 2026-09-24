@@ -68,7 +68,7 @@ Tout se règle dans l'interface ; quelques options passent par l'environnement (
 | --- | --- | --- |
 | Trackers | Réglages → Trackers | Nom, URL Torznab, passkey. Le bouton **Tester** vérifie la connexion. |
 | Transmission | Réglages → Transmission | Hôte, port, identifiants. |
-| Découverte | `TMDB_API_KEY` | Clé gratuite sur [themoviedb.org](https://www.themoviedb.org/) (Réglages → API). Active la page **Découvrir** et la bibliothèque. |
+| Découverte | Réglages → Découverte (TMDB), ou `TMDB_API_KEY` | Clé gratuite sur [themoviedb.org](https://www.themoviedb.org/) (Paramètres → API du site TMDB). La clé saisie dans Réglages est prioritaire. Active la page **Découvrir** et la bibliothèque. |
 | Jellyfin | Réglages → Jellyfin | URL + clé API, pour marquer les médias déjà présents et proposer la lecture. |
 | Authentification | `TORSEARCH_USERNAME` / `TORSEARCH_PASSWORD` | Active la connexion ; ce compte devient l'**administrateur** au premier démarrage. Désactivée si l'une manque. |
 
@@ -91,6 +91,9 @@ suit l'état de ses propres demandes dans **Mes demandes**.
 - TorrSearch **ne gère pas le TLS**. Pour une exposition hors réseau local, place-le
   **derrière un reverse proxy HTTPS** (Caddy, Traefik, Nginx Proxy Manager…) et mets
   `TORSEARCH_HTTPS=1` pour que le cookie de session soit `Secure`.
+- Derrière un reverse proxy, renseigne aussi `FORWARDED_ALLOW_IPS` (IP ou plage du
+  proxy) : sinon tous les clients partagent l'IP du proxy et quelques échecs de connexion
+  bloquent tout le monde.
 - **Active l'authentification** et choisis un **mot de passe fort** : l'app prévient au
   démarrage si le mot de passe administrateur est trivial.
 - Le login est protégé contre la force brute (blocage temporaire après plusieurs échecs),
