@@ -101,6 +101,26 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+_SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+_TRUSTED_FETCH_SITES = {"same-origin", "none"}
+
+
+class CrossSiteGuardMiddleware(BaseHTTPMiddleware):
+    """Refuse state-changing requests the browser flags as coming from another site.
+
+    CSRF protection without tokens, via Fetch Metadata: modern browsers always send
+    ``Sec-Fetch-Site``, so a forged cross-site form is rejected even when auth is
+    disabled. Clients that don't send the header (curl, scripts) are let through.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method not in _SAFE_METHODS:
+            site = request.headers.get("sec-fetch-site")
+            if site and site not in _TRUSTED_FETCH_SITES:
+                return Response("Requete inter-sites refusee.", status_code=403)
+        return await call_next(request)
+
+
 _PUBLIC_PATHS = {"/login", "/logout"}
 _PUBLIC_PREFIXES = ("/static/",)
 

@@ -98,6 +98,11 @@ suit l'état de ses propres demandes dans **Mes demandes**.
   démarrage si le mot de passe administrateur est trivial.
 - Le login est protégé contre la force brute (blocage temporaire après plusieurs échecs),
   l'app envoie des en-têtes de sécurité de base, et le conteneur tourne en **non-root**.
+- Les requêtes de modification que le navigateur signale comme venant d'un autre site
+  (en-têtes Fetch Metadata) sont refusées, même sans authentification : une page web
+  malveillante ne peut pas piloter ton instance à ton insu.
+- Les secrets (passkeys, mot de passe Transmission, clés API) ne sont jamais renvoyés au
+  navigateur ; pour changer l'URL ou l'hôte d'un service, il faut ressaisir son secret.
 
 ## Données
 
