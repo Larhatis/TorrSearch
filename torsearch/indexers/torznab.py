@@ -9,6 +9,7 @@ import httpx
 from torsearch.config import AuthMode, IndexerConfig
 from torsearch.indexers.base import Indexer
 from torsearch.models import Category, SearchResult
+from torsearch.redact import redact
 
 logger = logging.getLogger(__name__)
 
@@ -184,8 +185,11 @@ class TorznabIndexer(Indexer):
             return True, "OK"
         except httpx.TimeoutException:
             return False, "Pas de réponse (timeout)."
+        except httpx.HTTPStatusError as exc:
+            # The exception text embeds the request URL, passkey included: status only.
+            return False, f"Erreur HTTP {exc.response.status_code}."
         except httpx.HTTPError as exc:
-            return False, f"Erreur réseau : {exc}."
+            return False, f"Erreur réseau : {redact(str(exc))}."
         except ET.ParseError:
             return False, "Réponse invalide (XML illisible)."
         finally:

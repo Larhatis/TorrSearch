@@ -93,3 +93,13 @@ async def test_test_returns_ok_then_error():
         respx.post("https://discord/webhook").mock(return_value=httpx.Response(500))
         ok2, _ = await Notifier().test(ch)
     assert ok2 is False
+
+
+async def test_test_failure_never_echoes_the_bot_token():
+    ch = NotificationChannel(name="tg", type="telegram", token="123:SECRET", chat_id="42")
+    with respx.mock:
+        respx.post("https://api.telegram.org/bot123:SECRET/sendMessage").mock(return_value=httpx.Response(400))
+        ok, message = await Notifier().test(ch)
+    assert ok is False
+    assert "400" in message
+    assert "SECRET" not in message

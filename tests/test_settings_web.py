@@ -329,3 +329,16 @@ def test_tester_never_sends_the_stored_passkey_to_another_url(tmp_path):
         })
     assert "Ressaisis" in resp.text
     assert not evil.called
+
+
+def test_tester_error_never_echoes_the_passkey(tmp_path):
+    cfg = Config(indexers=[IndexerConfig(name="t", url="https://tracker1.example/api", api_key="stored-key")])
+    client, _, _ = _client(tmp_path, cfg)
+    with respx.mock:
+        respx.get("https://tracker1.example/api").mock(return_value=httpx.Response(404))
+        resp = client.post("/settings/indexer-test", data={
+            "name": "t", "original_name": "t", "url": "https://tracker1.example/api",
+            "api_key": "", "auth": "query",
+        })
+    assert "404" in resp.text
+    assert "stored-key" not in resp.text

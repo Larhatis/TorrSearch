@@ -6,6 +6,7 @@ import httpx
 
 from torsearch.config import NotificationChannel
 from torsearch.monitor.history import MonitorRecord
+from torsearch.redact import redact
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,10 @@ class Notifier:
         try:
             await self._send_one(client, channel, _TITLE, "Notification de test depuis TorrSearch ✅")
             return True, "OK"
+        except httpx.HTTPStatusError as exc:
+            # The exception text embeds the URL (Telegram bot token, webhook secret): status only.
+            return False, f"Echec : HTTP {exc.response.status_code}"
         except httpx.HTTPError as exc:
-            return False, f"Echec : {exc}"
+            return False, f"Echec : {redact(str(exc))}"
         finally:
             await client.aclose()

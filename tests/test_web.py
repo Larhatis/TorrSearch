@@ -231,3 +231,15 @@ def test_download_toast_auto_dismisses():
 def test_cyan_accent_palette_configured():
     client, _ = _make()
     assert "#00d4e8" in client.get("/").text
+
+
+def test_download_error_toast_never_shows_credentials():
+    class LeakyTransmission(FakeTransmission):
+        async def add(self, download_url, download_dir=None):
+            raise RuntimeError("Invalid URL 'http://u:TR-SECRET@:9091/transmission/rpc'")
+
+    service = SearchService([FakeIndexer("t1", [])])
+    client = TestClient(create_app(FakeContext(service, LeakyTransmission(), Config())))
+    resp = client.post("/download", data={"download_url": "magnet:?x"})
+    assert "Erreur Transmission" in resp.text
+    assert "TR-SECRET" not in resp.text

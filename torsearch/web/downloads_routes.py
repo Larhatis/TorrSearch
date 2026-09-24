@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from torsearch.context import AppContext
+from torsearch.redact import redact
 from torsearch.web.templating import templates
 
 downloads_router = APIRouter()
@@ -16,7 +17,7 @@ async def _render_list(request: Request, error: str | None = None):
         try:
             torrents = await ctx.transmission.list_torrents()
         except Exception as exc:
-            error = f"Transmission injoignable : {exc}"
+            error = f"Transmission injoignable : {redact(str(exc))}"
     return templates.TemplateResponse(
         request, "partials/downloads_list.html", {"torrents": torrents, "error": error}
     )
@@ -37,7 +38,7 @@ async def pause(request: Request, torrent_id: int):
     try:
         await request.app.state.ctx.transmission.pause(torrent_id)
     except Exception as exc:
-        return await _render_list(request, error=f"Action impossible : {exc}")
+        return await _render_list(request, error=f"Action impossible : {redact(str(exc))}")
     return await _render_list(request)
 
 
@@ -46,7 +47,7 @@ async def resume(request: Request, torrent_id: int):
     try:
         await request.app.state.ctx.transmission.resume(torrent_id)
     except Exception as exc:
-        return await _render_list(request, error=f"Action impossible : {exc}")
+        return await _render_list(request, error=f"Action impossible : {redact(str(exc))}")
     return await _render_list(request)
 
 
@@ -55,5 +56,5 @@ async def delete(request: Request, torrent_id: int):
     try:
         await request.app.state.ctx.transmission.remove(torrent_id)
     except Exception as exc:
-        return await _render_list(request, error=f"Action impossible : {exc}")
+        return await _render_list(request, error=f"Action impossible : {redact(str(exc))}")
     return await _render_list(request)

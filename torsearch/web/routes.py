@@ -9,6 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from torsearch.context import AppContext
 from torsearch.models import Category
+from torsearch.redact import redact
 from torsearch.search.filters import VALID_DIRECTIONS, VALID_SORTS, ResultFilters, apply
 from torsearch.web.auth import AuthMiddleware, AuthSettings, LoginThrottle, SecurityHeadersMiddleware
 from torsearch.web.auth_routes import auth_router
@@ -109,7 +110,7 @@ async def download(request: Request, download_url: str = Form(...), category: st
         torrent_id = await ctx.transmission.add(download_url, ctx.config.paths.for_category(cat))
         message, ok = f"Ajoute a Transmission (#{torrent_id})", True
     except Exception as exc:
-        message, ok = f"Erreur Transmission : {exc}", False
+        message, ok = f"Erreur Transmission : {redact(str(exc))}", False
     return templates.TemplateResponse(request, "partials/toast.html", {"ok": ok, "message": message})
 
 
