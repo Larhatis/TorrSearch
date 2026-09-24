@@ -367,3 +367,24 @@ def test_status_route_renders_one_row_per_service(tmp_path, monkeypatch):
     assert html.count("data-state=") == 3
     assert 'data-state="ok"' in html and 'data-state="off"' in html and 'data-state="error"' in html
     assert "v4.0.6" in html and "Reverifier" in html
+
+
+def test_saving_connection_settings_refreshes_the_status_panel(tmp_path):
+    client, _, _ = _client(tmp_path)
+    responses = [
+        client.post("/settings/general", data={"host": "h", "port": "9091", "password": "p", "timeout_seconds": "10"}),
+        client.post("/settings/jellyfin", data={"url": "http://jelly", "api_key": "K"}),
+        client.post("/settings/metadata", data={"tmdb_api_key": "k"}),
+        client.post("/settings/indexers", data={"name": "t", "url": "https://t/api", "api_key": "k", "auth": "query"}),
+        client.post("/settings/indexers/t", data={"name": "t", "url": "https://t/api", "api_key": "", "auth": "query"}),
+        client.post("/settings/indexers/t/toggle"),
+        client.post("/settings/indexers/t/delete"),
+    ]
+    for resp in responses:
+        assert resp.headers.get("HX-Trigger") == "settings-saved"
+
+
+def test_failed_save_does_not_refresh_the_status_panel(tmp_path):
+    client, _, _ = _client(tmp_path)
+    resp = client.post("/settings/general", data={"host": "h", "port": "abc", "timeout_seconds": "10"})
+    assert "HX-Trigger" not in resp.headers
