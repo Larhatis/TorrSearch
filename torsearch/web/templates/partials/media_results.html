@@ -1,8 +1,6 @@
-{% if not media %}
-  <p class="text-slate-400">Aucun media trouve{% if query %} pour "{{ query }}"{% endif %}.</p>
-{% else %}
+{% macro card_grid(items) %}
 <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-  {% for m in media %}
+  {% for m in items %}
   <div class="overflow-hidden rounded-lg border border-slate-800 bg-slate-800/40">
     <div class="relative flex aspect-[2/3] items-center justify-center bg-slate-900 text-slate-600">
       <i class="ti ti-photo text-3xl"></i>
@@ -28,11 +26,10 @@
       </a>
       {% endif %}
       {% if is_member %}
-      <button hx-get="/search" hx-target="#results"
-              hx-vals='{{ {"q": (m.title ~ " " ~ (m.year or "")) | trim, "cat": ("movies" if m.media_type == "movie" else "tv")} | tojson }}'
-              class="mt-2 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
+      <a href="/?q={{ (m.title ~ ' ' ~ (m.year or '')) | trim | urlencode }}&cat={{ 'movies' if m.media_type == 'movie' else 'tv' }}"
+         class="mt-2 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
         <i class="ti ti-download"></i> Torrents
-      </button>
+      </a>
       {% if not in_lib %}
       {% if m.media_type == 'movie' %}
       <button hx-post="/library/add" hx-target="#toast"
@@ -59,4 +56,69 @@
   </div>
   {% endfor %}
 </div>
+{% endmacro %}
+
+<div class="mb-5 flex items-center gap-2 border-b border-slate-800 pb-3">
+  <button hx-get="{% if query %}/discover/search?q={{ query | urlencode }}&tab=all{% else %}/discover/trending?tab=all{% endif %}"
+          hx-target="#media-results"
+          class="rounded-lg px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if (tab or 'all') == 'all' else 'text-slate-400 hover:text-slate-200' }}">
+    Tous
+  </button>
+  <button hx-get="{% if query %}/discover/search?q={{ query | urlencode }}&tab=movie{% else %}/discover/trending?tab=movie{% endif %}"
+          hx-target="#media-results"
+          class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if tab == 'movie' else 'text-slate-400 hover:text-slate-200' }}">
+    <i class="ti ti-movie text-sky-400"></i> Films
+  </button>
+  <button hx-get="{% if query %}/discover/search?q={{ query | urlencode }}&tab=tv{% else %}/discover/trending?tab=tv{% endif %}"
+          hx-target="#media-results"
+          class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if tab in ('tv', 'series') else 'text-slate-400 hover:text-slate-200' }}">
+    <i class="ti ti-device-tv text-violet-400"></i> Series
+  </button>
+</div>
+
+{% set current_tab = tab or 'all' %}
+{% if not movies and not series and not media %}
+  <p class="text-slate-400">Aucun media trouve{% if query %} pour "{{ query }}"{% endif %}.</p>
+{% else %}
+  {% if current_tab == 'all' %}
+    {% if movies %}
+    <div class="mb-8">
+      <div class="mb-3 flex items-center gap-2">
+        <i class="ti ti-movie text-lg text-sky-400"></i>
+        <h2 class="text-base font-semibold text-slate-100">Films {{ 'du moment' if not query else '' }}</h2>
+        <span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">{{ movies | length }}</span>
+      </div>
+      {{ card_grid(movies) }}
+    </div>
+    {% endif %}
+
+    {% if series %}
+    <div class="mb-8">
+      <div class="mb-3 flex items-center gap-2">
+        <i class="ti ti-device-tv text-lg text-violet-400"></i>
+        <h2 class="text-base font-semibold text-slate-100">Series {{ 'du moment' if not query else '' }}</h2>
+        <span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">{{ series | length }}</span>
+      </div>
+      {{ card_grid(series) }}
+    </div>
+    {% endif %}
+
+    {% if not movies and not series and media %}
+      {{ card_grid(media) }}
+    {% endif %}
+
+  {% elif current_tab == 'movie' %}
+    {% if movies %}
+      {{ card_grid(movies) }}
+    {% else %}
+      <p class="text-slate-400">Aucun film trouve.</p>
+    {% endif %}
+
+  {% elif current_tab in ('tv', 'series') %}
+    {% if series %}
+      {{ card_grid(series) }}
+    {% else %}
+      <p class="text-slate-400">Aucune serie trouvee.</p>
+    {% endif %}
+  {% endif %}
 {% endif %}

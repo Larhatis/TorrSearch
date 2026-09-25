@@ -5,14 +5,14 @@
   <i class="ti ti-alert-triangle text-amber-400"></i> Aucun tracker configure. <a href="/settings" class="underline text-amber-300 hover:text-amber-200">Ajoute tes trackers dans Reglages</a> pour commencer.
 </div>
 {% endif %}
-<form id="search-form" hx-get="/search" hx-target="#results" hx-indicator="#spinner" class="mb-5">
+<form id="search-form" hx-get="/search" hx-target="#results" hx-indicator="#spinner" class="mb-5"{% if q %} hx-trigger="load"{% endif %}>
   <div class="flex items-stretch overflow-hidden rounded-xl border border-slate-700 bg-slate-800 focus-within:border-emerald-500">
     <span class="flex items-center pl-4 text-slate-500"><i class="ti ti-search text-lg"></i></span>
-    <input type="text" name="q" placeholder="Rechercher un film, une serie..." autofocus
+    <input type="text" name="q" value="{{ q or '' }}" placeholder="Rechercher un film, une serie..." {% if not q %}autofocus{% endif %}
            class="min-w-0 flex-1 bg-transparent px-3 py-3 text-slate-100 outline-none">
     <select name="cat" class="border-l border-slate-700 bg-transparent px-3 text-sm text-slate-300 outline-none">
       {% for c in categories %}
-      <option value="{{ c.value }}" class="bg-slate-800">{{ c.value | capitalize }}</option>
+      <option value="{{ c.value }}" class="bg-slate-800" {% if cat == c.value %}selected{% endif %}>{{ c.value | capitalize }}</option>
       {% endfor %}
     </select>
     <button type="submit" class="bg-emerald-500 px-5 font-semibold text-slate-900 hover:bg-emerald-400">Chercher</button>

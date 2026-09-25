@@ -59,6 +59,15 @@ def test_index_renders_search_form():
     assert 'name="q"' in resp.text
 
 
+def test_index_prefills_query_and_category_with_auto_trigger():
+    client, _ = _make()
+    resp = client.get("/?q=Inception+2010&cat=movies")
+    assert resp.status_code == 200
+    assert 'value="Inception 2010"' in resp.text
+    assert 'value="movies" class="bg-slate-800" selected' in resp.text
+    assert 'hx-trigger="load"' in resp.text
+
+
 def test_search_renders_result_rows():
     client, _ = _make([_movie()])
     resp = client.get("/search", params={"q": "cool", "cat": "all"})

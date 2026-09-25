@@ -34,12 +34,17 @@ router = APIRouter()
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+async def index(request: Request, q: str = "", cat: str = "all"):
     ctx: AppContext = request.app.state.ctx
     return templates.TemplateResponse(
         request,
         "index.html",
-        {"categories": list(Category), "has_trackers": bool(ctx.config.indexers)},
+        {
+            "categories": list(Category),
+            "has_trackers": bool(ctx.config.indexers),
+            "q": q,
+            "cat": cat,
+        },
     )
 
 

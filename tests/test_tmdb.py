@@ -81,6 +81,36 @@ async def test_trending_returns_media():
     assert [m.title for m in out] == ["Dune : Deuxieme partie", "Le Trone de fer"]
 
 
+async def test_trending_specific_media_type():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"))
+    movies_sample = {
+        "results": [
+            {"id": 693134, "title": "Dune", "release_date": "2024-02-27", "overview": "Paul..."}
+        ]
+    }
+    tv_sample = {
+        "results": [
+            {"id": 1399, "name": "Game of Thrones", "first_air_date": "2011-04-17", "overview": "Neuf..."}
+        ]
+    }
+    with respx.mock:
+        respx.get("https://api.themoviedb.org/3/trending/movie/week").mock(
+            return_value=httpx.Response(200, json=movies_sample)
+        )
+        respx.get("https://api.themoviedb.org/3/trending/tv/week").mock(
+            return_value=httpx.Response(200, json=tv_sample)
+        )
+        movies = await client.trending("movie")
+        assert len(movies) == 1
+        assert movies[0].media_type == "movie"
+        assert movies[0].title == "Dune"
+
+        tv = await client.trending("tv")
+        assert len(tv) == 1
+        assert tv[0].media_type == "tv"
+        assert tv[0].title == "Game of Thrones"
+
+
 async def test_trending_disabled_returns_empty():
     assert await TmdbClient(MetadataConfig()).trending() == []
 

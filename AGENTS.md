@@ -21,12 +21,12 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.2)
+## 2. État actuel (v0.3.3)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
 - Recherche multi-trackers Torznab (parallèle, dédoublonnage, filtres, tri).
-- Découverte TMDB (tendances, recherche par titre, affiches).
+- Découverte TMDB (tendances films & séries séparées, recherche par titre, affiches, redirection vers recherche tracker).
 - Bibliothèque **Films** (≈ Radarr-lite) et **Séries** (≈ Sonarr-lite) avec surveillance en
   tâche de fond et téléchargement automatique.
 - Moteur de décision intelligent (chantier 2) : analyseur de release, classement MULTI/VFF/VOSTFR,
@@ -39,7 +39,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **484 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **487 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

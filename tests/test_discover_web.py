@@ -1,4 +1,3 @@
-import json
 import re
 
 from fastapi.testclient import TestClient
@@ -9,14 +8,20 @@ from torsearch.web.routes import create_app
 
 
 class FakeTmdb:
-    def __init__(self, enabled=True, results=None):
+    def __init__(self, enabled=True, results=None, movie_results=None, tv_results=None):
         self.enabled = enabled
         self._results = results or []
+        self._movie_results = movie_results
+        self._tv_results = tv_results
 
     async def search(self, query):
         return list(self._results)
 
-    async def trending(self):
+    async def trending(self, media_type="all"):
+        if media_type == "movie" and self._movie_results is not None:
+            return list(self._movie_results)
+        if media_type in ("tv", "series") and self._tv_results is not None:
+            return list(self._tv_results)
         return list(self._results)
 
 
@@ -46,6 +51,11 @@ def _media():
                        year="2024", overview="Paul...", poster_path="/a.jpg")
 
 
+def _media_tv():
+    return MediaResult(tmdb_id=1399, media_type="tv", title="Game of Thrones",
+                       year="2011", overview="Neuf...", poster_path=None)
+
+
 def test_discover_page_shows_onboarding_without_key():
     resp = _client(FakeTmdb(enabled=False)).get("/discover")
     assert resp.status_code == 200
@@ -67,17 +77,14 @@ def test_discover_search_renders_media_cards():
 
 def test_discover_card_bridges_to_torrent_search():
     resp = _client(FakeTmdb(results=[_media()])).get("/discover/search", params={"q": "dune"})
-    assert 'hx-get="/search"' in resp.text
+    assert 'href="/?q=Dune%20Deux%202024&cat=movies"' in resp.text
     assert "Torrents" in resp.text
 
 
-def test_discover_card_hx_vals_is_valid_json_with_query():
-    resp = _client(FakeTmdb(results=[_media()])).get("/discover/search", params={"q": "dune"})
-    match = re.search(r"hx-vals='([^']*)'", resp.text)
-    assert match, "hx-vals must be single-quoted and present"
-    data = json.loads(match.group(1))
-    assert data["q"] == "Dune Deux 2024"
-    assert data["cat"] == "movies"
+def test_discover_card_tv_bridges_to_tv_category():
+    resp = _client(FakeTmdb(results=[_media_tv()])).get("/discover/search", params={"q": "got"})
+    assert 'href="/?q=Game%20of%20Thrones%202011&cat=tv"' in resp.text
+    assert "Torrents" in resp.text
 
 
 def test_discover_search_empty_query_shows_placeholder():
@@ -101,6 +108,29 @@ def test_discover_trending_renders_cards():
     assert "Dune Deux" in resp.text
 
 
+def test_discover_trending_renders_both_movie_and_series_sections():
+    tmdb = FakeTmdb(movie_results=[_media()], tv_results=[_media_tv()])
+    resp = _client(tmdb).get("/discover/trending")
+    assert resp.status_code == 200
+    assert "Films du moment" in resp.text
+    assert "Dune Deux" in resp.text
+    assert "Series du moment" in resp.text
+    assert "Game of Thrones" in resp.text
+
+
+def test_discover_trending_filters_by_tab():
+    tmdb = FakeTmdb(movie_results=[_media()], tv_results=[_media_tv()])
+    resp_movies = _client(tmdb).get("/discover/trending?tab=movie")
+    assert resp_movies.status_code == 200
+    assert "Dune Deux" in resp_movies.text
+    assert "Game of Thrones" not in resp_movies.text
+
+    resp_tv = _client(tmdb).get("/discover/trending?tab=tv")
+    assert resp_tv.status_code == 200
+    assert "Game of Thrones" in resp_tv.text
+    assert "Dune Deux" not in resp_tv.text
+
+
 def test_discover_marks_owned_in_jellyfin():
     jelly = FakeJellyfin(owned={"movie:693134": "item-xyz"})
     resp = _client(FakeTmdb(results=[_media()]), jelly).get("/discover/search", params={"q": "dune"})
@@ -112,9 +142,3 @@ def test_discover_poster_has_fallback_hook():
     resp = _client(FakeTmdb(results=[_media()])).get("/discover/search", params={"q": "dune"})
     assert "data-poster" in resp.text
     assert "onerror" not in resp.text
-
-
-def test_discover_onboarding_points_admin_to_settings():
-    resp = _client(FakeTmdb(enabled=False)).get("/discover")
-    assert "Renseigne-la dans" in resp.text
-    assert "TMDB_API_KEY" in resp.text

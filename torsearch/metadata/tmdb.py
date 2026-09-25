@@ -18,10 +18,10 @@ _TV_URL = "https://api.themoviedb.org/3/tv"
 _CONFIG_URL = "https://api.themoviedb.org/3/configuration"
 
 
-def parse_multi(payload: dict) -> list[MediaResult]:
+def parse_multi(payload: dict, default_type: str | None = None) -> list[MediaResult]:
     out: list[MediaResult] = []
     for item in payload.get("results", []):
-        media_type = item.get("media_type")
+        media_type = item.get("media_type") or default_type
         if media_type not in ("movie", "tv"):
             continue
         if item.get("id") is None:
@@ -87,17 +87,20 @@ class TmdbClient:
             if owns_client:
                 await client.aclose()
 
-    async def trending(self) -> list[MediaResult]:
+    async def trending(self, media_type: str = "all") -> list[MediaResult]:
         if not self.enabled:
             return []
         owns_client = self._client is None
         client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        target = "movie" if media_type == "movie" else ("tv" if media_type in ("tv", "series") else "all")
+        url = f"https://api.themoviedb.org/3/trending/{target}/week"
         try:
             response = await client.get(
-                _TRENDING_URL, params={"api_key": self._api_key, "language": "fr-FR"}
+                url, params={"api_key": self._api_key, "language": "fr-FR"}
             )
             response.raise_for_status()
-            return parse_multi(response.json())
+            default_type = "movie" if target == "movie" else ("tv" if target == "tv" else None)
+            return parse_multi(response.json(), default_type=default_type)
         except Exception as exc:  # resilience
             logger.warning("TMDB trending failed: %s", exc)
             return []
