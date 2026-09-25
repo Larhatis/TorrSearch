@@ -21,7 +21,7 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.2.3)
+## 2. État actuel (v0.3.0)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
@@ -29,13 +29,17 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Découverte TMDB (tendances, recherche par titre, affiches).
 - Bibliothèque **Films** (≈ Radarr-lite) et **Séries** (≈ Sonarr-lite) avec surveillance en
   tâche de fond et téléchargement automatique.
-- Intégration Jellyfin (badge « Dans Jellyfin », bouton Lire, scan après téléchargement).
+- Moteur de décision intelligent (chantier 2) : analyseur de release, classement MULTI/VFF/VOSTFR,
+  rejet des sources dégradées (CAM/TS/TC), double recherche titre français + original TMDB,
+  minimisation du nombre de releases pour couvrir les saisons/séries, liste noire SQLite.
+- Intégration Jellyfin (alerte de disponibilité dès la recherche manuelle, badge « Dans Jellyfin »,
+  bouton Lire direct, scan après téléchargement).
 - Multi-utilisateur (admin / membre / invité) + file de demandes validée par l'admin.
 - Notifications (Discord, ntfy, Telegram, webhook).
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **453 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **478 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
@@ -131,15 +135,13 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
 
 ## 8. Feuille de route (ordre recommandé)
 
-**Chantier 2 — moteur de décision (priorité)** : c'est ce qui rend l'auto-grab fiable.
-Commencer par demander à l'utilisateur ses préférences (langue MULTI/VFF/VOSTFR, qualité
-mini, taille max, sources à bannir).
+**Chantier 2 — moteur de décision (terminé en v0.3.0)** : auto-grab fiable.
 - Analyse des noms de release (titre, année, SxxEyy, résolution, source, langue, codec).
-- Vérifier que la release correspond au titre (aujourd'hui « Lost » peut prendre
-  `Lost.in.Space.S01E03`) ; chercher aussi avec le **titre original** TMDB.
-- Profil qualité avec langue et sources bannies (CAM/TS/TC), tailles min/max.
-- **Liste noire** : un torrent mort est aujourd'hui retenté à l'identique.
-- État par épisode stocké proprement (aujourd'hui déduit de l'historique, plafonné).
+- Vérification que la release correspond au titre (rejet des faux-positifs et des suites).
+- Double recherche TMDB avec titre français + titre original.
+- Profil qualité avec priorités linguistiques (MULTI/VFF > VF/VFQ > VOSTFR, rejet VO pure) et rejet automatique des sources dégradées (CAM/TS/TC/SCR).
+- Minimisation gloutonne du nombre de releases pour couvrir les saisons de séries.
+- Liste noire SQLite persistante pour éviter de re-télécharger des releases mortes ou échouées.
 
 **Chantier 3 — suivi des téléchargements** : mémoriser le hash Transmission de chaque grab,
 afficher « en file / % / terminé / bloqué », échec → liste noire → autre release, refresh
