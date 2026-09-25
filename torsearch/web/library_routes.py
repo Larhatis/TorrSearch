@@ -30,12 +30,14 @@ async def library_add(
     request: Request,
     tmdb_id: int = Form(...),
     title: str = Form(...),
+    original_title: str = Form(""),
     year: str = Form(""),
     poster_path: str = Form(""),
 ):
     library = request.app.state.library
     added = library.add(WantedMovie(
-        tmdb_id=tmdb_id, title=title, year=year or None, poster_path=poster_path or None,
+        tmdb_id=tmdb_id, title=title, original_title=original_title or None,
+        year=year or None, poster_path=poster_path or None,
         status="wanted", added_at=datetime.now(UTC),
     ))
     message = "Ajoute a la bibliotheque." if added else "Deja dans la bibliotheque."

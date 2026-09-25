@@ -27,12 +27,14 @@ def parse_multi(payload: dict) -> list[MediaResult]:
         if item.get("id") is None:
             continue
         title = item.get("title") or item.get("name") or ""
+        original_title = item.get("original_title") or item.get("original_name") or None
         date = item.get("release_date") or item.get("first_air_date") or ""
         out.append(
             MediaResult(
                 tmdb_id=int(item["id"]),
                 media_type=media_type,
                 title=title,
+                original_title=original_title,
                 year=date[:4] if date else None,
                 overview=item.get("overview") or "",
                 poster_path=item.get("poster_path"),

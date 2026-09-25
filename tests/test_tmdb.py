@@ -7,8 +7,10 @@ from torsearch.metadata.tmdb import TmdbClient, parse_multi
 SAMPLE = {
     "results": [
         {"id": 693134, "media_type": "movie", "title": "Dune : Deuxieme partie",
+         "original_title": "Dune: Part Two",
          "release_date": "2024-02-27", "overview": "Paul Atreides...", "poster_path": "/a.jpg"},
-        {"id": 1399, "media_type": "tv", "name": "Game of Thrones",
+        {"id": 1399, "media_type": "tv", "name": "Le Trone de fer",
+         "original_name": "Game of Thrones",
          "first_air_date": "2011-04-17", "overview": "Neuf familles...", "poster_path": None},
         {"id": 500, "media_type": "person", "name": "Un Acteur"},
     ]
@@ -21,11 +23,13 @@ def test_parse_multi_maps_and_filters():
     movie = out[0]
     assert movie.media_type == "movie"
     assert movie.title == "Dune : Deuxieme partie"
+    assert movie.original_title == "Dune: Part Two"
     assert movie.year == "2024"
     assert movie.poster_url == "https://image.tmdb.org/t/p/w342/a.jpg"
     tv = out[1]
     assert tv.media_type == "tv"
-    assert tv.title == "Game of Thrones"
+    assert tv.title == "Le Trone de fer"
+    assert tv.original_title == "Game of Thrones"
     assert tv.year == "2011"
     assert tv.poster_url is None
 
@@ -46,7 +50,7 @@ async def test_search_success_parses_results():
             return_value=httpx.Response(200, json=SAMPLE)
         )
         out = await client.search("dune")
-    assert [m.title for m in out] == ["Dune : Deuxieme partie", "Game of Thrones"]
+    assert [m.title for m in out] == ["Dune : Deuxieme partie", "Le Trone de fer"]
 
 
 async def test_search_http_error_returns_empty():
@@ -74,7 +78,7 @@ async def test_trending_returns_media():
             return_value=httpx.Response(200, json=SAMPLE)
         )
         out = await client.trending()
-    assert [m.title for m in out] == ["Dune : Deuxieme partie", "Game of Thrones"]
+    assert [m.title for m in out] == ["Dune : Deuxieme partie", "Le Trone de fer"]
 
 
 async def test_trending_disabled_returns_empty():

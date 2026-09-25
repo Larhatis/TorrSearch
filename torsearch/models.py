@@ -36,6 +36,7 @@ class MediaResult(BaseModel):
     tmdb_id: int
     media_type: str  # "movie" | "tv"
     title: str
+    original_title: str | None = None
     year: str | None = None
     overview: str = ""
     poster_path: str | None = None
@@ -51,6 +52,7 @@ class MediaResult(BaseModel):
 class WantedMovie(BaseModel):
     tmdb_id: int
     title: str
+    original_title: str | None = None
     year: str | None = None
     poster_path: str | None = None
     status: str = "wanted"  # "wanted" | "grabbed"
@@ -69,6 +71,7 @@ class WantedMovie(BaseModel):
 class WantedSeries(BaseModel):
     tmdb_id: int
     title: str
+    original_title: str | None = None
     year: str | None = None
     poster_path: str | None = None
     added_at: datetime

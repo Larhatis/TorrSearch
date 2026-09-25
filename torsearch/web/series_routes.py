@@ -17,12 +17,14 @@ async def series_add(
     request: Request,
     tmdb_id: int = Form(...),
     title: str = Form(...),
+    original_title: str = Form(""),
     year: str = Form(""),
     poster_path: str = Form(""),
 ):
     series_library = request.app.state.series_library
     added = series_library.add(WantedSeries(
-        tmdb_id=tmdb_id, title=title, year=year or None, poster_path=poster_path or None,
+        tmdb_id=tmdb_id, title=title, original_title=original_title or None,
+        year=year or None, poster_path=poster_path or None,
         added_at=datetime.now(UTC),
     ))
     message = "Serie suivie." if added else "Serie deja suivie."

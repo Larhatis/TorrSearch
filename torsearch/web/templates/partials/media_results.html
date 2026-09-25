@@ -36,13 +36,13 @@
       {% if not in_lib %}
       {% if m.media_type == 'movie' %}
       <button hx-post="/library/add" hx-target="#toast"
-              hx-vals='{{ {"tmdb_id": m.tmdb_id, "title": m.title, "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
+              hx-vals='{{ {"tmdb_id": m.tmdb_id, "title": m.title, "original_title": (m.original_title or ""), "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
               class="mt-1.5 flex w-full items-center justify-center gap-1 rounded border border-slate-700 px-2 py-1.5 text-xs text-slate-300 hover:text-emerald-400">
         <i class="ti ti-bookmark-plus"></i> Bibliotheque
       </button>
       {% elif m.media_type == 'tv' %}
       <button hx-post="/series/add" hx-target="#toast"
-              hx-vals='{{ {"tmdb_id": m.tmdb_id, "title": m.title, "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
+              hx-vals='{{ {"tmdb_id": m.tmdb_id, "title": m.title, "original_title": (m.original_title or ""), "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
               class="mt-1.5 flex w-full items-center justify-center gap-1 rounded border border-slate-700 px-2 py-1.5 text-xs text-slate-300 hover:text-emerald-400">
         <i class="ti ti-bookmark-plus"></i> Suivre
       </button>
