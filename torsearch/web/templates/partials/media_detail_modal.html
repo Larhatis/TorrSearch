@@ -1,0 +1,52 @@
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" data-modal-backdrop>
+  <div class="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+    <button data-modal-close class="absolute right-4 top-4 text-slate-400 hover:text-white transition-colors" aria-label="Fermer">
+      <i class="ti ti-x text-xl"></i>
+    </button>
+    <div class="flex flex-col sm:flex-row gap-6">
+      <div class="w-full sm:w-48 shrink-0">
+        <div class="relative aspect-[2/3] w-full rounded-lg bg-slate-800 overflow-hidden">
+          {% if m.poster_url %}
+          <img src="{{ m.poster_url }}" alt="{{ m.title }}" class="h-full w-full object-cover">
+          {% else %}
+          <div class="flex h-full w-full items-center justify-center text-slate-600"><i class="ti ti-photo text-4xl"></i></div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="flex-1 flex flex-col">
+        <div class="flex flex-wrap items-center gap-2 mb-1">
+          <span class="rounded px-2 py-0.5 text-xs {{ 'bg-sky-500/15 text-sky-300' if m.media_type == 'movie' else 'bg-violet-500/15 text-violet-300' }}">{{ 'Film' if m.media_type == 'movie' else 'Serie' }}</span>
+          {% if m.year %}<span class="text-xs text-slate-400">{{ m.year }}</span>{% endif %}
+          {% if in_library %}<span class="rounded bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-300">En bibliotheque</span>{% endif %}
+          {% if owned_jf %}<span class="rounded bg-green-500/15 px-2 py-0.5 text-xs text-green-300">Dans Jellyfin</span>{% endif %}
+        </div>
+        <h2 class="text-xl font-bold text-slate-100">{{ m.title }}</h2>
+        {% if m.original_title and m.original_title != m.title %}
+        <div class="text-xs text-slate-400 mb-2 italic">Titre original : {{ m.original_title }}</div>
+        {% endif %}
+        <div class="mt-2 text-sm text-slate-300 leading-relaxed max-h-48 overflow-y-auto pr-1">
+          {% if m.overview %}
+          {{ m.overview }}
+          {% else %}
+          <span class="text-slate-500 italic">Aucun synopsis disponible.</span>
+          {% endif %}
+        </div>
+        <div class="mt-6 pt-4 border-t border-slate-800 flex flex-wrap items-center gap-2.5">
+          <a href="/?q={{ (m.title ~ ' ' ~ (m.year or '')) | trim | urlencode }}&cat={{ 'movies' if m.media_type == 'movie' else 'tv' }}"
+             class="flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-2 text-xs font-semibold text-white transition-colors">
+            <i class="ti ti-download"></i> Rechercher les torrents
+          </a>
+          {% if owned_jf %}
+          <a href="{{ jellyfin_url }}/web/#/details?id={{ owned_jf }}" target="_blank" rel="noopener"
+             class="flex items-center gap-1.5 rounded-lg border border-slate-700 hover:border-slate-600 px-3.5 py-2 text-xs font-semibold text-slate-200 transition-colors">
+            <i class="ti ti-player-play"></i> Lire sur Jellyfin
+          </a>
+          {% endif %}
+          <button data-modal-close class="ml-auto rounded-lg border border-slate-700 hover:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-300 transition-colors">
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

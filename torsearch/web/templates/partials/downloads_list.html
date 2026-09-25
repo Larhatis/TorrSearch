@@ -3,36 +3,91 @@
   {% if not torrents %}
     <p class="text-slate-400">Aucun telechargement en cours.</p>
   {% else %}
-  <table class="w-full text-sm">
-    <thead class="text-left text-slate-400 border-b border-slate-700">
-      <tr>
-        <th class="py-2">Nom</th><th class="text-right">Avancement</th><th>Statut</th>
-        <th class="text-right">Down</th><th class="text-right">Up</th><th class="text-right">Taille</th><th></th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for t in torrents %}
-      <tr class="border-b border-slate-800">
-        <td class="py-2 pr-3">{{ t.name }}</td>
-        <td class="text-right">{{ t.percent | round(1) }} %</td>
-        <td class="text-slate-400">{{ t.status }}</td>
-        <td class="text-right whitespace-nowrap">{{ (t.down_rate / 1024) | round(0) | int }} Ko/s</td>
-        <td class="text-right whitespace-nowrap">{{ (t.up_rate / 1024) | round(0) | int }} Ko/s</td>
-        <td class="text-right whitespace-nowrap">{{ (t.size / 1073741824) | round(2) }} Go</td>
-        <td class="text-right whitespace-nowrap">
-          {% if t.status == 'stopped' %}
+  <div class="mb-4 flex flex-wrap items-center gap-3">
+    <div class="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-800/40 px-3 py-1.5 text-xs text-slate-300">
+      <i class="ti ti-arrow-down text-emerald-400"></i>
+      <span class="text-slate-400">Reception :</span>
+      <span class="font-semibold text-slate-100">{{ total_down_formatted }}</span>
+    </div>
+    <div class="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-800/40 px-3 py-1.5 text-xs text-slate-300">
+      <i class="ti ti-arrow-up text-sky-400"></i>
+      <span class="text-slate-400">Envoi :</span>
+      <span class="font-semibold text-slate-100">{{ total_up_formatted }}</span>
+    </div>
+    <div class="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-800/40 px-3 py-1.5 text-xs text-slate-300">
+      <i class="ti ti-layers text-slate-400"></i>
+      <span class="text-slate-400">Actifs :</span>
+      <span class="font-semibold text-slate-100">{{ active_count }} / {{ torrents | length }}</span>
+    </div>
+  </div>
+
+  <div class="space-y-3">
+  {% for t in torrents %}
+    <div class="rounded-lg border border-slate-800 bg-slate-800/40 p-4 transition-colors hover:border-slate-700">
+      <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-semibold text-slate-100 text-sm break-all" title="{{ t.name }}">{{ t.name }}</span>
+            {% if t.info_hash %}
+            <button data-copy="{{ t.info_hash }}" title="Copier le hash" class="text-slate-500 hover:text-emerald-400 text-xs">
+              <i class="ti ti-copy"></i>
+            </button>
+            {% endif %}
+          </div>
+          <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            {% if t.status_label == 'Telechargement' %}
+            <span class="rounded bg-emerald-500/15 px-2 py-0.5 text-emerald-300 font-medium">Telechargement</span>
+            {% elif t.status_label == 'Partage' %}
+            <span class="rounded bg-sky-500/15 px-2 py-0.5 text-sky-300 font-medium">Partage</span>
+            {% elif t.status_label == 'En pause' %}
+            <span class="rounded bg-slate-700 px-2 py-0.5 text-slate-300 font-medium">En pause</span>
+            {% elif t.status_label == 'Verification' %}
+            <span class="rounded bg-violet-500/15 px-2 py-0.5 text-violet-300 font-medium">Verification</span>
+            {% else %}
+            <span class="rounded bg-red-500/15 px-2 py-0.5 text-red-300 font-medium">{{ t.status_label }}</span>
+            {% endif %}
+            <span>{{ t.size_formatted }}</span>
+            {% if t.down_rate > 0 %}<span class="text-emerald-400 font-medium"><i class="ti ti-arrow-down"></i> {{ t.down_rate_formatted }}</span>{% endif %}
+            {% if t.up_rate > 0 %}<span class="text-sky-400 font-medium"><i class="ti ti-arrow-up"></i> {{ t.up_rate_formatted }}</span>{% endif %}
+            {% if t.eta_formatted != '--' %}<span>ETA : {{ t.eta_formatted }}</span>{% endif %}
+            {% if t.peers_connected > 0 %}<span>{{ t.peers_connected }} pair{{ 's' if t.peers_connected > 1 else '' }}</span>{% endif %}
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+          {% if t.status == 'stopped' or t.status_label == 'En pause' %}
           <button hx-post="/downloads/{{ t.id }}/resume" hx-target="#downloads-list" hx-swap="outerHTML"
-                  class="rounded bg-emerald-600 hover:bg-emerald-500 px-2 py-1 text-xs">Reprendre</button>
+                  title="Reprendre"
+                  class="flex items-center gap-1 rounded bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1 text-xs font-semibold text-white">
+            <i class="ti ti-player-play"></i> Reprendre
+          </button>
           {% else %}
           <button hx-post="/downloads/{{ t.id }}/pause" hx-target="#downloads-list" hx-swap="outerHTML"
-                  class="rounded bg-amber-600 hover:bg-amber-500 px-2 py-1 text-xs">Pause</button>
+                  title="Pause"
+                  class="flex items-center gap-1 rounded bg-amber-600 hover:bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white">
+            <i class="ti ti-player-pause"></i> Pause
+          </button>
           {% endif %}
           <button hx-post="/downloads/{{ t.id }}/delete" hx-target="#downloads-list" hx-swap="outerHTML"
-                  class="rounded bg-red-700 hover:bg-red-600 px-2 py-1 text-xs">Supprimer</button>
-        </td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+                  title="Supprimer le torrent"
+                  class="rounded bg-slate-800 hover:bg-red-700/80 border border-slate-700 hover:border-red-600 px-2 py-1 text-xs text-slate-300 hover:text-white transition-colors">
+            <i class="ti ti-trash"></i> Supprimer
+          </button>
+          <button hx-post="/downloads/{{ t.id }}/delete?delete_data=true" hx-target="#downloads-list" hx-swap="outerHTML"
+                  title="Supprimer avec donnees"
+                  class="rounded bg-red-700 hover:bg-red-600 px-2 py-1 text-xs text-white transition-colors">
+            <i class="ti ti-trash-x"></i> + Donnees
+          </button>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="h-2 flex-1 rounded-full bg-slate-900 overflow-hidden">
+          <div class="h-full rounded-full transition-all duration-300 {{ 'bg-emerald-500' if t.status_label == 'Telechargement' else ('bg-sky-500' if t.status_label == 'Partage' else 'bg-slate-600') }}"
+               style="width: {{ t.percent | round(1) }}%"></div>
+        </div>
+        <span class="text-xs font-semibold text-slate-300 min-w-[3rem] text-right">{{ t.percent | round(1) }} %</span>
+      </div>
+    </div>
+  {% endfor %}
+  </div>
   {% endif %}
 </div>

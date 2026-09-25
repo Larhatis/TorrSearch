@@ -30,6 +30,75 @@ class TorrentInfo(BaseModel):
     down_rate: int
     up_rate: int
     size: int
+    eta: int | None = None
+    peers_connected: int = 0
+    peers_sending: int = 0
+    error_string: str = ""
+    info_hash: str = ""
+
+    @property
+    def size_formatted(self) -> str:
+        s = float(self.size)
+        if s >= 1024**3:
+            return f"{s / (1024**3):.2f} Go"
+        if s >= 1024**2:
+            return f"{s / (1024**2):.1f} Mo"
+        if s >= 1024:
+            return f"{s / 1024:.0f} Ko"
+        return f"{int(s)} o"
+
+    @property
+    def down_rate_formatted(self) -> str:
+        r = float(self.down_rate)
+        if r >= 1024**2:
+            return f"{r / (1024**2):.1f} Mo/s"
+        if r >= 1024:
+            return f"{r / 1024:.0f} Ko/s"
+        return f"{int(r)} o/s"
+
+    @property
+    def up_rate_formatted(self) -> str:
+        r = float(self.up_rate)
+        if r >= 1024**2:
+            return f"{r / (1024**2):.1f} Mo/s"
+        if r >= 1024:
+            return f"{r / 1024:.0f} Ko/s"
+        return f"{int(r)} o/s"
+
+    @property
+    def eta_formatted(self) -> str:
+        if self.status in ("seeding", "stopped", "seed pending"):
+            return "Termine" if self.percent >= 100.0 else "--"
+        if self.eta is None or self.eta < 0 or self.down_rate <= 0:
+            return "--"
+        seconds = self.eta
+        if seconds < 60:
+            return f"{seconds}s"
+        minutes = seconds // 60
+        if minutes < 60:
+            rem_sec = seconds % 60
+            return f"{minutes}m {rem_sec}s" if rem_sec else f"{minutes}m"
+        hours = minutes // 60
+        rem_min = minutes % 60
+        if hours < 24:
+            return f"{hours}h {rem_min}m" if rem_min else f"{hours}h"
+        days = hours // 24
+        return f"{days}j"
+
+    @property
+    def status_label(self) -> str:
+        s = self.status.lower()
+        if "download" in s:
+            return "Telechargement"
+        if "seed" in s:
+            return "Partage"
+        if "stop" in s:
+            return "En pause"
+        if "check" in s:
+            return "Verification"
+        if "error" in s or self.error_string:
+            return "Erreur"
+        return self.status
 
 
 class TransmissionClient:
@@ -79,18 +148,32 @@ class TransmissionClient:
 
     async def list_torrents(self) -> list[TorrentInfo]:
         torrents = await self._run(lambda c: c.get_torrents())
-        return [
-            TorrentInfo(
-                id=t.id,
-                name=t.name,
-                percent=float(getattr(t, "progress", 0.0)),
-                status=str(t.status),
-                down_rate=int(getattr(t, "rate_download", 0)),
-                up_rate=int(getattr(t, "rate_upload", 0)),
-                size=int(getattr(t, "total_size", 0)),
+        out: list[TorrentInfo] = []
+        for t in torrents:
+            eta_val = getattr(t, "eta", None)
+            eta_sec: int | None = None
+            if eta_val is not None and hasattr(eta_val, "total_seconds"):
+                eta_sec = int(eta_val.total_seconds())
+            elif isinstance(eta_val, (int, float)):
+                eta_sec = int(eta_val)
+
+            out.append(
+                TorrentInfo(
+                    id=t.id,
+                    name=t.name,
+                    percent=float(getattr(t, "progress", 0.0)),
+                    status=str(t.status),
+                    down_rate=int(getattr(t, "rate_download", 0)),
+                    up_rate=int(getattr(t, "rate_upload", 0)),
+                    size=int(getattr(t, "total_size", 0)),
+                    eta=eta_sec,
+                    peers_connected=int(getattr(t, "peers_connected", 0)),
+                    peers_sending=int(getattr(t, "peers_sending_to_us", 0)),
+                    error_string=str(getattr(t, "error_string", "") or ""),
+                    info_hash=str(getattr(t, "hashString", "") or ""),
+                )
             )
-            for t in torrents
-        ]
+        return out
 
     async def pause(self, torrent_id: int) -> None:
         await self._run(lambda c: c.stop_torrent(torrent_id))
@@ -98,8 +181,8 @@ class TransmissionClient:
     async def resume(self, torrent_id: int) -> None:
         await self._run(lambda c: c.start_torrent(torrent_id))
 
-    async def remove(self, torrent_id: int) -> None:
-        await self._run(lambda c: c.remove_torrent(torrent_id, delete_data=False))
+    async def remove(self, torrent_id: int, delete_data: bool = False) -> None:
+        await self._run(lambda c: c.remove_torrent(torrent_id, delete_data=delete_data))
 
     async def test(self) -> tuple[bool, str]:
         """Connection check for the status panel: never raises, never echoes credentials."""

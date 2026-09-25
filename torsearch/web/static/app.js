@@ -22,7 +22,16 @@
     htmx.trigger(form, 'submit');
   }
 
+  function closeModal() {
+    var modal = document.getElementById('modal-container');
+    if (modal) modal.innerHTML = '';
+  }
+
   document.addEventListener('click', function (event) {
+    if (event.target.closest('[data-modal-close]') || (event.target.matches && event.target.matches('[data-modal-backdrop]'))) {
+      closeModal();
+      return;
+    }
     var copy = event.target.closest('[data-copy]');
     if (copy) {
       navigator.clipboard.writeText(copy.dataset.copy);
@@ -30,6 +39,10 @@
     }
     var chip = event.target.closest('[data-filter]');
     if (chip) clearFilter(chip.dataset.filter, chip.dataset.value || '');
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeModal();
   });
 
   // Broken poster -> drop the <img> so the placeholder icon shows. Error events don't

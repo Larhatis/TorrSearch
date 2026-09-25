@@ -108,6 +108,38 @@ class TmdbClient:
             if owns_client:
                 await client.aclose()
 
+    async def get_details(self, media_type: str, tmdb_id: int) -> MediaResult | None:
+        if not self.enabled:
+            return None
+        target = "movie" if media_type == "movie" else "tv"
+        url = f"https://api.themoviedb.org/3/{target}/{tmdb_id}"
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        try:
+            response = await client.get(
+                url, params={"api_key": self._api_key, "language": "fr-FR"}
+            )
+            response.raise_for_status()
+            item = response.json()
+            title = item.get("title") or item.get("name") or ""
+            original_title = item.get("original_title") or item.get("original_name")
+            date = item.get("release_date") or item.get("first_air_date") or ""
+            return MediaResult(
+                tmdb_id=tmdb_id,
+                media_type=target,
+                title=title,
+                original_title=original_title,
+                year=date[:4] if date else None,
+                overview=item.get("overview") or "",
+                poster_path=item.get("poster_path"),
+            )
+        except Exception as exc:
+            logger.warning("TMDB get_details(%s, %s) failed: %s", media_type, tmdb_id, exc)
+            return None
+        finally:
+            if owns_client:
+                await client.aclose()
+
     async def test(self) -> tuple[bool, str]:
         """Key check for the status panel: never raises, never echoes the key."""
         owns_client = self._client is None

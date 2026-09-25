@@ -42,8 +42,32 @@ class FakeCtx:
         self.jellyfin = jellyfin or FakeJellyfin()
 
 
-def _client(tmdb, jellyfin=None) -> TestClient:
-    return TestClient(create_app(FakeCtx(tmdb, jellyfin)))
+class FakeMovieLibrary:
+    def __init__(self):
+        self._movies = []
+
+    def list(self):
+        return list(self._movies)
+
+    def add(self, m):
+        self._movies.append(m)
+        return True
+
+
+class FakeSeriesLibrary:
+    def __init__(self):
+        self._series = []
+
+    def list(self):
+        return list(self._series)
+
+    def add(self, s):
+        self._series.append(s)
+        return True
+
+
+def _client(tmdb, jellyfin=None, library=None, series_library=None) -> TestClient:
+    return TestClient(create_app(FakeCtx(tmdb, jellyfin), library=library, series_library=series_library))
 
 
 def _media():
@@ -142,3 +166,49 @@ def test_discover_poster_has_fallback_hook():
     resp = _client(FakeTmdb(results=[_media()])).get("/discover/search", params={"q": "dune"})
     assert "data-poster" in resp.text
     assert "onerror" not in resp.text
+
+
+def test_discover_library_add_movie():
+    lib = FakeMovieLibrary()
+    resp = _client(FakeTmdb(results=[_media()]), library=lib).post(
+        "/discover/library/add",
+        data={
+            "media_type": "movie",
+            "tmdb_id": 693134,
+            "title": "Dune Deux",
+            "year": "2024",
+            "poster_path": "/a.jpg",
+        },
+    )
+    assert resp.status_code == 200
+    assert "En bibliotheque" in resp.text
+    assert len(lib.list()) == 1
+    assert lib.list()[0].tmdb_id == 693134
+
+
+def test_discover_library_add_series():
+    series_lib = FakeSeriesLibrary()
+    resp = _client(FakeTmdb(results=[_media_tv()]), series_library=series_lib).post(
+        "/discover/library/add",
+        data={
+            "media_type": "tv",
+            "tmdb_id": 1399,
+            "title": "Game of Thrones",
+            "year": "2011",
+        },
+    )
+    assert resp.status_code == 200
+    assert "En bibliotheque" in resp.text
+    assert len(series_lib.list()) == 1
+    assert series_lib.list()[0].tmdb_id == 1399
+
+
+def test_discover_modal_renders_details():
+    tmdb = FakeTmdb(results=[_media()])
+    resp = _client(tmdb).get("/discover/movie/693134/modal")
+    assert resp.status_code == 200
+    assert "Dune Deux" in resp.text
+    assert "Paul..." in resp.text
+    assert "data-modal-close" in resp.text
+    assert "Rechercher les torrents" in resp.text
+

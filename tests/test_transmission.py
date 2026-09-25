@@ -253,3 +253,60 @@ async def test_test_explains_unreachable_host_and_rejected_credentials():
     cfg = TransmissionConfig(host="omv", port=9091)
     assert await TransmissionClient(cfg, client_factory=unreachable).test() == (False, "Injoignable (omv:9091).")
     assert await TransmissionClient(cfg, client_factory=rejected).test() == (False, "Identifiants refusés (401).")
+
+
+def test_torrent_info_formatted_properties():
+    t = TorrentInfo(
+        id=1,
+        name="Film.mkv",
+        percent=45.2,
+        status="downloading",
+        down_rate=12_500_000,
+        up_rate=450_000,
+        size=4_800_000_000,
+        eta=125,
+        peers_connected=18,
+        peers_sending=12,
+        info_hash="abcd1234ef",
+    )
+    assert t.size_formatted == "4.47 Go"
+    assert t.down_rate_formatted == "11.9 Mo/s"
+    assert t.up_rate_formatted == "439 Ko/s"
+    assert t.eta_formatted == "2m 5s"
+    assert t.status_label == "Telechargement"
+
+    # Seeding completion status
+    t_done = TorrentInfo(
+        id=2, name="Done.mkv", percent=100.0, status="seeding",
+        down_rate=0, up_rate=1000, size=500_000, eta=0,
+    )
+    assert t_done.status_label == "Partage"
+    assert t_done.eta_formatted == "Termine"
+
+
+async def test_remove_with_delete_data():
+    rpc = FakeRpcFull()
+    await _client_with(rpc).remove(10, delete_data=True)
+    assert ("remove", 10, True) in rpc.calls
+
+
+async def test_list_torrents_maps_extended_fields():
+    class ExtendedRpc(FakeRpcFull):
+        def get_torrents(self):
+            return [
+                _fake_torrent(
+                    id=3, name="C", progress=75.0, status="downloading",
+                    rate_download=500000, rate_upload=10000, total_size=1000000,
+                    eta=300, peers_connected=8, peers_sending_to_us=5,
+                    hashString="1234567890abcdef", error_string="",
+                )
+            ]
+
+    infos = await _client_with(ExtendedRpc()).list_torrents()
+    assert len(infos) == 1
+    c = infos[0]
+    assert c.eta == 300
+    assert c.peers_connected == 8
+    assert c.peers_sending == 5
+    assert c.info_hash == "1234567890abcdef"
+

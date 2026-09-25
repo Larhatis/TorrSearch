@@ -22,19 +22,35 @@ class FakeTransmission:
     async def resume(self, tid):
         self.calls.append(("resume", tid))
 
-    async def remove(self, tid):
-        self.calls.append(("remove", tid))
+    async def remove(self, tid, delete_data=False):
+        self.calls.append(("remove", tid, delete_data))
+
+
+class FakeJellyfin:
+    enabled = True
+
+    def __init__(self):
+        self.refreshed = False
+        self.base_url = "http://jf:8096"
+
+    async def refresh(self):
+        self.refreshed = True
+        return True
+
+    async def owned(self):
+        return {}
 
 
 class FakeContext:
-    def __init__(self, transmission):
+    def __init__(self, transmission, jellyfin=None):
         self.transmission = transmission
+        self.jellyfin = jellyfin or FakeJellyfin()
         self.search_service = None
         self.config = Config()
 
 
-def _client(transmission):
-    return TestClient(create_app(FakeContext(transmission)))
+def _client(transmission, jellyfin=None):
+    return TestClient(create_app(FakeContext(transmission, jellyfin=jellyfin)))
 
 
 def _ti(**o):
@@ -85,7 +101,46 @@ def test_resume_calls_transmission():
 def test_delete_calls_transmission():
     fake = FakeTransmission([_ti(id=5, name="X")])
     _client(fake).post("/downloads/5/delete")
-    assert ("remove", 5) in fake.calls
+    assert ("remove", 5, False) in fake.calls
+
+
+def test_delete_calls_transmission_with_delete_data():
+    fake = FakeTransmission([_ti(id=5, name="X")])
+    _client(fake).post("/downloads/5/delete?delete_data=true")
+    assert ("remove", 5, True) in fake.calls
+
+
+def test_activity_alias_renders_downloads_page():
+    resp = _client(FakeTransmission()).get("/activity")
+    assert resp.status_code == 200
+    assert 'id="downloads-list"' in resp.text
+
+
+def test_scan_jellyfin_calls_refresh_and_returns_toast():
+    jelly = FakeJellyfin()
+    resp = _client(FakeTransmission(), jellyfin=jelly).post("/downloads/scan-jellyfin")
+    assert resp.status_code == 200
+    assert jelly.refreshed is True
+    assert "Jellyfin" in resp.text
+
+
+def test_downloads_list_displays_eta_and_rates():
+    torrent = _ti(
+        name="Blockbuster.2024.1080p",
+        percent=62.5,
+        status="downloading",
+        down_rate=8_500_000,
+        up_rate=250_000,
+        size=3_500_000_000,
+        eta=185,
+        peers_connected=14,
+    )
+    resp = _client(FakeTransmission([torrent])).get("/downloads/list")
+    assert resp.status_code == 200
+    assert "Blockbuster.2024.1080p" in resp.text
+    assert "8.1 Mo/s" in resp.text
+    assert "3m 5s" in resp.text
+    assert "Telechargement" in resp.text
 
 
 class _LeakyTransmission(FakeTransmission):
@@ -97,3 +152,4 @@ def test_transmission_errors_never_show_credentials():
     resp = _client(_LeakyTransmission()).get("/downloads/list")
     assert "injoignable" in resp.text.lower()
     assert "TR-SECRET" not in resp.text
+

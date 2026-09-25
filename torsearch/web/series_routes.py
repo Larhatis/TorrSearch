@@ -28,6 +28,18 @@ async def series_add(
         added_at=datetime.now(UTC),
     ))
     message = "Serie suivie." if added else "Serie deja suivie."
+    if request.headers.get("HX-Target", "").startswith("media-action-"):
+        badge = (
+            f'<div id="media-action-tv-{tmdb_id}" '
+            f'class="mt-1.5 flex w-full items-center justify-center gap-1 rounded '
+            f'bg-emerald-500/10 border border-emerald-500/20 px-2 py-1.5 text-xs text-emerald-400 font-medium">'
+            f'<i class="ti ti-check"></i> En bibliotheque</div>'
+        )
+        toast = (
+            f'<div id="toast" hx-swap-oob="innerHTML">'
+            f'<div class="rounded bg-emerald-600 px-3 py-2 text-sm text-white shadow-lg">{message}</div></div>'
+        )
+        return HTMLResponse(content=f"{badge}{toast}")
     return templates.TemplateResponse(request, "partials/toast.html", {"ok": True, "message": message})
 
 
