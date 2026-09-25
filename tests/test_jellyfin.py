@@ -45,7 +45,7 @@ async def test_refresh_posts_to_library_refresh():
         )
         assert await c.refresh() is True
         assert route.called
-        assert route.calls.last.request.url.params["api_key"] == "K"
+        assert route.calls.last.request.headers["Authorization"] == 'MediaBrowser Token="K"'
 
 
 async def test_refresh_disabled_is_noop():
@@ -121,3 +121,24 @@ async def test_test_reports_unreachable_server_plainly():
         respx.get("http://jelly/System/Info").mock(side_effect=httpx.ConnectError("[Errno 111] Connection refused"))
         ok, message = await client.test()
     assert ok is False and "injoignable" in message.lower() and "Errno" not in message
+
+
+# Jellyfin 12 dropped the legacy ``api_key`` query parameter: the key must travel in the
+# ``Authorization: MediaBrowser Token="..."`` header, and never in the URL.
+async def test_every_call_authenticates_with_the_mediabrowser_header():
+    client = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        routes = [
+            respx.get("http://jelly/System/Info").mock(return_value=httpx.Response(200, json={})),
+            respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json={"Items": []})),
+            respx.post("http://jelly/Library/Refresh").mock(return_value=httpx.Response(204)),
+            respx.get("http://jelly/Shows/abc/Episodes").mock(return_value=httpx.Response(200, json={"Items": []})),
+        ]
+        await client.test()
+        await client.owned()
+        await client.refresh()
+        await client.episodes("abc")
+    for route in routes:
+        request = route.calls.last.request
+        assert request.headers["Authorization"] == 'MediaBrowser Token="K"'
+        assert "api_key" not in request.url.params

@@ -25,6 +25,11 @@ class JellyfinClient:
     def base_url(self) -> str:
         return self._url
 
+    def _auth(self) -> dict[str, str]:
+        # Jellyfin 12 dropped the legacy ``api_key`` query parameter: the key goes in the
+        # MediaBrowser Authorization header (supported by 10.x too, and kept out of URLs/logs).
+        return {"Authorization": f'MediaBrowser Token="{self._api_key}"'}
+
     async def owned(self) -> dict[str, str]:
         if not self.enabled:
             return {}
@@ -33,10 +38,8 @@ class JellyfinClient:
         try:
             response = await client.get(
                 f"{self._url}/Items",
-                params={
-                    "Recursive": "true", "IncludeItemTypes": "Movie,Series",
-                    "Fields": "ProviderIds", "api_key": self._api_key,
-                },
+                params={"Recursive": "true", "IncludeItemTypes": "Movie,Series", "Fields": "ProviderIds"},
+                headers=self._auth(),
             )
             response.raise_for_status()
             result: dict[str, str] = {}
@@ -61,9 +64,7 @@ class JellyfinClient:
         owns_client = self._client is None
         client = self._client or httpx.AsyncClient(timeout=self._timeout)
         try:
-            response = await client.post(
-                f"{self._url}/Library/Refresh", params={"api_key": self._api_key}
-            )
+            response = await client.post(f"{self._url}/Library/Refresh", headers=self._auth())
             response.raise_for_status()
             return True
         except Exception as exc:  # resilience: never raise
@@ -80,10 +81,7 @@ class JellyfinClient:
         owns_client = self._client is None
         client = self._client or httpx.AsyncClient(timeout=self._timeout)
         try:
-            response = await client.get(
-                f"{self._url}/Shows/{item_id}/Episodes",
-                params={"api_key": self._api_key},
-            )
+            response = await client.get(f"{self._url}/Shows/{item_id}/Episodes", headers=self._auth())
             response.raise_for_status()
             keys: set[str] = set()
             for item in response.json().get("Items", []):
@@ -105,7 +103,7 @@ class JellyfinClient:
         owns_client = self._client is None
         client = self._client or httpx.AsyncClient(timeout=self._timeout)
         try:
-            response = await client.get(f"{self._url}/System/Info", params={"api_key": self._api_key})
+            response = await client.get(f"{self._url}/System/Info", headers=self._auth())
             if response.status_code in (401, 403):
                 return False, "Clé API refusée (401/403)."
             response.raise_for_status()
