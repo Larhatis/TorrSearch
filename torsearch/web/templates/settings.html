@@ -65,8 +65,8 @@
     <label class="text-xs text-slate-400">Nom<br>
       <input name="name" placeholder="ex: tracker1" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="text-xs text-slate-400">URL Torznab<br>
-      <input name="url" placeholder="https://.../api" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-72"></label>
-    <label class="text-xs text-slate-400">Passkey<br>
+      <input name="url" placeholder="https://tracker.example/api/" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-72"></label>
+    <label class="text-xs text-slate-400">Cle API Torznab<br>
       <input name="api_key" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="text-xs text-slate-400">Auth<br>
       <select name="auth" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
@@ -74,6 +74,8 @@
       </select></label>
     <button class="rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1 text-sm">Ajouter</button>
   </form>
+  <p class="mb-4 text-xs text-slate-500">URL : l'adresse complete de l'API Torznab du tracker (voir sa doc, ex. https://tracker.example/api/).
+    Cle : la cle API de ton profil sur le tracker, pas la passkey.</p>
   {% include "partials/indexer_list.html" %}
 </section>
 

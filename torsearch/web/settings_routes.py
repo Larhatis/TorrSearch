@@ -248,13 +248,13 @@ async def test_indexer_route(
     original_name: str = Form(""),
 ):
     if not api_key and original_name:
-        # The passkey is never sent to the browser: test with the stored one, but only
+        # The tracker key is never sent to the browser: test with the stored one, but only
         # against the stored URL (a secret must never follow a new destination).
         ctx: AppContext = request.app.state.ctx
         stored = next((ix for ix in ctx.config.indexers if ix.name == original_name), None)
         if stored is not None and stored.api_key:
             if url != stored.url:
-                return _toast(request, False, "Ressaisis la passkey pour tester une autre URL.")
+                return _toast(request, False, "Ressaisis la clé API pour tester une autre URL.")
             api_key = stored.api_key
     try:
         indexer = TorznabIndexer(IndexerConfig(name=name, url=url, api_key=api_key, auth=auth))
@@ -280,7 +280,7 @@ async def update_indexer_route(
     if not api_key and current is not None and current.api_key:
         # Blank = keep (never rendered), but only for the same URL.
         if url != current.url:
-            return _list(request, ctx, error="Ressaisis la passkey pour changer l'URL du tracker.")
+            return _list(request, ctx, error="Ressaisis la clé API pour changer l'URL du tracker.")
         api_key = current.api_key
     try:
         indexer = IndexerConfig(

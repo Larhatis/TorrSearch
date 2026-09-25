@@ -52,8 +52,8 @@ docker compose up -d
 Le compose tire l'image publiée `ghcr.io/larhatis/torrsearch` et démarre un Transmission
 déjà branché. Ouvre ensuite **http://localhost:8080**.
 
-L'application démarre vide : va dans **Réglages** pour ajouter tes trackers (URL Torznab +
-passkey).
+L'application démarre vide : va dans **Réglages** pour ajouter tes trackers (URL de l'API
+Torznab + clé API).
 
 > **Déjà ton propre Transmission ?** Dans **Réglages → Transmission**, remplace l'hôte
 > `transmission` par l'adresse de ton instance, et retire le service `transmission` du
@@ -66,7 +66,7 @@ Tout se règle dans l'interface ; quelques options passent par l'environnement (
 
 | Réglage | Où | Détail |
 | --- | --- | --- |
-| Trackers | Réglages → Trackers | Nom, URL Torznab, passkey. Le bouton **Tester** vérifie la connexion. |
+| Trackers | Réglages → Trackers | Nom, URL de l'API Torznab (voir la doc du tracker), **clé API** — souvent différente de la passkey. Le bouton **Tester** et le panneau d'état vérifient la connexion ; les redirections vers le même site sont suivies. |
 | Transmission | Réglages → Transmission | Hôte, port, identifiants. |
 | Découverte | Réglages → Découverte (TMDB), ou `TMDB_API_KEY` | Clé gratuite sur [themoviedb.org](https://www.themoviedb.org/) (Paramètres → API du site TMDB). La clé saisie dans Réglages est prioritaire. Active la page **Découvrir** et la bibliothèque. |
 | Jellyfin | Réglages → Jellyfin | URL + clé API, pour marquer les médias déjà présents et proposer la lecture. |
@@ -103,7 +103,7 @@ suit l'état de ses propres demandes dans **Mes demandes**.
 - Les requêtes de modification que le navigateur signale comme venant d'un autre site
   (en-têtes Fetch Metadata) sont refusées, même sans authentification : une page web
   malveillante ne peut pas piloter ton instance à ton insu.
-- Les secrets (passkeys, mot de passe Transmission, clés API) ne sont jamais renvoyés au
+- Les secrets (clés API des trackers, mot de passe Transmission, clés Jellyfin/TMDB) ne sont jamais renvoyés au
   navigateur ; pour changer l'URL ou l'hôte d'un service, il faut ressaisir son secret.
 
 ## Données

@@ -22,6 +22,31 @@ DEFAULT_CATEGORY_IDS: dict[Category, list[int]] = {
     Category.OTHER: [8000],
 }
 
+_MAX_REDIRECTS = 5
+
+
+class RedirectRefused(Exception):
+    """A tracker redirect we will not follow (another host, https -> http, or a loop)."""
+
+
+def _next_url(current: str, location: str) -> str:
+    """Where to re-send a request after a redirect; raises RedirectRefused when unsafe.
+
+    Only same-host targets are followed (http -> https allowed, never https -> http), so the
+    API key never leaves the configured host nor travels unencrypted. The target's query
+    string is dropped: the caller re-sends its own parameters.
+    """
+    cur = httpx.URL(current)
+    target = cur.join(location)
+    if target.host != cur.host:
+        raise RedirectRefused(
+            f"Redirection vers un autre site refusée ({target.host}) : mets à jour l'URL du tracker."
+        )
+    if cur.scheme == "https" and target.scheme != "https":
+        raise RedirectRefused("Redirection vers http refusée (non chiffré).")
+    path = target.raw_path.split(b"?", 1)[0].decode("ascii")
+    return f"{target.scheme}://{target.netloc.decode('ascii')}{path}"
+
 
 def category_from_id(cat_id: int) -> Category:
     if cat_id == 5070:
@@ -151,13 +176,24 @@ class TorznabIndexer(Indexer):
             return {"Authorization": f"Bearer {self._api_key}"}
         return {}
 
+    async def _get(self, client: httpx.AsyncClient, params: dict[str, str],
+                   headers: dict[str, str]) -> httpx.Response:
+        """GET the API, following only safe same-host redirects (see ``_next_url``)."""
+        url = self._url
+        for _ in range(_MAX_REDIRECTS + 1):
+            response = await client.get(url, params=params, headers=headers)
+            if not response.is_redirect:
+                return response
+            url = _next_url(url, response.headers["location"])
+        raise RedirectRefused("Trop de redirections.")
+
     async def search(self, query: str, category: Category) -> list[SearchResult]:
         params = self._build_params(query, category)
         headers = self._build_headers()
         owns_client = self._client is None
         client = self._client or httpx.AsyncClient(timeout=self._timeout)
         try:
-            response = await client.get(self._url, params=params, headers=headers)
+            response = await self._get(client, params, headers)
             response.raise_for_status()
             return parse_response(response.content, self.name)
         except Exception as exc:  # resilience: never raise to the orchestrator
@@ -175,7 +211,7 @@ class TorznabIndexer(Indexer):
         owns_client = self._client is None
         client = self._client or httpx.AsyncClient(timeout=self._timeout)
         try:
-            response = await client.get(self._url, params=params, headers=headers)
+            response = await self._get(client, params, headers)
             if response.status_code in (401, 403):
                 return False, "Clé API refusée (401/403)."
             response.raise_for_status()
@@ -183,6 +219,8 @@ class TorznabIndexer(Indexer):
             if root.tag != "caps":
                 return False, "Réponse inattendue (pas un flux Torznab)."
             return True, "OK"
+        except RedirectRefused as exc:
+            return False, str(exc)
         except httpx.TimeoutException:
             return False, "Pas de réponse (timeout)."
         except httpx.ConnectError:
