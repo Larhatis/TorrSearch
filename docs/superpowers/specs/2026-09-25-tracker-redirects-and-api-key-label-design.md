@@ -2,13 +2,13 @@
 
 Date : 2026-09-25
 
-## Constat (cas réel : TR4KER)
+## Constat (cas réel : un tracker privé)
 
-- `https://tr4ker.net/api` répond **301 → `https://tr4ker.net/api/`** (simple `/` final) :
+- `https://tracker.example/api` répond **301 → `https://tracker.example/api/`** (simple `/` final) :
   TorrSearch ne suit pas les redirections → « Erreur HTTP 301 », recherches vides.
   Prowlarr, lui, suit la redirection.
 - Le champ du formulaire s'appelle « Passkey », alors que Torznab attend la **clé API**
-  (souvent différente de la passkey — la doc de TR4KER le précise) : l'utilisateur y avait
+  (souvent différente de la passkey — la doc du tracker le précise) : l'utilisateur y avait
   mis sa passkey.
 
 ## Conception
