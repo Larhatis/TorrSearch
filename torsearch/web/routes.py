@@ -91,6 +91,9 @@ async def search(
     )
     results = apply(raw, filters)
     sources = [ix.name for ix in ctx.config.indexers if ix.enabled]
+    jellyfin_match = None
+    if getattr(ctx, "jellyfin", None) and ctx.jellyfin.enabled and q.strip():
+        jellyfin_match = await ctx.jellyfin.find_matching(q)
     return templates.TemplateResponse(
         request,
         "partials/results.html",
@@ -101,6 +104,8 @@ async def search(
             "dir": effective_dir,
             "active_filters": _active_filters(filters),
             "sources": sources,
+            "jellyfin_match": jellyfin_match,
+            "jellyfin_url": ctx.jellyfin.base_url if getattr(ctx, "jellyfin", None) else "",
         },
     )
 

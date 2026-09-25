@@ -1,4 +1,22 @@
 {% from "partials/components.html" import badge_quality, health, source_chip %}
+{% if jellyfin_match %}
+<div class="mb-4 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-3 text-emerald-200">
+  <div class="flex items-center gap-2.5 min-w-0">
+    <i class="ti ti-circle-check text-xl text-emerald-400 shrink-0"></i>
+    <div class="truncate text-sm">
+      <span class="font-medium text-white">Deja disponible sur votre Jellyfin :</span>
+      <span class="font-semibold text-emerald-300">{{ jellyfin_match.name }}{% if jellyfin_match.year %} ({{ jellyfin_match.year }}){% endif %}</span>
+      <span class="ml-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-300 uppercase">{{ 'Film' if jellyfin_match.media_type == 'movie' else 'Serie' }}</span>
+    </div>
+  </div>
+  {% if jellyfin_url %}
+  <a href="{{ jellyfin_url }}/web/#/details?id={{ jellyfin_match.id }}" target="_blank" rel="noopener"
+     class="flex shrink-0 items-center gap-1.5 rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
+    <i class="ti ti-player-play"></i> Lire
+  </a>
+  {% endif %}
+</div>
+{% endif %}
 {% if not results %}
   <p class="text-slate-400">Aucun resultat{% if query %} pour "{{ query }}"{% endif %}.</p>
 {% else %}

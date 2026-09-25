@@ -30,10 +30,11 @@ class FakeTransmission:
 
 
 class FakeContext:
-    def __init__(self, search_service, transmission, config):
+    def __init__(self, search_service, transmission, config, jellyfin=None):
         self.search_service = search_service
         self.transmission = transmission
         self.config = config
+        self.jellyfin = jellyfin
 
 
 def _make(results=None):
@@ -243,3 +244,25 @@ def test_download_error_toast_never_shows_credentials():
     resp = client.post("/download", data={"download_url": "magnet:?x"})
     assert "Erreur Transmission" in resp.text
     assert "TR-SECRET" not in resp.text
+
+
+def test_search_displays_jellyfin_banner_when_matched():
+    class FakeJellyfin:
+        enabled = True
+        base_url = "http://jelly:8096"
+
+        async def find_matching(self, query):
+            from torsearch.jellyfin.client import JellyfinItem
+            return JellyfinItem(id="item123", name="Cool Movie", media_type="movie", year=2024)
+
+    service = SearchService([FakeIndexer("t1", [_movie()])])
+    transmission = FakeTransmission()
+    config = Config(indexers=[IndexerConfig(name="t1", url="https://t1/api", api_key="k")])
+    ctx = FakeContext(service, transmission, config, jellyfin=FakeJellyfin())
+    client = TestClient(create_app(ctx))
+
+    resp = client.get("/search?q=Cool+Movie")
+    assert resp.status_code == 200
+    assert "Deja disponible sur votre Jellyfin" in resp.text
+    assert "Cool Movie (2024)" in resp.text
+    assert "http://jelly:8096/web/#/details?id=item123" in resp.text

@@ -142,3 +142,39 @@ async def test_every_call_authenticates_with_the_mediabrowser_header():
         request = route.calls.last.request
         assert request.headers["Authorization"] == 'MediaBrowser Token="K"'
         assert "api_key" not in request.url.params
+
+
+async def test_find_matching_exact_and_release_queries():
+    sample = {"Items": [
+        {"Id": "m1", "Type": "Movie", "Name": "Inception", "ProductionYear": 2010, "ProviderIds": {"Tmdb": "27205"}},
+        {"Id": "s1", "Type": "Series", "Name": "Lost", "ProductionYear": 2004, "ProviderIds": {"Tmdb": "4607"}},
+        {"Id": "m2", "Type": "Movie", "Name": "Avatar", "ProductionYear": 2009, "ProviderIds": {"Tmdb": "19995"}},
+    ]}
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json=sample))
+
+        # Exact title
+        m1 = await c.find_matching("Inception")
+        assert m1 is not None
+        assert m1.id == "m1"
+        assert m1.name == "Inception"
+        assert m1.media_type == "movie"
+        assert m1.year == 2010
+
+        # Release string with year, quality, language
+        m2 = await c.find_matching("Inception.2010.FRENCH.1080p.BluRay")
+        assert m2 is not None
+        assert m2.id == "m1"
+
+        # Series with season/ep
+        s1 = await c.find_matching("Lost S01E03 720p")
+        assert s1 is not None
+        assert s1.id == "s1"
+        assert s1.name == "Lost"
+        assert s1.media_type == "tv"
+
+        # False positive rejection
+        assert await c.find_matching("Avatar The Way of Water") is None
+        assert await c.find_matching("Lost in Space") is None
+        assert await c.find_matching("Gladiator") is None
