@@ -17,6 +17,7 @@ from torsearch.config import (
     TransmissionConfig,
 )
 from torsearch.context import AppContext
+from torsearch.health import check_all
 from torsearch.indexers.torznab import TorznabIndexer
 from torsearch.models import Category
 from torsearch.notifications.notifier import Notifier
@@ -53,6 +54,12 @@ def _list(request: Request, ctx: AppContext, error: str | None = None, notice: s
     )
 
 
+def _saved(response):
+    """A connection setting changed: the status panel re-checks (HTMX event)."""
+    response.headers["HX-Trigger"] = "settings-saved"
+    return response
+
+
 @settings_router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     ctx: AppContext = request.app.state.ctx
@@ -65,6 +72,13 @@ async def settings_page(request: Request):
             "tmdb_from_env": bool(os.environ.get("TMDB_API_KEY")),
         }
     )
+
+
+@settings_router.get("/settings/status", response_class=HTMLResponse)
+async def settings_status(request: Request):
+    ctx: AppContext = request.app.state.ctx
+    statuses = await check_all(ctx)
+    return templates.TemplateResponse(request, "partials/status_panel.html", {"statuses": statuses})
 
 
 def _user_list(request: Request, error: str | None = None, notice: str | None = None):
@@ -137,7 +151,7 @@ async def update_general(
             transmission = transmission.model_copy(update={"password": current.password})
         search = SearchConfig(timeout_seconds=timeout_seconds)
         ctx.update_settings(set_general(ctx.config, transmission, search))
-        return _toast(request, True, "Reglages enregistres.")
+        return _saved(_toast(request, True, "Reglages enregistres."))
     except (ValidationError, SettingsError) as exc:
         return _toast(request, False, f"Erreur : {exc}")
 
@@ -173,7 +187,7 @@ async def update_jellyfin(request: Request, url: str = Form(""), api_key: str = 
         api_key = current.api_key
     try:
         ctx.update_settings(set_jellyfin(ctx.config, JellyfinConfig(url=url, api_key=api_key)))
-        return _toast(request, True, "Jellyfin enregistre.")
+        return _saved(_toast(request, True, "Jellyfin enregistre."))
     except (ValidationError, SettingsError) as exc:
         return _toast(request, False, f"Erreur : {exc}")
 
@@ -184,7 +198,7 @@ async def update_metadata(request: Request, tmdb_api_key: str = Form("")):
     try:
         key = tmdb_api_key.strip() or ctx.config.metadata.tmdb_api_key  # blank = keep
         ctx.update_settings(set_metadata(ctx.config, MetadataConfig(tmdb_api_key=key)))
-        return _toast(request, True, "Cle TMDB enregistree.")
+        return _saved(_toast(request, True, "Cle TMDB enregistree."))
     except (ValidationError, SettingsError) as exc:
         return _toast(request, False, f"Erreur : {exc}")
 
@@ -219,7 +233,7 @@ async def add_indexer_route(
     try:
         indexer = IndexerConfig(name=name, url=url, api_key=api_key, auth=auth, enabled=True)
         ctx.update_settings(add_indexer(ctx.config, indexer))
-        return _list(request, ctx, notice=f"Tracker « {name} » ajoute.")
+        return _saved(_list(request, ctx, notice=f"Tracker « {name} » ajoute."))
     except (ValidationError, SettingsError) as exc:
         return _list(request, ctx, error=f"Erreur : {exc}")
 
@@ -274,7 +288,7 @@ async def update_indexer_route(
             categories=current.categories if current else {},  # not editable here: keep them
         )
         ctx.update_settings(update_indexer(ctx.config, name, indexer))
-        return _list(request, ctx, notice="Tracker mis a jour.")
+        return _saved(_list(request, ctx, notice="Tracker mis a jour."))
     except (ValidationError, SettingsError) as exc:
         return _list(request, ctx, error=f"Erreur : {exc}")
 
@@ -285,7 +299,7 @@ async def toggle_indexer_route(request: Request, name: str):
     current = next((ix for ix in ctx.config.indexers if ix.name == name), None)
     try:
         ctx.update_settings(set_indexer_enabled(ctx.config, name, not current.enabled if current else True))
-        return _list(request, ctx)
+        return _saved(_list(request, ctx))
     except SettingsError as exc:
         return _list(request, ctx, error=f"Erreur : {exc}")
 
@@ -295,7 +309,7 @@ async def delete_indexer_route(request: Request, name: str):
     ctx: AppContext = request.app.state.ctx
     try:
         ctx.update_settings(remove_indexer(ctx.config, name))
-        return _list(request, ctx, notice=f"Tracker « {name} » supprime.")
+        return _saved(_list(request, ctx, notice=f"Tracker « {name} » supprime."))
     except SettingsError as exc:
         return _list(request, ctx, error=f"Erreur : {exc}")
 

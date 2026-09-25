@@ -218,3 +218,38 @@ async def test_calls_do_not_queue_behind_a_dead_host():
     results = await asyncio.gather(*(tc.list_torrents() for _ in range(4)), return_exceptions=True)
     assert all(isinstance(r, ConnectionError) for r in results)
     assert time.monotonic() - start < 0.6  # in parallel (~0.3 s), not one after another (~1.2 s)
+
+
+class FakeRpcSession(FakeRpcFull):
+    def get_session(self):
+        return SimpleNamespace(version="4.0.6 (38c164933e)")
+
+    def session_stats(self):
+        return SimpleNamespace(torrent_count=12)
+
+
+async def test_test_reports_version_and_torrent_count():
+    assert await _client_with(FakeRpcSession()).test() == (True, "v4.0.6 · 12 torrents")
+
+
+async def test_test_never_raises_and_masks_credentials():
+    def factory(**kwargs):
+        raise RuntimeError("Invalid URL 'http://u:TR-SECRET@:9091/transmission/rpc'")
+
+    ok, message = await TransmissionClient(TransmissionConfig(), client_factory=factory).test()
+    assert ok is False
+    assert "TR-SECRET" not in message
+
+
+async def test_test_explains_unreachable_host_and_rejected_credentials():
+    from transmission_rpc import TransmissionAuthError, TransmissionConnectError
+
+    def unreachable(**kwargs):
+        raise TransmissionConnectError("can't connect to transmission daemon: HTTPConnectionPool(...)")
+
+    def rejected(**kwargs):
+        raise TransmissionAuthError("transmission daemon require auth")
+
+    cfg = TransmissionConfig(host="omv", port=9091)
+    assert await TransmissionClient(cfg, client_factory=unreachable).test() == (False, "Injoignable (omv:9091).")
+    assert await TransmissionClient(cfg, client_factory=rejected).test() == (False, "Identifiants refusés (401).")

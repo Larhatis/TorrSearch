@@ -126,3 +126,11 @@ def test_member_lands_on_home_after_login(tmp_path):
     resp = client.post("/login", data={"username": "mem", "password": "pw", "next": "/"},
                        follow_redirects=False)
     assert resp.headers["location"] == "/"
+
+
+def test_status_panel_is_admin_only(tmp_path):
+    client = _client(tmp_path)
+    for user in ("guest", "mem"):
+        _login(client, user)
+        assert client.get("/settings/status").status_code == 403
+        client.post("/logout", follow_redirects=False)

@@ -47,3 +47,11 @@ async def test_sends_caps_query_with_apikey():
     url = str(route.calls.last.request.url)
     assert "t=caps" in url
     assert "apikey=KEY" in url
+
+
+async def test_reports_unreachable_server_plainly():
+    ix = TorznabIndexer(IndexerConfig(name="t", url="https://t.example/api", api_key="k"))
+    with respx.mock:
+        respx.get("https://t.example/api").mock(side_effect=httpx.ConnectError("[Errno 8] nodename nor servname"))
+        ok, msg = await ix.test()
+    assert ok is False and "injoignable" in msg.lower() and "Errno" not in msg
