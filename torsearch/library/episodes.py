@@ -32,3 +32,19 @@ def parse_episodes(title: str) -> set[str]:
         season = int(next(g for g in sm.groups() if g))
         return {f"S{season:02d}"}
     return set()
+
+
+def covered_episodes(keys: set[str], wanted: set[str]) -> set[str]:
+    """Episode keys from ``wanted`` that a torrent (its parsed ``keys``) satisfies.
+
+    ``keys`` may hold episode keys (``S01E02``) or a season key (``S01``); a season
+    key covers every wanted episode of that season.
+    """
+    out: set[str] = set()
+    for key in keys:
+        if "E" in key:
+            if key in wanted:
+                out.add(key)
+        else:
+            out |= {ep for ep in wanted if ep.startswith(key + "E")}
+    return out

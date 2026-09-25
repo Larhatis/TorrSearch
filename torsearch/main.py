@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from torsearch.context import AppContext
 from torsearch.db.database import Database
+from torsearch.library.blacklist import Blacklist
 from torsearch.library.movies import MovieLibrary
 from torsearch.library.series import SeriesLibrary
 from torsearch.monitor.history import MonitorHistory
@@ -57,7 +58,8 @@ def build_app(
     history = MonitorHistory(db.collection("monitor"), migrate_from=monitor_path)
     library = MovieLibrary(db.collection("movies"), migrate_from=library_path)
     series_library = SeriesLibrary(db.collection("series"), migrate_from=series_path)
-    monitor = MonitorRunner(ctx, history, library=library, series_library=series_library)
+    blacklist = Blacklist(db.collection("blacklist"))
+    monitor = MonitorRunner(ctx, history, library=library, series_library=series_library, blacklist=blacklist)
     auth = AuthSettings.from_env()
     users = UserStore(db.collection("users"), migrate_from=users_path)
     if auth.enabled:
@@ -68,7 +70,7 @@ def build_app(
     return create_app(
         ctx, history=history, monitor=monitor, auth=auth,
         library=library, series_library=series_library, users=users,
-        requests_store=requests_store,
+        requests_store=requests_store, blacklist=blacklist,
     )
 
 

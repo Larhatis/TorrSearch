@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from torsearch.library.episodes import covered_episodes
 from torsearch.models import SearchResult
-from torsearch.monitor.runner import covered_episodes
 from torsearch.parser.release import ParsedRelease, parse_release
 from torsearch.search.filters import quality_rank
 from torsearch.search.matcher import match_media_title
@@ -159,6 +159,7 @@ def select_series_releases(
     target_title: str,
     target_original_title: str | None = None,
     missing_episodes: set[str] | None = None,
+    have_episodes: set[str] | None = None,
     qualities: list[str] | None = None,
     min_seeders: int = 1,
     blacklist: Any = None,
@@ -185,17 +186,18 @@ def select_series_releases(
         if ev.acceptable and ev.parsed and ev.parsed.episodes:
             evaluations.append((r, ev))
 
-    remaining = set(missing_episodes) if missing_episodes is not None else None
+    target_missing = set(missing_episodes) if missing_episodes is not None else None
+    current_have = set(have_episodes) if have_episodes is not None else set()
     picks: list[tuple[SearchResult, set[str]]] = []
 
     while True:
         candidates: list[tuple[SearchResult, ReleaseEvaluation, set[str]]] = []
         for r, ev in evaluations:
             assert ev.parsed is not None
-            if remaining is not None:
-                covered = covered_episodes(ev.parsed.episodes, remaining)
+            if target_missing is not None:
+                covered = covered_episodes(ev.parsed.episodes, target_missing)
             else:
-                covered = ev.parsed.episodes
+                covered = {ep for ep in ev.parsed.episodes if "E" in ep} - current_have
             if covered:
                 candidates.append((r, ev, covered))
 
@@ -213,12 +215,11 @@ def select_series_releases(
         )
         best_res, _, covered = candidates[0]
         picks.append((best_res, covered))
+        current_have |= covered
 
-        if remaining is not None:
-            remaining -= covered
-            if not remaining:
+        if target_missing is not None:
+            target_missing -= covered
+            if not target_missing:
                 break
-        else:
-            break
 
     return picks

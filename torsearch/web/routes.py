@@ -122,7 +122,7 @@ async def download(request: Request, download_url: str = Form(...), category: st
 
 def create_app(
     ctx: AppContext, history=None, monitor=None, auth: AuthSettings | None = None, library=None,
-    series_library=None, users=None, requests_store=None,
+    series_library=None, users=None, requests_store=None, blacklist=None,
 ) -> FastAPI:
     if auth is None:
         auth = AuthSettings(enabled=False)
@@ -145,6 +145,7 @@ def create_app(
     app.state.series_library = series_library
     app.state.users = users
     app.state.requests = requests_store
+    app.state.blacklist = blacklist
     app.state.login_throttle = LoginThrottle()
     app.add_middleware(CrossSiteGuardMiddleware)  # always on, even without auth
     app.add_middleware(SecurityHeadersMiddleware)
