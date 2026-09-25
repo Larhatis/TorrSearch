@@ -69,11 +69,13 @@ Python 3.12+, **FastAPI + Jinja2 + HTMX**, Tailwind (CDN pour l'instant), **SQLi
 | `db/database.py` | Mini document-store sur SQLite (WAL) : `collection(name)` → `get/upsert/delete/all`. |
 | `settings/` | `store.py` (config persistée en base, amorcée une fois depuis un YAML) ; `mutations.py` (fonctions pures qui renvoient une nouvelle `Config`, valident les noms). |
 | `indexers/torznab.py` | Client Torznab : recherche, `test()` (`t=caps`), suivi **sûr** des redirections. |
-| `search/` | `service.py` (recherche parallèle, délai, dédoublonnage) ; `filters.py` (filtres, détection de qualité). |
+| `parser/release.py` | Parseur de nom de release (titre, année, SxxEyy, résolution, source, flag `is_banned_source`, langue, codec). |
+| `search/` | `service.py` (recherche parallèle, dédoublonnage) ; `matcher.py` (vérification stricte du titre/année, rejet des suites et faux-positifs) ; `decision.py` (ranking langues/qualité, sélection optimale, couverture gloutonne des saisons) ; `filters.py` (filtres basiques). |
 | `transmission/client.py` | Façade **async** sur `transmission-rpc` (bloquant) : pool de threads dédié, délais 10 s / 60 s pour l'ajout. |
-| `metadata/tmdb.py`, `jellyfin/client.py` | Clients HTTP (httpx), résilients (ne lèvent jamais vers le web). |
-| `library/` | Films, séries, analyse `SxxEyy` (`episodes.py`). |
-| `monitor/runner.py` | Boucle de surveillance : recherches sauvegardées, films, séries, refresh Jellyfin. |
+| `metadata/tmdb.py` | Client TMDB (httpx) avec support `original_title`. |
+| `jellyfin/client.py` | Client Jellyfin (httpx) avec cache mémoire des items (30s) et détection de présence (`find_matching()`). |
+| `library/` | Films, séries, analyse `SxxEyy` (`episodes.py`), liste noire persistante (`blacklist.py`). |
+| `monitor/runner.py` | Boucle de surveillance : auto-grab avec double titre (VF+VO), moteur de décision, rejet liste noire. |
 | `health.py` | Panneau d'état : `check_all()` lance tous les `test()` en parallèle. |
 | `redact.py` | Masque les secrets dans les messages d'erreur affichés. |
 | `users/`, `requests/` | Comptes (PBKDF2) et demandes. |
@@ -129,6 +131,10 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
 - `transmission-rpc` est synchrone et fait un appel réseau dès la création du client.
 - Les noms (trackers, recherches, canaux) servent d'identifiants dans les URL : caractères
   `/ \ ? # %`, `.`/`..` et espaces en bordure refusés.
+- Attention aux **imports circulaires** : `torsearch.monitor.runner` et `torsearch.search.decision`
+  ne doivent pas s'importer mutuellement à la racine. Les utilitaires d'épisodes sont dans `torsearch.library.episodes`.
+- **Fakes de test & dédoublonnage** : ne pas fabriquer d'infohash fictif en tronquant le titre (`title[:12]`)
+  car des releases partageant un préfixe (ex. `Avatar.2009.`) entreraient en collision et seraient dédoublonnées.
 - `.gitignore` : règles **ancrées** à la racine (`/data/`, `/config.yaml`, `/transmission/`).
 - **Dépôt public** : ne pas y écrire de noms de trackers privés, d'infos personnelles
   (chemins de disques, IP) ni de secrets.
@@ -136,16 +142,19 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
 ## 8. Feuille de route (ordre recommandé)
 
 **Chantier 2 — moteur de décision (terminé en v0.3.0)** : auto-grab fiable.
-- Analyse des noms de release (titre, année, SxxEyy, résolution, source, langue, codec).
-- Vérification que la release correspond au titre (rejet des faux-positifs et des suites).
+- Analyse des noms de release (`parser/release.py` : titre, année, SxxEyy, résolution, source, langue, codec).
+- Vérification que la release correspond au titre (`search/matcher.py` : rejet des faux-positifs et des suites).
 - Double recherche TMDB avec titre français + titre original.
 - Profil qualité avec priorités linguistiques (MULTI/VFF > VF/VFQ > VOSTFR, rejet VO pure) et rejet automatique des sources dégradées (CAM/TS/TC/SCR).
-- Minimisation gloutonne du nombre de releases pour couvrir les saisons de séries.
-- Liste noire SQLite persistante pour éviter de re-télécharger des releases mortes ou échouées.
+- Minimisation gloutonne du nombre de releases pour couvrir les saisons de séries (`search/decision.py`).
+- Liste noire SQLite persistante (`library/blacklist.py`) pour éviter de re-télécharger des releases mortes ou échouées.
+- Détection et alerte visuelle de disponibilité Jellyfin dans la recherche manuelle.
 
-**Chantier 3 — suivi des téléchargements** : mémoriser le hash Transmission de chaque grab,
-afficher « en file / % / terminé / bloqué », échec → liste noire → autre release, refresh
-Jellyfin ciblé.
+**Chantier 3 — suivi des téléchargements (prochain chantier prioritaire)** :
+1. **Mémorisation de l'infohash** : stocker le hash Transmission (`info_hash` ou ID) lors du grab (films, épisodes ou table `transfers`).
+2. **Statuts en direct / Vue Activité** : polling HTMX léger ou onglet Activité interrogeant `transmission.get_torrents()` (état `downloading`/`seeding`, %, vitesse, temps restant).
+3. **Détection d'échec & bascule** : si un torrent reste bloqué (0% / 0 peers après délai ou statut en erreur) → suppression du torrent, ajout à la `Blacklist` SQLite, et relance de l'auto-grab pour prendre la release candidate suivante.
+4. **Rafraîchissement Jellyfin ciblé** : dès qu'un torrent atteint 100% (ou état `seeding`), déclencher automatiquement un scan Jellyfin pour rendre le fichier disponible sans attendre la fin du cycle global.
 
 **Chantier 4 — interface** : assets servis localement (fin des CDN, CSP possible, favicon),
 menu simplifié (Découvrir · Bibliothèque · Recherche · Activité · Réglages), pages détail
