@@ -226,3 +226,30 @@ async def test_find_matches_exact_query_single_result():
         assert len(matches) == 1
         assert matches[0].id == "b2"
 
+
+async def test_get_items_requests_large_limit_and_original_title():
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        route = respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json={"Items": [
+            {"Id": "1", "Type": "Movie", "Name": "Nom Francais", "OriginalTitle": "Original Name", "ProductionYear": 2020}
+        ]}))
+        items = await c.get_items()
+        assert len(items) == 1
+        assert items[0].original_title == "Original Name"
+        request = route.calls.last.request
+        assert request.url.params["Limit"] == "10000"
+        assert "OriginalTitle" in request.url.params["Fields"]
+
+
+async def test_find_matches_via_original_title():
+    sample = {"Items": [
+        {"Id": "dk", "Type": "Movie", "Name": "Le Chevalier Noir", "OriginalTitle": "The Dark Knight", "ProductionYear": 2008},
+    ]}
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json=sample))
+        matches = await c.find_matches("The Dark Knight")
+        assert len(matches) == 1
+        assert matches[0].id == "dk"
+
+

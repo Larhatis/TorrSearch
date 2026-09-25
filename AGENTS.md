@@ -21,7 +21,7 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.1)
+## 2. État actuel (v0.3.2)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
@@ -39,7 +39,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **482 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **484 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

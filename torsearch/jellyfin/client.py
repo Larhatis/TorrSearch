@@ -21,6 +21,7 @@ class JellyfinItem:
     media_type: str  # "movie" | "tv"
     year: int | None = None
     tmdb_id: str | None = None
+    original_title: str | None = None
 
 
 class JellyfinClient:
@@ -60,7 +61,8 @@ class JellyfinClient:
                 params={
                     "Recursive": "true",
                     "IncludeItemTypes": "Movie,Series",
-                    "Fields": "ProviderIds,ProductionYear",
+                    "Fields": "ProviderIds,ProductionYear,OriginalTitle",
+                    "Limit": "10000",
                 },
                 headers=self._auth(),
             )
@@ -70,6 +72,7 @@ class JellyfinClient:
                 media_type = "movie" if item.get("Type") == "Movie" else "tv"
                 tmdb = (item.get("ProviderIds") or {}).get("Tmdb")
                 year = item.get("ProductionYear")
+                orig = item.get("OriginalTitle")
                 items.append(
                     JellyfinItem(
                         id=item.get("Id", ""),
@@ -77,12 +80,56 @@ class JellyfinClient:
                         media_type=media_type,
                         year=int(year) if year else None,
                         tmdb_id=str(tmdb) if tmdb else None,
+                        original_title=str(orig) if orig else None,
                     )
                 )
             self._items_cache = (now, items)
             return items
         except Exception as exc:  # resilience: never raise to the web layer
             logger.warning("Jellyfin get_items() failed: %s", exc)
+            return []
+        finally:
+            if owns_client:
+                await client.aclose()
+
+    async def search_items(self, term: str, limit: int = 50) -> list[JellyfinItem]:
+        """Search Jellyfin server directly with searchTerm across the entire library."""
+        if not self.enabled or not term.strip():
+            return []
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        try:
+            response = await client.get(
+                f"{self._url}/Items",
+                params={
+                    "Recursive": "true",
+                    "IncludeItemTypes": "Movie,Series",
+                    "searchTerm": term.strip(),
+                    "Fields": "ProviderIds,ProductionYear,OriginalTitle",
+                    "Limit": str(limit),
+                },
+                headers=self._auth(),
+            )
+            response.raise_for_status()
+            items: list[JellyfinItem] = []
+            for item in response.json().get("Items", []):
+                media_type = "movie" if item.get("Type") == "Movie" else "tv"
+                tmdb = (item.get("ProviderIds") or {}).get("Tmdb")
+                year = item.get("ProductionYear")
+                orig = item.get("OriginalTitle")
+                items.append(
+                    JellyfinItem(
+                        id=item.get("Id", ""),
+                        name=item.get("Name", ""),
+                        media_type=media_type,
+                        year=int(year) if year else None,
+                        tmdb_id=str(tmdb) if tmdb else None,
+                        original_title=str(orig) if orig else None,
+                    )
+                )
+            return items
+        except Exception as exc:  # resilience: never raise
+            logger.warning("Jellyfin search_items(%s) failed: %s", term, exc)
             return []
         finally:
             if owns_client:
@@ -95,14 +142,23 @@ class JellyfinClient:
     async def find_matches(self, query: str, limit: int = 6) -> list[JellyfinItem]:
         if not self.enabled or not query.strip():
             return []
-        items = await self.get_items()
-        if not items:
-            return []
 
         parsed = parse_release(query)
         target = parsed.clean_title if parsed.clean_title else query.strip()
         target_norm = normalize_title(target)
         if not target_norm:
+            return []
+
+        # 1. Search server-side directly with searchTerm (bypasses any 100-item pagination limit)
+        server_items = await self.search_items(target, limit=50)
+        # 2. Also retrieve items from local cache/library
+        cached_items = await self.get_items()
+
+        combined: dict[str, JellyfinItem] = {it.id: it for it in cached_items}
+        for it in server_items:
+            combined[it.id] = it
+        items = list(combined.values())
+        if not items:
             return []
 
         _STOP_WORDS = {"the", "le", "la", "les", "un", "une", "des", "of", "du", "de", "and", "et"}
@@ -114,10 +170,13 @@ class JellyfinClient:
 
         for item in items:
             item_norm = normalize_title(item.name)
-            if not item_norm:
+            item_orig_norm = normalize_title(item.original_title) if item.original_title else ""
+            if not item_norm and not item_orig_norm:
                 continue
-            item_no_art = strip_articles(item_norm)
-            item_words = set(item_norm.split())
+
+            item_no_art = strip_articles(item_norm) if item_norm else ""
+            item_orig_no_art = strip_articles(item_orig_norm) if item_orig_norm else ""
+            item_words = set(item_norm.split()) | (set(item_orig_norm.split()) if item_orig_norm else set())
 
             year_matches = False
             if parsed.year is not None and item.year is not None:
@@ -125,20 +184,24 @@ class JellyfinClient:
 
             priority = 0
 
-            # Tier 1: Exact title match
-            if item_norm == target_norm:
+            # Tier 1: Exact title match (on name or original title)
+            if item_norm == target_norm or item_orig_norm == target_norm:
                 if parsed.year is not None:
                     priority = 100 if year_matches else 85
                 else:
                     priority = 95
-            elif item_no_art == target_no_art:
+            elif item_no_art == target_no_art or (bool(item_orig_no_art) and item_orig_no_art == target_no_art):
                 if parsed.year is not None:
                     priority = 92 if year_matches else 82
                 else:
                     priority = 88
             # Tier 2: match_media_title
             elif match_media_title(
-                parsed, target_title=item.name, target_year=item.year, is_series=(item.media_type == "tv")
+                parsed,
+                target_title=item.name,
+                target_original_title=item.original_title,
+                target_year=item.year,
+                is_series=(item.media_type == "tv"),
             ):
                 priority = 80
             # Tier 3: Keyword / franchise containment (only if search is at least 3 chars)
