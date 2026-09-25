@@ -178,3 +178,51 @@ async def test_find_matching_exact_and_release_queries():
         assert await c.find_matching("Avatar The Way of Water") is None
         assert await c.find_matching("Lost in Space") is None
         assert await c.find_matching("Gladiator") is None
+
+
+async def test_find_matches_returns_multiple_franchise_items():
+    sample = {"Items": [
+        {"Id": "b1", "Type": "Movie", "Name": "Batman", "ProductionYear": 1989},
+        {"Id": "b2", "Type": "Movie", "Name": "Batman Begins", "ProductionYear": 2005},
+        {"Id": "b3", "Type": "Movie", "Name": "The Batman", "ProductionYear": 2022},
+        {"Id": "b4", "Type": "Series", "Name": "Batman: The Animated Series", "ProductionYear": 1992},
+        {"Id": "s1", "Type": "Movie", "Name": "Superman", "ProductionYear": 1978},
+    ]}
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json=sample))
+
+        matches = await c.find_matches("batman")
+        assert len(matches) == 4
+        # Batman (1989) is an exact match -> ranked first
+        assert matches[0].id == "b1"
+        assert {m.id for m in matches} == {"b1", "b2", "b3", "b4"}
+        assert "s1" not in {m.id for m in matches}
+
+
+async def test_find_matches_respects_limit():
+    sample = {"Items": [
+        {"Id": f"b{i}", "Type": "Movie", "Name": f"Batman {i}", "ProductionYear": 1990 + i}
+        for i in range(10)
+    ]}
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json=sample))
+
+        matches = await c.find_matches("batman", limit=3)
+        assert len(matches) == 3
+
+
+async def test_find_matches_exact_query_single_result():
+    sample = {"Items": [
+        {"Id": "b1", "Type": "Movie", "Name": "Batman", "ProductionYear": 1989},
+        {"Id": "b2", "Type": "Movie", "Name": "Batman Begins", "ProductionYear": 2005},
+    ]}
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json=sample))
+
+        matches = await c.find_matches("Batman Begins")
+        assert len(matches) == 1
+        assert matches[0].id == "b2"
+

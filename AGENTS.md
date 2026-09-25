@@ -21,7 +21,7 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.0)
+## 2. État actuel (v0.3.1)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
@@ -32,14 +32,14 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Moteur de décision intelligent (chantier 2) : analyseur de release, classement MULTI/VFF/VOSTFR,
   rejet des sources dégradées (CAM/TS/TC), double recherche titre français + original TMDB,
   minimisation du nombre de releases pour couvrir les saisons/séries, liste noire SQLite.
-- Intégration Jellyfin (alerte de disponibilité dès la recherche manuelle, badge « Dans Jellyfin »,
+- Intégration Jellyfin (alerte de disponibilité unitaire ou multi-titres/franchises dès la recherche manuelle, badge « Dans Jellyfin »,
   bouton Lire direct, scan après téléchargement).
 - Multi-utilisateur (admin / membre / invité) + file de demandes validée par l'admin.
 - Notifications (Discord, ntfy, Telegram, webhook).
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **478 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **482 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

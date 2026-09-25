@@ -21,8 +21,11 @@ def normalize_title(title: str) -> str:
     return re.sub(r"\s+", " ", clean).strip().lower()
 
 
-def _strip_articles(norm_title: str) -> str:
+def strip_articles(norm_title: str) -> str:
     return _ARTICLES_RE.sub("", norm_title).strip()
+
+
+_strip_articles = strip_articles
 
 
 def _alnum_only(norm_title: str) -> str:

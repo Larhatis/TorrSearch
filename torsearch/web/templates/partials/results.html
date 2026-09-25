@@ -1,5 +1,47 @@
 {% from "partials/components.html" import badge_quality, health, source_chip %}
-{% if jellyfin_match %}
+{% if jellyfin_matches and jellyfin_matches | length == 1 %}
+{% set jm = jellyfin_matches[0] %}
+<div class="mb-4 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-3 text-emerald-200">
+  <div class="flex items-center gap-2.5 min-w-0">
+    <i class="ti ti-circle-check text-xl text-emerald-400 shrink-0"></i>
+    <div class="truncate text-sm">
+      <span class="font-medium text-white">Deja disponible sur votre Jellyfin :</span>
+      <span class="font-semibold text-emerald-300">{{ jm.name }}{% if jm.year %} ({{ jm.year }}){% endif %}</span>
+      <span class="ml-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-300 uppercase">{{ 'Film' if jm.media_type == 'movie' else 'Serie' }}</span>
+    </div>
+  </div>
+  {% if jellyfin_url %}
+  <a href="{{ jellyfin_url }}/web/#/details?id={{ jm.id }}" target="_blank" rel="noopener"
+     class="flex shrink-0 items-center gap-1.5 rounded bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
+    <i class="ti ti-player-play"></i> Lire
+  </a>
+  {% endif %}
+</div>
+{% elif jellyfin_matches and jellyfin_matches | length > 1 %}
+<div class="mb-4 rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-3 text-emerald-200">
+  <div class="mb-2 flex items-center gap-2 text-sm font-medium text-white">
+    <i class="ti ti-circle-check text-xl text-emerald-400 shrink-0"></i>
+    <span>Deja disponibles sur votre Jellyfin ({{ jellyfin_matches | length }}) :</span>
+  </div>
+  <div class="flex flex-col gap-1.5 pl-7">
+    {% for jm in jellyfin_matches %}
+    <div class="flex items-center justify-between gap-3 rounded border border-emerald-500/20 bg-emerald-900/20 px-3 py-1.5 text-xs">
+      <div class="flex items-center gap-2 min-w-0 truncate">
+        <span class="font-semibold text-emerald-300 truncate">{{ jm.name }}</span>
+        {% if jm.year %}<span class="text-slate-400 shrink-0">({{ jm.year }})</span>{% endif %}
+        <span class="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-300 uppercase shrink-0">{{ 'Film' if jm.media_type == 'movie' else 'Serie' }}</span>
+      </div>
+      {% if jellyfin_url %}
+      <a href="{{ jellyfin_url }}/web/#/details?id={{ jm.id }}" target="_blank" rel="noopener"
+         class="flex shrink-0 items-center gap-1 rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-500">
+        <i class="ti ti-player-play"></i> Lire
+      </a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% elif jellyfin_match %}
 <div class="mb-4 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/40 bg-emerald-950/30 p-3 text-emerald-200">
   <div class="flex items-center gap-2.5 min-w-0">
     <i class="ti ti-circle-check text-xl text-emerald-400 shrink-0"></i>

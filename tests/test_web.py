@@ -266,3 +266,36 @@ def test_search_displays_jellyfin_banner_when_matched():
     assert "Deja disponible sur votre Jellyfin" in resp.text
     assert "Cool Movie (2024)" in resp.text
     assert "http://jelly:8096/web/#/details?id=item123" in resp.text
+
+
+def test_search_displays_multiple_jellyfin_matches_banner():
+    class FakeJellyfinMulti:
+        enabled = True
+        base_url = "http://jelly:8096"
+
+        async def find_matches(self, query, limit=6):
+            from torsearch.jellyfin.client import JellyfinItem
+            return [
+                JellyfinItem(id="b1", name="Batman", media_type="movie", year=1989),
+                JellyfinItem(id="b2", name="The Batman", media_type="movie", year=2022),
+                JellyfinItem(id="b3", name="Batman: The Animated Series", media_type="tv", year=1992),
+            ]
+
+    service = SearchService([FakeIndexer("t1", [_movie()])])
+    transmission = FakeTransmission()
+    config = Config(indexers=[IndexerConfig(name="t1", url="https://t1/api", api_key="k")])
+    ctx = FakeContext(service, transmission, config, jellyfin=FakeJellyfinMulti())
+    client = TestClient(create_app(ctx))
+
+    resp = client.get("/search?q=Batman")
+    assert resp.status_code == 200
+    assert "Deja disponibles sur votre Jellyfin (3)" in resp.text
+    assert "Batman" in resp.text
+    assert "1989" in resp.text
+    assert "The Batman" in resp.text
+    assert "2022" in resp.text
+    assert "Batman: The Animated Series" in resp.text
+    assert "http://jelly:8096/web/#/details?id=b1" in resp.text
+    assert "http://jelly:8096/web/#/details?id=b2" in resp.text
+    assert "http://jelly:8096/web/#/details?id=b3" in resp.text
+

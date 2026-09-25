@@ -9,7 +9,7 @@ import httpx
 from torsearch.config import JellyfinConfig
 from torsearch.parser.release import parse_release
 from torsearch.redact import redact
-from torsearch.search.matcher import match_media_title, normalize_title
+from torsearch.search.matcher import match_media_title, normalize_title, strip_articles
 
 logger = logging.getLogger(__name__)
 
@@ -92,35 +92,84 @@ class JellyfinClient:
         items = await self.get_items()
         return {f"{item.media_type}:{item.tmdb_id}": item.id for item in items if item.tmdb_id}
 
-    async def find_matching(self, query: str) -> JellyfinItem | None:
+    async def find_matches(self, query: str, limit: int = 6) -> list[JellyfinItem]:
         if not self.enabled or not query.strip():
-            return None
+            return []
         items = await self.get_items()
         if not items:
-            return None
+            return []
 
         parsed = parse_release(query)
         target = parsed.clean_title if parsed.clean_title else query.strip()
         target_norm = normalize_title(target)
         if not target_norm:
-            return None
+            return []
 
-        # 1. Exact match on normalized title
+        _STOP_WORDS = {"the", "le", "la", "les", "un", "une", "des", "of", "du", "de", "and", "et"}
+        tokens = [w for w in target_norm.split() if w]
+        sig_tokens = [w for w in tokens if w not in _STOP_WORDS] or tokens
+
+        scored_items: list[tuple[int, int, str, JellyfinItem]] = []
+        target_no_art = strip_articles(target_norm)
+
         for item in items:
             item_norm = normalize_title(item.name)
+            if not item_norm:
+                continue
+            item_no_art = strip_articles(item_norm)
+            item_words = set(item_norm.split())
+
+            year_matches = False
+            if parsed.year is not None and item.year is not None:
+                year_matches = abs(parsed.year - item.year) <= 1
+
+            priority = 0
+
+            # Tier 1: Exact title match
             if item_norm == target_norm:
-                if parsed.year is not None and item.year is not None:
-                    if abs(parsed.year - item.year) > 1:
-                        continue
-                return item
+                if parsed.year is not None:
+                    priority = 100 if year_matches else 85
+                else:
+                    priority = 95
+            elif item_no_art == target_no_art:
+                if parsed.year is not None:
+                    priority = 92 if year_matches else 82
+                else:
+                    priority = 88
+            # Tier 2: match_media_title
+            elif match_media_title(
+                parsed, target_title=item.name, target_year=item.year, is_series=(item.media_type == "tv")
+            ):
+                priority = 80
+            # Tier 3: Keyword / franchise containment (only if search is at least 3 chars)
+            elif len(target_norm) >= 3 and all(t in item_words for t in sig_tokens):
+                if parsed.year is not None and year_matches:
+                    priority = 70
+                else:
+                    priority = 50
 
-        # 2. Match with match_media_title
-        for item in items:
-            is_series = item.media_type == "tv"
-            if match_media_title(parsed, target_title=item.name, target_year=item.year, is_series=is_series):
-                return item
+            if priority > 0:
+                item_year = item.year or 0
+                scored_items.append((priority, item_year, item.name, item))
 
-        return None
+        # Sort: highest priority first, then newest year first, then title
+        scored_items.sort(key=lambda x: (-x[0], -x[1], x[2]))
+
+        # Deduplicate by item ID preserving order
+        seen_ids: set[str] = set()
+        results: list[JellyfinItem] = []
+        for _, _, _, item in scored_items:
+            if item.id not in seen_ids:
+                seen_ids.add(item.id)
+                results.append(item)
+                if len(results) >= limit:
+                    break
+
+        return results
+
+    async def find_matching(self, query: str) -> JellyfinItem | None:
+        matches = await self.find_matches(query, limit=1)
+        return matches[0] if matches else None
 
     async def refresh(self) -> bool:
         """Trigger a full Jellyfin library scan. Best-effort: never raises."""
