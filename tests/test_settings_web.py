@@ -388,3 +388,12 @@ def test_failed_save_does_not_refresh_the_status_panel(tmp_path):
     client, _, _ = _client(tmp_path)
     resp = client.post("/settings/general", data={"host": "h", "port": "abc", "timeout_seconds": "10"})
     assert "HX-Trigger" not in resp.headers
+
+
+def test_tracker_key_field_is_labelled_torznab_api_key(tmp_path):
+    cfg = Config(indexers=[IndexerConfig(name="t", url="https://t.example/api/", api_key="k")])
+    client, _, _ = _client(tmp_path, cfg)
+    html = client.get("/settings").text
+    assert html.count("Cle API Torznab<br>") == 2  # add form + existing tracker row
+    assert "Passkey<br>" not in html
+    assert "pas la passkey" in html  # help text: Torznab wants the API key
