@@ -100,8 +100,10 @@ class Collection:
         return self.count() == 0
 
 
-def as_collection(source: Collection | str | Path, name: str) -> Collection:
+def as_collection(source: Collection | Database | str | Path, name: str) -> Collection:
     """A Collection from an existing one, or a fresh per-file SQLite DB (tests/CLI)."""
     if isinstance(source, Collection):
         return source
+    if isinstance(source, Database):
+        return source.collection(name)
     return Database(source).collection(name)
