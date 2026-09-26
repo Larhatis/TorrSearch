@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 
 from torsearch.context import AppContext
 from torsearch.redact import redact
+from torsearch.transmission.client import TorrentInfo
 from torsearch.web.templating import templates
 
 downloads_router = APIRouter()
@@ -23,9 +24,33 @@ def _format_rate(bytes_per_sec: int | float) -> str:
     return f"{int(r)} o/s"
 
 
-async def _render_list(request: Request, error: str | None = None):
+def _filter_torrents(
+    torrents: list[TorrentInfo], filter_status: str
+) -> tuple[list[TorrentInfo], dict[str, int], str]:
+    counts = {
+        "all": len(torrents),
+        "downloading": sum(1 for t in torrents if t.percent < 100.0 and t.status != "stopped"),
+        "completed": sum(1 for t in torrents if t.percent >= 100.0 or "seed" in t.status.lower()),
+        "active": sum(1 for t in torrents if t.down_rate > 0 or t.up_rate > 0),
+        "paused": sum(1 for t in torrents if t.status == "stopped" or t.status_label == "En pause"),
+    }
+    if filter_status == "downloading":
+        filtered = [t for t in torrents if t.percent < 100.0 and t.status != "stopped"]
+    elif filter_status == "completed":
+        filtered = [t for t in torrents if t.percent >= 100.0 or "seed" in t.status.lower()]
+    elif filter_status == "active":
+        filtered = [t for t in torrents if t.down_rate > 0 or t.up_rate > 0]
+    elif filter_status == "paused":
+        filtered = [t for t in torrents if t.status == "stopped" or t.status_label == "En pause"]
+    else:
+        filter_status = "all"
+        filtered = torrents
+    return filtered, counts, filter_status
+
+
+async def _render_list(request: Request, error: str | None = None, filter_status: str = "all"):
     ctx: AppContext = request.app.state.ctx
-    torrents = []
+    torrents: list[TorrentInfo] = []
     if error is None:
         try:
             torrents = await ctx.transmission.list_torrents()
@@ -37,6 +62,8 @@ async def _render_list(request: Request, error: str | None = None):
     active_count = sum(
         1 for t in torrents if t.down_rate > 0 or t.up_rate > 0 or t.status in ("downloading", "seeding")
     )
+
+    filtered_torrents, counts, current_filter = _filter_torrents(torrents, filter_status)
 
     # Auto-trigger Jellyfin scan when a torrent completes
     if hasattr(ctx, "jellyfin") and ctx.jellyfin and ctx.jellyfin.enabled:
@@ -52,7 +79,10 @@ async def _render_list(request: Request, error: str | None = None):
         request,
         "partials/downloads_list.html",
         {
-            "torrents": torrents,
+            "torrents": filtered_torrents,
+            "all_torrents_count": len(torrents),
+            "counts": counts,
+            "current_filter": current_filter,
             "error": error,
             "total_down_formatted": _format_rate(total_down),
             "total_up_formatted": _format_rate(total_up),
@@ -69,8 +99,8 @@ async def downloads_page(request: Request):
 
 @downloads_router.get("/downloads/list", response_class=HTMLResponse)
 @downloads_router.get("/activity/list", response_class=HTMLResponse)
-async def downloads_list(request: Request):
-    return await _render_list(request)
+async def downloads_list(request: Request, filter: str = "all"):
+    return await _render_list(request, filter_status=filter)
 
 
 @downloads_router.post("/downloads/scan-jellyfin", response_class=HTMLResponse)
@@ -90,30 +120,30 @@ async def scan_jellyfin(request: Request):
 
 @downloads_router.post("/downloads/{torrent_id}/pause", response_class=HTMLResponse)
 @downloads_router.post("/activity/{torrent_id}/pause", response_class=HTMLResponse)
-async def pause(request: Request, torrent_id: int):
+async def pause(request: Request, torrent_id: int, filter: str = "all"):
     try:
         await request.app.state.ctx.transmission.pause(torrent_id)
     except Exception as exc:
-        return await _render_list(request, error=f"Action impossible : {redact(str(exc))}")
-    return await _render_list(request)
+        return await _render_list(request, error=f"Action impossible : {redact(str(exc))}", filter_status=filter)
+    return await _render_list(request, filter_status=filter)
 
 
 @downloads_router.post("/downloads/{torrent_id}/resume", response_class=HTMLResponse)
 @downloads_router.post("/activity/{torrent_id}/resume", response_class=HTMLResponse)
-async def resume(request: Request, torrent_id: int):
+async def resume(request: Request, torrent_id: int, filter: str = "all"):
     try:
         await request.app.state.ctx.transmission.resume(torrent_id)
     except Exception as exc:
-        return await _render_list(request, error=f"Action impossible : {redact(str(exc))}")
-    return await _render_list(request)
+        return await _render_list(request, error=f"Action impossible : {redact(str(exc))}", filter_status=filter)
+    return await _render_list(request, filter_status=filter)
 
 
 @downloads_router.post("/downloads/{torrent_id}/delete", response_class=HTMLResponse)
 @downloads_router.post("/activity/{torrent_id}/delete", response_class=HTMLResponse)
-async def delete(request: Request, torrent_id: int, delete_data: bool = False):
+async def delete(request: Request, torrent_id: int, delete_data: bool = False, filter: str = "all"):
     try:
         await request.app.state.ctx.transmission.remove(torrent_id, delete_data=delete_data)
     except Exception as exc:
-        return await _render_list(request, error=f"Action impossible : {redact(str(exc))}")
-    return await _render_list(request)
+        return await _render_list(request, error=f"Action impossible : {redact(str(exc))}", filter_status=filter)
+    return await _render_list(request, filter_status=filter)
 

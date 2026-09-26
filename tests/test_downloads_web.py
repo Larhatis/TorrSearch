@@ -153,3 +153,57 @@ def test_transmission_errors_never_show_credentials():
     assert "injoignable" in resp.text.lower()
     assert "TR-SECRET" not in resp.text
 
+
+def test_downloads_list_filters_and_counters():
+    t_down = _ti(id=1, name="Downloading.Movie", percent=50.0, status="downloading", down_rate=1000, up_rate=0)
+    t_seed = _ti(id=2, name="Completed.Movie", percent=100.0, status="seeding", down_rate=0, up_rate=500)
+    t_pause = _ti(id=3, name="Paused.Movie", percent=20.0, status="stopped", down_rate=0, up_rate=0)
+    torrents = [t_down, t_seed, t_pause]
+    fake = FakeTransmission(torrents)
+    client = _client(fake)
+
+    # 1. Filter: all (default)
+    resp_all = client.get("/downloads/list")
+    assert resp_all.status_code == 200
+    assert "Downloading.Movie" in resp_all.text
+    assert "Completed.Movie" in resp_all.text
+    assert "Paused.Movie" in resp_all.text
+    # Tabs exist with counters
+    assert "En cours" in resp_all.text
+    assert "Termines" in resp_all.text
+    assert "Actifs" in resp_all.text
+    assert "En pause" in resp_all.text
+
+    # 2. Filter: downloading
+    resp_down = client.get("/downloads/list?filter=downloading")
+    assert resp_down.status_code == 200
+    assert "Downloading.Movie" in resp_down.text
+    assert "Completed.Movie" not in resp_down.text
+    assert "Paused.Movie" not in resp_down.text
+    assert 'filter=downloading' in resp_down.text
+
+    # 3. Filter: completed
+    resp_comp = client.get("/downloads/list?filter=completed")
+    assert resp_comp.status_code == 200
+    assert "Completed.Movie" in resp_comp.text
+    assert "Downloading.Movie" not in resp_comp.text
+
+    # 4. Filter: active
+    resp_act = client.get("/downloads/list?filter=active")
+    assert resp_act.status_code == 200
+    assert "Downloading.Movie" in resp_act.text  # down_rate = 1000
+    assert "Completed.Movie" in resp_act.text    # up_rate = 500
+    assert "Paused.Movie" not in resp_act.text   # rate = 0
+
+    # 5. Filter: paused
+    resp_pause = client.get("/downloads/list?filter=paused")
+    assert resp_pause.status_code == 200
+    assert "Paused.Movie" in resp_pause.text
+    assert "Downloading.Movie" not in resp_pause.text
+
+    # 6. Action preserves filter query
+    resp_action = client.post("/downloads/1/pause?filter=downloading")
+    assert resp_action.status_code == 200
+    assert 'filter=downloading' in resp_action.text
+
+

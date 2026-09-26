@@ -1,6 +1,6 @@
 [project]
 name = "torsearch"
-version = "0.3.4"
+version = "0.3.5"
 description = "Recherche multi-trackers (Torznab) avec envoi a Transmission"
 requires-python = ">=3.12"
 dependencies = [
