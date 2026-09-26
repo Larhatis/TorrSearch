@@ -140,6 +140,41 @@ SEASON_2 = {"episodes": [
 ]}
 
 
+async def test_seasons_returns_structured_info():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"))
+    with respx.mock:
+        respx.get("https://api.themoviedb.org/3/tv/42").mock(
+            return_value=httpx.Response(200, json=TV_DETAIL))
+        respx.get("https://api.themoviedb.org/3/tv/42/season/1").mock(
+            return_value=httpx.Response(200, json=SEASON_1))
+        respx.get("https://api.themoviedb.org/3/tv/42/season/2").mock(
+            return_value=httpx.Response(200, json=SEASON_2))
+        seasons = await client.seasons(42)
+    assert len(seasons) == 2
+    s1, s2 = seasons
+    assert s1.season_number == 1
+    assert s1.season_tag == "S01"
+    assert len(s1.episodes) == 3
+    assert [ep.code for ep in s1.episodes] == ["S01E01", "S01E02", "S01E03"]
+    assert s2.season_number == 2
+    assert s2.season_tag == "S02"
+    assert len(s2.episodes) == 2
+
+
+async def test_seasons_disabled_returns_empty():
+    assert await TmdbClient(MetadataConfig()).seasons(42) == []
+
+
+async def test_seasons_cached_within_ttl():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"), episode_cache_seconds=600, clock=lambda: 1000.0)
+    with respx.mock:
+        detail = _mock_full_series()
+        s1 = await client.seasons(42)
+        s2 = await client.seasons(42)
+    assert len(s1) == len(s2) == 2
+    assert detail.call_count == 1
+
+
 async def test_episodes_aggregates_aired_only():
     client = TmdbClient(MetadataConfig(tmdb_api_key="K"))
     with respx.mock:

@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import asyncio
 import logging
 import time
 from datetime import date
@@ -7,7 +6,7 @@ from datetime import date
 import httpx
 
 from torsearch.config import MetadataConfig
-from torsearch.models import MediaResult
+from torsearch.models import EpisodeInfo, MediaResult, SeasonInfo
 from torsearch.redact import redact
 
 logger = logging.getLogger(__name__)
@@ -58,6 +57,7 @@ class TmdbClient:
         self._episode_cache_seconds = episode_cache_seconds
         self._clock = clock
         self._episode_cache: dict[int, tuple[float, set[str]]] = {}
+        self._seasons_cache: dict[int, tuple[float, list[SeasonInfo]]] = {}
 
     @property
     def enabled(self) -> bool:
@@ -162,6 +162,81 @@ class TmdbClient:
             if owns_client:
                 await client.aclose()
 
+    async def seasons(self, tv_id: int) -> list[SeasonInfo]:
+        """Fetch structured seasons and episodes for a TV series from TMDB."""
+        if not self.enabled:
+            return []
+        cached = self._seasons_cache.get(tv_id)
+        if cached is not None and cached[0] > self._clock():
+            return cached[1]
+        result = await self._fetch_seasons(tv_id)
+        if result:
+            self._seasons_cache[tv_id] = (self._clock() + self._episode_cache_seconds, result)
+        return result
+
+    async def _fetch_seasons(self, tv_id: int) -> list[SeasonInfo]:
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        params = {"api_key": self._api_key, "language": "fr-FR"}
+        try:
+            detail = await client.get(f"{_TV_URL}/{tv_id}", params=params)
+            detail.raise_for_status()
+            season_data = [
+                s for s in detail.json().get("seasons", [])
+                if isinstance(s.get("season_number"), int) and s.get("season_number") >= 1
+            ]
+            season_data.sort(key=lambda s: s.get("season_number", 0))
+
+            async def _fetch_season_episodes(number: int) -> list[EpisodeInfo]:
+                try:
+                    resp = await client.get(f"{_TV_URL}/{tv_id}/season/{number}", params=params)
+                    resp.raise_for_status()
+                    episodes: list[EpisodeInfo] = []
+                    for ep in resp.json().get("episodes", []):
+                        s_num = ep.get("season_number")
+                        e_num = ep.get("episode_number")
+                        if s_num is None or e_num is None:
+                            continue
+                        episodes.append(
+                            EpisodeInfo(
+                                season_number=int(s_num),
+                                episode_number=int(e_num),
+                                code=f"S{int(s_num):02d}E{int(e_num):02d}",
+                                name=ep.get("name") or f"Episode {e_num}",
+                                air_date=ep.get("air_date") or None,
+                                overview=ep.get("overview") or "",
+                            )
+                        )
+                    return episodes
+                except Exception as exc:
+                    logger.warning("TMDB season %s/%s failed: %s", tv_id, number, exc)
+                    return []
+
+            fetched_seasons = await asyncio.gather(
+                *[_fetch_season_episodes(s["season_number"]) for s in season_data]
+            )
+
+            result: list[SeasonInfo] = []
+            for s, eps in zip(season_data, fetched_seasons, strict=False):
+                s_num = int(s["season_number"])
+                result.append(
+                    SeasonInfo(
+                        season_number=s_num,
+                        name=s.get("name") or f"Saison {s_num}",
+                        overview=s.get("overview") or "",
+                        poster_path=s.get("poster_path"),
+                        episode_count=len(eps) or s.get("episode_count", 0),
+                        episodes=eps,
+                    )
+                )
+            return result
+        except Exception as exc:  # resilience
+            logger.warning("TMDB seasons failed: %s", exc)
+            return []
+        finally:
+            if owns_client:
+                await client.aclose()
+
     async def episodes(self, tv_id: int) -> set[str]:
         """Aired episode keys (e.g. ``S01E02``) for a series, cached with a TTL.
 
@@ -173,41 +248,14 @@ class TmdbClient:
         cached = self._episode_cache.get(tv_id)
         if cached is not None and cached[0] > self._clock():
             return set(cached[1])
-        result = await self._fetch_episodes(tv_id)
-        if result:
-            self._episode_cache[tv_id] = (self._clock() + self._episode_cache_seconds, result)
-        return set(result)
-
-    async def _fetch_episodes(self, tv_id: int) -> set[str]:
-        owns_client = self._client is None
-        client = self._client or httpx.AsyncClient(timeout=self._timeout)
-        params = {"api_key": self._api_key, "language": "fr-FR"}
+        all_seasons = await self.seasons(tv_id)
         today = date.today().isoformat()
-        try:
-            detail = await client.get(f"{_TV_URL}/{tv_id}", params=params)
-            detail.raise_for_status()
-            seasons = [
-                s.get("season_number")
-                for s in detail.json().get("seasons", [])
-                if isinstance(s.get("season_number"), int) and s.get("season_number") >= 1
-            ]
-            keys: set[str] = set()
-            for number in seasons:
-                resp = await client.get(f"{_TV_URL}/{tv_id}/season/{number}", params=params)
-                resp.raise_for_status()
-                for ep in resp.json().get("episodes", []):
-                    season = ep.get("season_number")
-                    episode = ep.get("episode_number")
-                    air = ep.get("air_date")
-                    if season is None or episode is None:
-                        continue
-                    if not air or air > today:
-                        continue
-                    keys.add(f"S{int(season):02d}E{int(episode):02d}")
-            return keys
-        except Exception as exc:  # resilience
-            logger.warning("TMDB episodes failed: %s", exc)
-            return set()
-        finally:
-            if owns_client:
-                await client.aclose()
+        keys: set[str] = set()
+        for s in all_seasons:
+            for ep in s.episodes:
+                if not ep.air_date or ep.air_date > today:
+                    continue
+                keys.add(ep.code)
+        if keys:
+            self._episode_cache[tv_id] = (self._clock() + self._episode_cache_seconds, keys)
+        return keys

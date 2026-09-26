@@ -25,6 +25,10 @@ class SeriesLibrary:
     def list(self) -> list[WantedSeries]:
         return [WantedSeries.model_validate(d) for d in self._c.all()]
 
+    def get(self, tmdb_id: int) -> WantedSeries | None:
+        data = self._c.get(str(tmdb_id))
+        return WantedSeries.model_validate(data) if data is not None else None
+
     def add(self, series: WantedSeries) -> bool:
         if self._c.get(str(series.tmdb_id)) is not None:
             return False

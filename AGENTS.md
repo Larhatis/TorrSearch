@@ -21,7 +21,7 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.5)
+## 2. État actuel (v0.3.6)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
@@ -29,6 +29,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Découverte TMDB (tendances films & séries séparées, recherche par titre, affiches, redirection vers recherche tracker, ajout direct en bibliothèque avec feedback instantané, fiche détail modal avec synopsis complet).
 - Bibliothèque **Films** (≈ Radarr-lite) et **Séries** (≈ Sonarr-lite) avec surveillance en
   tâche de fond et téléchargement automatique.
+- Gestion détaillée des séries par saison et épisode (style Sonarr) : vue détaillée modale ou pleine page (`/series/{tmdb_id}`), état d'acquisition par épisode (Dans Jellyfin, Téléchargé, À venir, Manquant), bouton de recherche 1-clic pour saison complète (`/?q=Titre S01&cat=tv`) ou épisode unitaire (`/?q=Titre S01E01&cat=tv`).
 - Suivi des téléchargements & Vue **Activité** (Chantier 3) : débits globaux, filtres par statut (Tous, En cours, Terminés, Actifs, En pause) avec compteurs en direct, barres de progression par release, ETA restant, nombre de pairs, statuts en français, pause/reprise, suppression avec ou sans données, scan Jellyfin immédiat ou automatique à 100%.
 - Moteur de décision intelligent (chantier 2) : analyseur de release, classement MULTI/VFF/VOSTFR,
   rejet des sources dégradées (CAM/TS/TC), double recherche titre français + original TMDB,
@@ -40,7 +41,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **498 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **510 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

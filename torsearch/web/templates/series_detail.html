@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-4">
+  <a href="/library" class="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors">
+    <i class="ti ti-arrow-left"></i> Retour a la bibliotheque
+  </a>
+</div>
+<div class="rounded-xl border border-slate-800 bg-slate-900/80 p-6 shadow-xl">
+  {% include "partials/series_detail_content.html" %}
+</div>
+{% endblock %}

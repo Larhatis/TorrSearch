@@ -83,3 +83,33 @@ class WantedSeries(BaseModel):
         if not self.poster_path:
             return None
         return f"https://image.tmdb.org/t/p/w342{self.poster_path}"
+
+
+class EpisodeInfo(BaseModel):
+    season_number: int
+    episode_number: int
+    code: str
+    name: str = ""
+    air_date: str | None = None
+    overview: str = ""
+
+
+class SeasonInfo(BaseModel):
+    season_number: int
+    name: str = ""
+    overview: str = ""
+    poster_path: str | None = None
+    episode_count: int = 0
+    episodes: list[EpisodeInfo] = Field(default_factory=list)
+
+    @computed_field
+    @property
+    def season_tag(self) -> str:
+        return f"S{self.season_number:02d}"
+
+    @computed_field
+    @property
+    def poster_url(self) -> str | None:
+        if not self.poster_path:
+            return None
+        return f"https://image.tmdb.org/t/p/w342{self.poster_path}"

@@ -56,7 +56,7 @@ def test_wanted_movie_defaults_and_poster_url():
     assert m.poster_url == "https://image.tmdb.org/t/p/w342/p.jpg"
 
 
-from torsearch.models import WantedSeries
+from torsearch.models import EpisodeInfo, SeasonInfo, WantedSeries
 
 
 def test_wanted_series_defaults_and_poster_url():
@@ -64,3 +64,29 @@ def test_wanted_series_defaults_and_poster_url():
                      added_at=datetime(2026, 6, 21, tzinfo=UTC))
     assert s.grabbed == []
     assert s.poster_url == "https://image.tmdb.org/t/p/w342/s.jpg"
+
+
+def test_episode_info_properties():
+    ep = EpisodeInfo(season_number=1, episode_number=2, code="S01E02", name="The Kingsroad", air_date="2011-04-24")
+    assert ep.season_number == 1
+    assert ep.episode_number == 2
+    assert ep.code == "S01E02"
+    assert ep.name == "The Kingsroad"
+    assert ep.air_date == "2011-04-24"
+    assert ep.overview == ""
+
+
+def test_season_info_tag_and_poster():
+    ep1 = EpisodeInfo(season_number=1, episode_number=1, code="S01E01")
+    season = SeasonInfo(season_number=1, name="Saison 1", poster_path="/p.jpg", episodes=[ep1])
+    assert season.season_tag == "S01"
+    assert season.poster_url == "https://image.tmdb.org/t/p/w342/p.jpg"
+    assert len(season.episodes) == 1
+    assert season.episodes[0].code == "S01E01"
+
+
+def test_season_info_tag_two_digits_and_no_poster():
+    season = SeasonInfo(season_number=12, name="Saison 12")
+    assert season.season_tag == "S12"
+    assert season.poster_url is None
+    assert season.episodes == []

@@ -1,0 +1,118 @@
+<div class="flex flex-col sm:flex-row gap-6">
+  <div class="w-full sm:w-48 shrink-0">
+    <div class="relative aspect-[2/3] w-full rounded-lg bg-slate-800 overflow-hidden">
+      {% if series.poster_url %}
+      <img src="{{ series.poster_url }}" alt="{{ series.title }}" class="h-full w-full object-cover" data-poster>
+      {% else %}
+      <div class="flex h-full w-full items-center justify-center text-slate-600"><i class="ti ti-photo text-4xl"></i></div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="flex-1 flex flex-col min-w-0">
+    <div class="flex flex-wrap items-center gap-2 mb-1">
+      <span class="rounded px-2 py-0.5 text-xs bg-violet-500/15 text-violet-300 font-medium">Serie</span>
+      {% if series.year %}<span class="text-xs text-slate-400">{{ series.year }}</span>{% endif %}
+      <span class="rounded px-2 py-0.5 text-xs bg-violet-500/15 text-violet-300 font-medium">{{ total_series_acquired }}/{{ total_series_episodes }} episodes acquis</span>
+      {% if series.in_library %}<span class="rounded bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-300 font-medium">En bibliotheque</span>{% endif %}
+      {% if owned_jf %}<span class="rounded bg-green-500/15 px-2 py-0.5 text-xs text-green-300 font-medium">Dans Jellyfin</span>{% endif %}
+    </div>
+    <h1 class="text-xl sm:text-2xl font-bold text-slate-100 truncate" title="{{ series.title }}">{{ series.title }}</h1>
+    {% if series.original_title and series.original_title != series.title %}
+    <div class="text-xs text-slate-400 mb-2 italic">Titre original : {{ series.original_title }}</div>
+    {% endif %}
+    <div class="mt-2 text-sm text-slate-300 leading-relaxed max-h-36 overflow-y-auto pr-1">
+      {% if series.overview %}
+      {{ series.overview }}
+      {% else %}
+      <span class="text-slate-500 italic">Aucun synopsis disponible.</span>
+      {% endif %}
+    </div>
+    <div class="mt-4 pt-3 border-t border-slate-800 flex flex-wrap items-center gap-2.5">
+      <a href="/?q={{ series.title | urlencode }}&cat=tv"
+         class="flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-2 text-xs font-semibold text-white transition-colors">
+        <i class="ti ti-download"></i> Rechercher les torrents
+      </a>
+      {% if owned_jf %}
+      <a href="{{ jellyfin_url }}/web/#/details?id={{ owned_jf }}" target="_blank" rel="noopener"
+         class="flex items-center gap-1.5 rounded-lg border border-slate-700 hover:border-slate-600 px-3.5 py-2 text-xs font-semibold text-slate-200 transition-colors">
+        <i class="ti ti-player-play"></i> Lire sur Jellyfin
+      </a>
+      {% endif %}
+      {% if not series.in_library %}
+      <form hx-post="/series/add" hx-target="#detail-add-btn" hx-swap="outerHTML">
+        <input type="hidden" name="tmdb_id" value="{{ series.tmdb_id }}">
+        <input type="hidden" name="title" value="{{ series.title }}">
+        <input type="hidden" name="original_title" value="{{ series.original_title or '' }}">
+        <input type="hidden" name="year" value="{{ series.year or '' }}">
+        <input type="hidden" name="poster_path" value="{{ series.poster_path or '' }}">
+        <button id="detail-add-btn" type="submit"
+                class="flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-600/20 hover:bg-violet-600/30 px-3.5 py-2 text-xs font-semibold text-violet-300 transition-colors">
+          <i class="ti ti-plus"></i> Suivre la serie
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="mt-6 pt-5 border-t border-slate-800">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-base font-semibold text-slate-200">Saisons et episodes</h2>
+    <span class="text-xs text-slate-400">{{ seasons | length }} saisons repertoriees</span>
+  </div>
+
+  {% if not seasons %}
+  <p class="text-sm text-slate-500 italic">Aucune saison repertoriee sur TMDB pour cette serie.</p>
+  {% else %}
+  <div class="space-y-3">
+    {% for s in seasons %}
+    <details class="group rounded-lg border border-slate-800 bg-slate-800/40 overflow-hidden" {% if loop.first or (s.acquired_count < s.total_episodes and s.acquired_count > 0) %}open{% endif %}>
+      <summary class="flex items-center justify-between p-3.5 cursor-pointer list-none select-none hover:bg-slate-800/70 transition-colors">
+        <div class="flex items-center gap-2.5">
+          <i class="ti ti-chevron-right text-slate-400 text-xs transition-transform group-open:rotate-90"></i>
+          <span class="font-semibold text-sm text-slate-200">{{ s.name }}</span>
+          <span class="text-xs text-slate-500">({{ s.total_episodes }} episodes)</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="rounded px-2 py-0.5 text-xs font-medium border {{ s.badge_class }}">
+            {{ s.acquired_count }}/{{ s.total_episodes }} acquis
+          </span>
+        </div>
+      </summary>
+      <div class="border-t border-slate-800/60 p-3 bg-slate-900/60">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3 px-1">
+          <div class="text-xs text-slate-400">
+            {% if s.overview %}{{ s.overview }}{% else %}Episodes de la saison :{% endif %}
+          </div>
+          <a href="/?q={{ s.search_query | urlencode }}&cat=tv"
+             class="flex items-center gap-1.5 rounded-lg bg-emerald-600/15 border border-emerald-500/30 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:bg-emerald-600/25 transition-colors">
+            <i class="ti ti-download"></i> Rechercher la saison complete
+          </a>
+        </div>
+        <div class="space-y-1.5">
+          {% for ep in s.episodes %}
+          <div class="flex items-center justify-between gap-2 rounded-lg border border-slate-800/60 bg-slate-800/30 hover:bg-slate-800/60 px-3 py-2 text-xs transition-colors">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="font-mono font-semibold text-slate-300 shrink-0">{{ ep.code }}</span>
+              <span class="truncate font-medium text-slate-200" title="{{ ep.name }}">{{ ep.name }}</span>
+              {% if ep.air_date %}
+              <span class="text-[11px] text-slate-500 shrink-0 hidden sm:inline">{{ ep.air_date }}</span>
+              {% endif %}
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <span class="rounded px-2 py-0.5 text-[11px] border {{ ep.badge_class }}">{{ ep.status_label }}</span>
+              <a href="/?q={{ ep.search_query | urlencode }}&cat=tv"
+                 class="flex h-7 w-7 items-center justify-center rounded border border-slate-700 bg-slate-800 text-slate-300 hover:border-emerald-500 hover:text-emerald-400 transition-colors"
+                 title="Rechercher {{ ep.code }}">
+                <i class="ti ti-download text-sm"></i>
+              </a>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>

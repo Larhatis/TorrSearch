@@ -37,3 +37,12 @@ def test_mark_grabbed_unions_keys(tmp_path):
     lib.mark_grabbed(1, ["S01E01", "S01E02"])
     lib.mark_grabbed(1, ["S01E02", "S01E03"])
     assert lib.list()[0].grabbed == ["S01E01", "S01E02", "S01E03"]
+
+
+def test_get_existing_and_missing(tmp_path):
+    lib = SeriesLibrary(tmp_path / "series.json")
+    lib.add(_series(1, "Severance"))
+    found = lib.get(1)
+    assert found is not None
+    assert found.title == "Severance"
+    assert lib.get(999) is None
