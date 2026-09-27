@@ -8,10 +8,12 @@
 {% else %}
 <div class="space-y-2">
   {% for r in requests %}
-  <div class="flex flex-wrap items-center gap-3 rounded-lg border border-slate-700 bg-slate-800/40 px-3 py-2">
-    <span class="rounded px-1.5 py-0.5 text-[10px] {{ 'bg-sky-500/15 text-sky-300' if r.media_type == 'movie' else 'bg-violet-500/15 text-violet-300' }}">{{ 'Film' if r.media_type == 'movie' else 'Serie' }}</span>
-    <span class="text-sm text-white">{{ r.title }}{% if r.year %} <span class="text-slate-500">({{ r.year }})</span>{% endif %}</span>
-    <span class="ml-auto rounded px-2 py-0.5 text-[11px] font-semibold
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-slate-700 bg-slate-800/40 p-3">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="rounded px-1.5 py-0.5 text-[10px] {{ 'bg-sky-500/15 text-sky-300' if r.media_type == 'movie' else 'bg-violet-500/15 text-violet-300' }}">{{ 'Film' if r.media_type == 'movie' else 'Serie' }}</span>
+      <span class="text-sm font-medium text-white">{{ r.title }}{% if r.year %} <span class="text-slate-500">({{ r.year }})</span>{% endif %}</span>
+    </div>
+    <span class="self-end sm:self-auto rounded px-2 py-0.5 text-[11px] font-semibold
       {% if r.status.value == 'approved' %}bg-green-500/15 text-green-300
       {% elif r.status.value == 'rejected' %}bg-red-500/15 text-red-300
       {% else %}bg-amber-500/15 text-amber-300{% endif %}">

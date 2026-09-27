@@ -28,6 +28,11 @@
   }
 
   document.addEventListener('click', function (event) {
+    document.querySelectorAll('details[data-dropdown][open]').forEach(function (d) {
+      if (!d.contains(event.target)) {
+        d.removeAttribute('open');
+      }
+    });
     if (event.target.closest('[data-modal-close]') || (event.target.matches && event.target.matches('[data-modal-backdrop]'))) {
       closeModal();
       return;

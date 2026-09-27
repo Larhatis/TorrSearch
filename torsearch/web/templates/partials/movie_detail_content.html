@@ -1,6 +1,6 @@
-<div class="flex flex-col sm:flex-row gap-6">
-  <div class="w-full sm:w-48 shrink-0">
-    <div class="relative aspect-[2/3] w-full rounded-lg bg-slate-800 overflow-hidden">
+<div class="flex flex-col sm:flex-row gap-4 sm:gap-6">
+  <div class="w-32 sm:w-48 mx-auto sm:mx-0 shrink-0">
+    <div class="relative aspect-[2/3] w-full rounded-lg bg-slate-800 overflow-hidden shadow-lg">
       {% if movie.poster_url %}
       <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="h-full w-full object-cover" data-poster>
       {% else %}

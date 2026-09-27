@@ -1,11 +1,11 @@
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" data-modal-backdrop>
-  <div class="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
-    <button data-modal-close class="absolute right-4 top-4 text-slate-400 hover:text-white transition-colors" aria-label="Fermer">
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-2 sm:p-4 backdrop-blur-sm" data-modal-backdrop>
+  <div class="relative max-h-[92vh] sm:max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-3.5 sm:p-6 shadow-2xl">
+    <button data-modal-close class="absolute right-2.5 top-2.5 sm:right-4 sm:top-4 text-slate-400 hover:text-white transition-colors" aria-label="Fermer">
       <i class="ti ti-x text-xl"></i>
     </button>
-    <div class="flex flex-col sm:flex-row gap-6">
-      <div class="w-full sm:w-48 shrink-0">
-        <div class="relative aspect-[2/3] w-full rounded-lg bg-slate-800 overflow-hidden">
+    <div class="flex flex-col sm:flex-row gap-4 sm:gap-6">
+      <div class="w-32 sm:w-48 mx-auto sm:mx-0 shrink-0">
+        <div class="relative aspect-[2/3] w-full rounded-lg bg-slate-800 overflow-hidden shadow-lg">
           {% if m.poster_url %}
           <img src="{{ m.poster_url }}" alt="{{ m.title }}" class="h-full w-full object-cover">
           {% else %}

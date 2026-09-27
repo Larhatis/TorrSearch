@@ -3,50 +3,56 @@
   {% if not counts or counts.all == 0 %}
     <p class="text-slate-400">Aucun telechargement en cours.</p>
   {% else %}
-  <div class="mb-4 flex flex-wrap items-center gap-3">
-    <div class="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-800/40 px-3 py-1.5 text-xs text-slate-300">
-      <i class="ti ti-arrow-down text-emerald-400"></i>
-      <span class="text-slate-400">Reception :</span>
-      <span class="font-semibold text-slate-100">{{ total_down_formatted }}</span>
+  <div class="mb-4 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+    <div class="flex flex-col sm:flex-row items-center sm:items-baseline gap-1 sm:gap-1.5 rounded-lg border border-slate-800 bg-slate-800/40 p-2 sm:px-3 sm:py-1.5 text-center sm:text-left text-xs text-slate-300">
+      <div class="flex items-center gap-1 text-slate-400 text-[10px] sm:text-xs">
+        <i class="ti ti-arrow-down text-emerald-400"></i>
+        <span>Reception :</span>
+      </div>
+      <span class="font-semibold text-slate-100 text-[11px] sm:text-xs truncate">{{ total_down_formatted }}</span>
     </div>
-    <div class="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-800/40 px-3 py-1.5 text-xs text-slate-300">
-      <i class="ti ti-arrow-up text-sky-400"></i>
-      <span class="text-slate-400">Envoi :</span>
-      <span class="font-semibold text-slate-100">{{ total_up_formatted }}</span>
+    <div class="flex flex-col sm:flex-row items-center sm:items-baseline gap-1 sm:gap-1.5 rounded-lg border border-slate-800 bg-slate-800/40 p-2 sm:px-3 sm:py-1.5 text-center sm:text-left text-xs text-slate-300">
+      <div class="flex items-center gap-1 text-slate-400 text-[10px] sm:text-xs">
+        <i class="ti ti-arrow-up text-sky-400"></i>
+        <span>Envoi :</span>
+      </div>
+      <span class="font-semibold text-slate-100 text-[11px] sm:text-xs truncate">{{ total_up_formatted }}</span>
     </div>
-    <div class="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-800/40 px-3 py-1.5 text-xs text-slate-300">
-      <i class="ti ti-layers text-slate-400"></i>
-      <span class="text-slate-400">Actifs :</span>
-      <span class="font-semibold text-slate-100">{{ active_count }} / {{ counts.all }}</span>
+    <div class="flex flex-col sm:flex-row items-center sm:items-baseline gap-1 sm:gap-1.5 rounded-lg border border-slate-800 bg-slate-800/40 p-2 sm:px-3 sm:py-1.5 text-center sm:text-left text-xs text-slate-300">
+      <div class="flex items-center gap-1 text-slate-400 text-[10px] sm:text-xs">
+        <i class="ti ti-layers text-slate-400"></i>
+        <span>Actifs :</span>
+      </div>
+      <span class="font-semibold text-slate-100 text-[11px] sm:text-xs truncate">{{ active_count }} / {{ counts.all }}</span>
     </div>
   </div>
 
-  <div class="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
+  <div class="mb-4 flex gap-1.5 sm:gap-2 border-b border-slate-800 pb-3 overflow-x-auto no-scrollbar flex-nowrap">
     <button hx-get="/downloads/list?filter=all" hx-target="#downloads-list" hx-swap="outerHTML"
-            class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if current_filter == 'all' else 'text-slate-400 hover:text-slate-200' }}">
+            class="shrink-0 flex items-center gap-1.5 rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if current_filter == 'all' else 'text-slate-400 hover:text-slate-200' }}">
       <span>Tous</span>
       <span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300">{{ counts.all }}</span>
     </button>
     <button hx-get="/downloads/list?filter=downloading" hx-target="#downloads-list" hx-swap="outerHTML"
-            class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if current_filter == 'downloading' else 'text-slate-400 hover:text-slate-200' }}">
+            class="shrink-0 flex items-center gap-1.5 rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if current_filter == 'downloading' else 'text-slate-400 hover:text-slate-200' }}">
       <i class="ti ti-arrow-down text-emerald-400"></i>
       <span>En cours</span>
       <span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300">{{ counts.downloading }}</span>
     </button>
     <button hx-get="/downloads/list?filter=completed" hx-target="#downloads-list" hx-swap="outerHTML"
-            class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if current_filter == 'completed' else 'text-slate-400 hover:text-slate-200' }}">
+            class="shrink-0 flex items-center gap-1.5 rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if current_filter == 'completed' else 'text-slate-400 hover:text-slate-200' }}">
       <i class="ti ti-check text-sky-400"></i>
       <span>Termines</span>
       <span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300">{{ counts.completed }}</span>
     </button>
     <button hx-get="/downloads/list?filter=active" hx-target="#downloads-list" hx-swap="outerHTML"
-            class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if current_filter == 'active' else 'text-slate-400 hover:text-slate-200' }}">
+            class="shrink-0 flex items-center gap-1.5 rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if current_filter == 'active' else 'text-slate-400 hover:text-slate-200' }}">
       <i class="ti ti-activity text-emerald-400"></i>
       <span>Actifs</span>
       <span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300">{{ counts.active }}</span>
     </button>
     <button hx-get="/downloads/list?filter=paused" hx-target="#downloads-list" hx-swap="outerHTML"
-            class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if current_filter == 'paused' else 'text-slate-400 hover:text-slate-200' }}">
+            class="shrink-0 flex items-center gap-1.5 rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if current_filter == 'paused' else 'text-slate-400 hover:text-slate-200' }}">
       <i class="ti ti-player-pause text-slate-400"></i>
       <span>En pause</span>
       <span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300">{{ counts.paused }}</span>
@@ -58,8 +64,8 @@
   {% else %}
   <div class="space-y-3">
   {% for t in torrents %}
-    <div class="rounded-lg border border-slate-800 bg-slate-800/40 p-4 transition-colors hover:border-slate-700">
-      <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
+    <div class="rounded-lg border border-slate-800 bg-slate-800/40 p-3 sm:p-4 transition-colors hover:border-slate-700">
+      <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 sm:gap-3 mb-2.5">
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="font-semibold text-slate-100 text-sm break-all" title="{{ t.name }}">{{ t.name }}</span>
@@ -69,7 +75,7 @@
             </button>
             {% endif %}
           </div>
-          <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+          <div class="mt-1 flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-slate-400">
             {% if t.status_label == 'Telechargement' %}
             <span class="rounded bg-emerald-500/15 px-2 py-0.5 text-emerald-300 font-medium">Telechargement</span>
             {% elif t.status_label == 'Partage' %}
@@ -88,7 +94,7 @@
             {% if t.peers_connected > 0 %}<span>{{ t.peers_connected }} pair{{ 's' if t.peers_connected > 1 else '' }}</span>{% endif %}
           </div>
         </div>
-        <div class="flex items-center gap-1.5 shrink-0">
+        <div class="flex items-center gap-1.5 self-end sm:self-start shrink-0 pt-1 sm:pt-0">
           {% if t.status == 'stopped' or t.status_label == 'En pause' %}
           <button hx-post="/downloads/{{ t.id }}/resume?filter={{ current_filter }}" hx-target="#downloads-list" hx-swap="outerHTML"
                   title="Reprendre"

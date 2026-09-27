@@ -21,10 +21,11 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.7)
+## 2. État actuel (v0.3.8)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Interface entièrement responsive mobile (Barre de navigation tactile basse "Bottom Bar" avec menu popover pour les réglages/demandes, cartes de résultats fluides sans débordement horizontal, défilement d'onglets au doigt, affiches adaptées).
 - Recherche multi-trackers Torznab (parallèle, dédoublonnage, filtres, tri).
 - Découverte TMDB (tendances films & séries séparées, recherche par titre, affiches, redirection vers recherche tracker, ajout direct en bibliothèque avec feedback instantané, fiche détail modal avec synopsis complet).
 - Fiches détaillées **Films** (`/movies/{tmdb_id}`) et **Séries** (`/series/{tmdb_id}`) : vue modale ou pleine page, synopsis, casting, genres, statut Jellyfin, release téléchargée, boutons de recherche 1-clic par qualité (Tous, 1080p, 4K, Remux) ou par épisode/saison, bouton de remplacement (« Regrab »).
@@ -42,7 +43,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **522 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **524 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
@@ -162,6 +163,7 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
 **Chantier 4 — interface & expérience utilisateur (en cours)** :
 - Assets servis localement (Zéro CDN : Tailwind, Tabler Icons, HTMX) : terminé en v0.3.7.
 - Pages détail film et série avec synopsis, statut Jellyfin et recherche 1-clic : terminé en v0.3.7.
+- Interface tactile entièrement responsive mobile (Bottom bar, cartes adaptatives, menus tactiles) : terminé en v0.3.8.
 - Prochaines étapes : menu simplifié, favicon local, Réglages en onglets.
 
 **Petits chantiers** : clé de session dans le volume `/data` ; changement de mot de passe

@@ -12,96 +12,96 @@
 </section>
 
 {% if auth_enabled %}
-<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
   <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
     <i class="ti ti-users text-slate-500"></i>
     <h2 class="text-sm font-semibold text-white">Utilisateurs</h2>
   </div>
   <form hx-post="/settings/users" hx-target="#user-list" hx-swap="outerHTML" class="mb-4 flex flex-wrap items-end gap-2">
-    <input name="username" placeholder="Identifiant" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
-    <input name="password" type="password" placeholder="Mot de passe" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
-    <select name="role" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 text-sm">
+    <input name="username" placeholder="Identifiant" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <input name="password" type="password" placeholder="Mot de passe" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <select name="role" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1 text-sm">
       <option value="guest">Invite (demande seule)</option>
       <option value="member">Membre (ajout direct)</option>
       <option value="admin">Admin</option>
     </select>
-    <button class="rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1 text-sm">Ajouter</button>
+    <button class="w-full sm:w-auto rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white">Ajouter</button>
   </form>
   {% include "partials/user_list.html" %}
 </section>
 {% endif %}
 
-<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
   <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
     <i class="ti ti-download text-slate-500"></i>
     <h2 class="text-sm font-semibold text-white">Transmission &amp; recherche</h2>
   </div>
   <form hx-post="/settings/general" hx-target="#toast" class="flex flex-wrap items-end gap-3">
-    <label class="text-xs text-slate-400">Hote<br>
-      <input name="host" value="{{ config.transmission.host }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400 w-full sm:w-auto">Hote<br>
+      <input name="host" value="{{ config.transmission.host }}" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="text-xs text-slate-400">Port<br>
-      <input name="port" value="{{ config.transmission.port }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-24"></label>
-    <label class="text-xs text-slate-400">Utilisateur<br>
-      <input name="username" value="{{ config.transmission.username }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-    <label class="text-xs text-slate-400">Mot de passe<br>
+      <input name="port" value="{{ config.transmission.port }}" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400 w-full sm:w-auto">Utilisateur<br>
+      <input name="username" value="{{ config.transmission.username }}" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400 w-full sm:w-auto">Mot de passe<br>
       <input name="password" type="password" value="" autocomplete="new-password"
              placeholder="{{ '•••••• (inchange si vide)' if config.transmission.password else '' }}"
-             class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-    <label class="text-xs text-slate-400 flex items-center gap-1">
+             class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400 flex items-center gap-1 my-2 sm:my-0">
       <input type="checkbox" name="https" {% if config.transmission.https %}checked{% endif %}> https</label>
     <label class="text-xs text-slate-400">Timeout (s)<br>
-      <input name="timeout_seconds" value="{{ config.search.timeout_seconds }}" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-24"></label>
-    <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+      <input name="timeout_seconds" value="{{ config.search.timeout_seconds }}" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <button class="w-full sm:w-auto rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
 </section>
 
-<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
   <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
     <i class="ti ti-rss text-slate-500"></i>
     <h2 class="text-sm font-semibold text-white">Trackers</h2>
   </div>
   <form hx-post="/settings/indexers" hx-target="#indexer-list" hx-swap="outerHTML"
         class="flex flex-wrap items-end gap-2 mb-4">
-    <label class="text-xs text-slate-400">Nom<br>
-      <input name="name" placeholder="ex: tracker1" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-    <label class="text-xs text-slate-400">URL Torznab<br>
-      <input name="url" placeholder="https://tracker.example/api/" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-72"></label>
-    <label class="text-xs text-slate-400">Cle API Torznab<br>
-      <input name="api_key" class="rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400 w-full sm:w-auto">Nom<br>
+      <input name="name" placeholder="ex: tracker1" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400 w-full sm:w-auto">URL Torznab<br>
+      <input name="url" placeholder="https://tracker.example/api/" class="w-full sm:w-72 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400 w-full sm:w-auto">Cle API Torznab<br>
+      <input name="api_key" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="text-xs text-slate-400">Auth<br>
       <select name="auth" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
         <option value="query">query</option><option value="bearer">bearer</option>
       </select></label>
-    <button class="rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1 text-sm">Ajouter</button>
+    <button class="w-full sm:w-auto rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white">Ajouter</button>
   </form>
   <p class="mb-4 text-xs text-slate-500">URL : l'adresse complete de l'API Torznab du tracker (voir sa doc, ex. https://tracker.example/api/).
     Cle : la cle API de ton profil sur le tracker, pas la passkey.</p>
   {% include "partials/indexer_list.html" %}
 </section>
 
-<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
   <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
     <i class="ti ti-bell text-slate-500"></i>
     <h2 class="text-sm font-semibold text-white">Notifications</h2>
   </div>
   <form hx-post="/settings/notifications" hx-target="#notification-list" hx-swap="outerHTML"
         class="flex flex-wrap items-end gap-2 mb-4">
-    <input name="name" placeholder="Nom" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
-    <select name="type" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <input name="name" placeholder="Nom" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <select name="type" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
       <option value="discord">Discord</option>
       <option value="ntfy">ntfy</option>
       <option value="telegram">Telegram</option>
       <option value="webhook">Webhook</option>
     </select>
-    <input name="url" placeholder="URL (Discord / ntfy / webhook)" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-72">
-    <input name="token" placeholder="Token (Telegram)" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
-    <input name="chat_id" placeholder="Chat id (Telegram)" class="rounded bg-slate-800 border border-slate-700 px-2 py-1 w-28">
-    <button class="rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1 text-sm">Ajouter</button>
+    <input name="url" placeholder="URL (Discord / ntfy / webhook)" class="w-full sm:w-72 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <input name="token" placeholder="Token (Telegram)" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <input name="chat_id" placeholder="Chat id (Telegram)" class="w-full sm:w-28 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <button class="w-full sm:w-auto rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white">Ajouter</button>
   </form>
   {% include "partials/notification_list.html" %}
 </section>
 
-<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
   <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
     <i class="ti ti-movie text-slate-500"></i>
     <h2 class="text-sm font-semibold text-white">Bibliotheque (profil de qualite)</h2>
@@ -109,7 +109,7 @@
   <form hx-post="/settings/library" hx-target="#toast" class="flex flex-wrap items-end gap-4">
     <fieldset class="text-xs text-slate-400">
       <legend>Qualites recherchees</legend>
-      <div class="mt-1 flex gap-2">
+      <div class="mt-1 flex flex-wrap gap-2">
         {% for qv in ["2160p", "1080p", "720p", "480p"] %}
         <label class="flex items-center gap-1"><input type="checkbox" name="quality" value="{{ qv }}" {% if qv in config.library.qualities %}checked{% endif %}> {{ qv }}</label>
         {% endfor %}
@@ -119,42 +119,42 @@
       <input name="min_seeders" value="{{ config.library.min_seeders }}" class="mt-1 w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="flex items-center gap-1.5 text-xs text-slate-400" title="Re-telecharge un film en meilleure qualite quand une release superieure du profil apparait">
       <input type="checkbox" name="upgrades" {% if config.library.upgrades %}checked{% endif %}> Upgrades de qualite (films)</label>
-    <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+    <button class="w-full sm:w-auto rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
 </section>
 
-<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
   <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
     <i class="ti ti-compass text-slate-500"></i>
     <h2 class="text-sm font-semibold text-white">Decouverte (TMDB)</h2>
   </div>
   <form hx-post="/settings/metadata" hx-target="#toast" class="flex flex-wrap items-end gap-3">
-    <label class="text-xs text-slate-400">Cle API TMDB<br>
+    <label class="text-xs text-slate-400 w-full sm:w-auto">Cle API TMDB<br>
       <input name="tmdb_api_key" type="password" value="" autocomplete="new-password"
              placeholder="{% if config.metadata.tmdb_api_key %}•••••• (inchange si vide){% elif tmdb_from_env %}definie par TMDB_API_KEY{% endif %}"
-             class="mt-1 w-72 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-    <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+             class="mt-1 w-full sm:w-72 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <button class="w-full sm:w-auto rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
   <p class="mt-2 text-xs text-slate-500">Cle gratuite sur themoviedb.org (Parametres &gt; API).</p>
 </section>
 
-<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
   <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
     <i class="ti ti-device-tv text-slate-500"></i>
     <h2 class="text-sm font-semibold text-white">Jellyfin (lecture)</h2>
   </div>
   <form hx-post="/settings/jellyfin" hx-target="#toast" class="flex flex-wrap items-end gap-3">
-    <label class="text-xs text-slate-400">URL<br>
-      <input name="url" value="{{ config.jellyfin.url }}" placeholder="http://jellyfin:8096" class="mt-1 w-72 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-    <label class="text-xs text-slate-400">Cle API<br>
+    <label class="text-xs text-slate-400 w-full sm:w-auto">URL<br>
+      <input name="url" value="{{ config.jellyfin.url }}" placeholder="http://jellyfin:8096" class="mt-1 w-full sm:w-72 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400 w-full sm:w-auto">Cle API<br>
       <input name="api_key" type="password" value="" autocomplete="new-password"
              placeholder="{{ '•••••• (inchange si vide)' if config.jellyfin.api_key else '' }}"
-             class="mt-1 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-    <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+             class="mt-1 w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <button class="w-full sm:w-auto rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
 </section>
 
-<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-5">
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
   <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
     <i class="ti ti-folder text-slate-500"></i>
     <h2 class="text-sm font-semibold text-white">Dossiers de telechargement</h2>
@@ -162,10 +162,10 @@
   <p class="text-xs text-slate-500 mb-3">Chemins vus par Transmission (dans son conteneur le cas echeant). Vide = dossier par defaut.</p>
   <form hx-post="/settings/paths" hx-target="#toast" class="flex flex-wrap items-end gap-3">
     {% for c in categories %}{% if c.value != 'all' %}
-    <label class="text-xs text-slate-400">{{ c.value | capitalize }}<br>
-      <input name="path_{{ c.value }}" value="{{ config.paths.by_category.get(c.value, '') }}" placeholder="/data/{{ c.value }}" class="mt-1 w-48 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400 w-full sm:w-auto">{{ c.value | capitalize }}<br>
+      <input name="path_{{ c.value }}" value="{{ config.paths.by_category.get(c.value, '') }}" placeholder="/data/{{ c.value }}" class="mt-1 w-full sm:w-48 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     {% endif %}{% endfor %}
-    <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+    <button class="w-full sm:w-auto rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
 </section>
 

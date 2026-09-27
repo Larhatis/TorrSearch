@@ -1,40 +1,48 @@
 {% macro card_grid(items) %}
-<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+<div class="grid grid-cols-2 gap-2.5 sm:gap-4 sm:grid-cols-3 md:grid-cols-4">
   {% for m in items %}
-  <div class="overflow-hidden rounded-lg border border-slate-800 bg-slate-800/40">
-    <div class="relative flex aspect-[2/3] items-center justify-center bg-slate-900 text-slate-600 cursor-pointer group"
-         hx-get="/discover/{{ m.media_type }}/{{ m.tmdb_id }}/modal" hx-target="#modal-container" hx-swap="innerHTML"
-         title="Voir les details">
-      <i class="ti ti-photo text-3xl"></i>
-      {% if m.poster_url %}<img src="{{ m.poster_url }}" alt="{{ m.title }}" class="absolute inset-0 h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" data-poster>{% endif %}
-      <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-        <span class="rounded-full bg-slate-900/80 p-2 text-white shadow"><i class="ti ti-info-circle text-lg"></i></span>
+  <div class="overflow-hidden rounded-lg border border-slate-800 bg-slate-800/40 flex flex-col justify-between">
+    <div>
+      <div class="relative flex aspect-[2/3] items-center justify-center bg-slate-900 text-slate-600 cursor-pointer group"
+           hx-get="/discover/{{ m.media_type }}/{{ m.tmdb_id }}/modal" hx-target="#modal-container" hx-swap="innerHTML"
+           title="Voir les details">
+        <i class="ti ti-photo text-3xl"></i>
+        {% if m.poster_url %}<img src="{{ m.poster_url }}" alt="{{ m.title }}" class="absolute inset-0 h-full w-full object-cover transition-transform group-hover:scale-105" loading="lazy" data-poster>{% endif %}
+        <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+          <span class="rounded-full bg-slate-900/80 p-2 text-white shadow"><i class="ti ti-info-circle text-lg"></i></span>
+        </div>
+      </div>
+      <div class="p-2 sm:p-2.5">
+        {% set key = m.media_type ~ ':' ~ m.tmdb_id %}
+        {% set jf = (owned or {}).get(key) %}
+        {% set in_lib = key in (in_library or []) %}
+        {% set req = key in (requested or []) %}
+        <div class="flex flex-wrap items-center gap-1 sm:gap-1.5">
+          <span class="rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] {{ 'bg-sky-500/15 text-sky-300' if m.media_type == 'movie' else 'bg-violet-500/15 text-violet-300' }}">{{ 'Film' if m.media_type == 'movie' else 'Serie' }}</span>
+          {% if m.year %}<span class="text-[10px] sm:text-[11px] text-slate-500">{{ m.year }}</span>{% endif %}
+          {% if jf %}<span class="rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] bg-green-500/15 text-green-300">Dans Jellyfin</span>
+          {% elif in_lib %}<span class="rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] bg-green-500/15 text-green-300">Dans la bibliotheque</span>
+          {% elif req %}<span class="rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] bg-amber-500/15 text-amber-300">Demande</span>{% endif %}
+        </div>
+        <div class="mt-1 truncate text-xs sm:text-sm font-medium text-slate-100 cursor-pointer hover:text-emerald-400 transition-colors"
+             hx-get="/discover/{{ m.media_type }}/{{ m.tmdb_id }}/modal" hx-target="#modal-container" hx-swap="innerHTML"
+             title="{{ m.title }}">{{ m.title }}</div>
       </div>
     </div>
-    <div class="p-2.5">
+    <div class="p-2 sm:p-2.5 pt-0">
       {% set key = m.media_type ~ ':' ~ m.tmdb_id %}
       {% set jf = (owned or {}).get(key) %}
       {% set in_lib = key in (in_library or []) %}
       {% set req = key in (requested or []) %}
-      <div class="flex flex-wrap items-center gap-1.5">
-        <span class="rounded px-1.5 py-0.5 text-[10px] {{ 'bg-sky-500/15 text-sky-300' if m.media_type == 'movie' else 'bg-violet-500/15 text-violet-300' }}">{{ 'Film' if m.media_type == 'movie' else 'Serie' }}</span>
-        {% if m.year %}<span class="text-[11px] text-slate-500">{{ m.year }}</span>{% endif %}
-        {% if jf %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-green-500/15 text-green-300">Dans Jellyfin</span>
-        {% elif in_lib %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-green-500/15 text-green-300">Dans la bibliotheque</span>
-        {% elif req %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-amber-500/15 text-amber-300">Demande</span>{% endif %}
-      </div>
-      <div class="mt-1 truncate text-sm font-medium text-slate-100 cursor-pointer hover:text-emerald-400 transition-colors"
-           hx-get="/discover/{{ m.media_type }}/{{ m.tmdb_id }}/modal" hx-target="#modal-container" hx-swap="innerHTML"
-           title="{{ m.title }}">{{ m.title }}</div>
       {% if jf %}
       <a href="{{ jellyfin_url }}/web/#/details?id={{ jf }}" target="_blank" rel="noopener"
-         class="mt-1.5 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
+         class="mt-1 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
         <i class="ti ti-player-play"></i> Lire
       </a>
       {% endif %}
       {% if is_member %}
       <a href="/?q={{ (m.title ~ ' ' ~ (m.year or '')) | trim | urlencode }}&cat={{ 'movies' if m.media_type == 'movie' else 'tv' }}"
-         class="mt-2 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
+         class="mt-1.5 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
         <i class="ti ti-download"></i> Torrents
       </a>
       <div id="media-action-{{ m.media_type }}-{{ m.tmdb_id }}">
@@ -61,7 +69,7 @@
       {% elif not in_lib and not req %}
       <button hx-post="/requests" hx-target="#toast"
               hx-vals='{{ {"media_type": m.media_type, "tmdb_id": m.tmdb_id, "title": m.title, "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
-              class="mt-2 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
+              class="mt-1.5 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">
         <i class="ti ti-send"></i> Demander
       </button>
       {% endif %}
@@ -71,7 +79,7 @@
 </div>
 {% endmacro %}
 
-<div class="mb-5 flex items-center gap-2 border-b border-slate-800 pb-3">
+<div class="mb-4 sm:mb-5 flex items-center gap-1.5 sm:gap-2 border-b border-slate-800 pb-3 overflow-x-auto no-scrollbar">
   <button hx-get="{% if query %}/discover/search?q={{ query | urlencode }}&tab=all{% else %}/discover/trending?tab=all{% endif %}"
           hx-target="#media-results"
           class="rounded-lg px-3 py-1.5 text-xs font-semibold {{ 'bg-slate-700 text-white' if (tab or 'all') == 'all' else 'text-slate-400 hover:text-slate-200' }}">

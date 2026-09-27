@@ -308,3 +308,23 @@ def test_search_displays_multiple_jellyfin_matches_banner():
     assert "http://jelly:8096/web/#/details?id=b2" in resp.text
     assert "http://jelly:8096/web/#/details?id=b3" in resp.text
 
+
+def test_base_template_has_mobile_bottom_bar():
+    client, _ = _make()
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "viewport-fit=cover" in resp.text
+    assert "md:hidden fixed bottom-0" in resp.text
+    assert 'href="/discover"' in resp.text
+    assert 'href="/library"' in resp.text
+    assert 'href="/downloads"' in resp.text
+    assert "Menu" in resp.text
+
+
+def test_search_results_mobile_responsive_layout():
+    client, _ = _make([_movie()])
+    resp = client.get("/search", params={"q": "cool", "cat": "all"})
+    assert resp.status_code == 200
+    assert "flex-col sm:flex-row" in resp.text
+    assert "line-clamp-2" in resp.text
+

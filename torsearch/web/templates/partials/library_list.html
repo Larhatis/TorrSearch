@@ -2,33 +2,38 @@
 {% if not movies %}
   <p class="text-slate-400">Aucun film dans la bibliotheque. Ajoute-en depuis <a href="/discover" class="underline hover:text-emerald-400">Decouvrir</a>.</p>
 {% else %}
-<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+<div class="grid grid-cols-2 gap-2.5 sm:gap-4 sm:grid-cols-3 md:grid-cols-4">
   {% for m in movies %}
-  <div class="overflow-hidden rounded-lg border border-slate-800 bg-slate-800/40">
-    <div class="relative flex aspect-[2/3] items-center justify-center bg-slate-900 text-slate-600 cursor-pointer"
-         hx-get="/movies/{{ m.tmdb_id }}/detail" hx-target="#modal-container" hx-swap="innerHTML"
-         title="Voir les details du film">
-      <i class="ti ti-photo text-3xl"></i>
-      {% if m.poster_url %}<img src="{{ m.poster_url }}" alt="{{ m.title }}" class="absolute inset-0 h-full w-full object-cover" loading="lazy" data-poster>{% endif %}
-    </div>
-    <div class="p-2.5">
-      {% set jf = (owned or {}).get('movie:' ~ m.tmdb_id) %}
-      <div class="flex items-center gap-1.5">
-        {% if m.status == 'grabbed' %}
-        <span class="rounded px-1.5 py-0.5 text-[10px] bg-green-500/15 text-green-300">Obtenu</span>
-        {% else %}
-        <span class="rounded px-1.5 py-0.5 text-[10px] bg-amber-500/15 text-amber-300">Voulu</span>
-        {% endif %}
-        {% if m.year %}<span class="text-[11px] text-slate-500">{{ m.year }}</span>{% endif %}
-        {% if jf %}<span class="rounded px-1.5 py-0.5 text-[10px] bg-green-500/15 text-green-300">Dans Jellyfin</span>{% endif %}
-      </div>
-      <div class="mt-1 truncate text-sm font-medium text-slate-100 cursor-pointer hover:text-white"
+  <div class="overflow-hidden rounded-lg border border-slate-800 bg-slate-800/40 flex flex-col justify-between">
+    <div>
+      <div class="relative flex aspect-[2/3] items-center justify-center bg-slate-900 text-slate-600 cursor-pointer"
            hx-get="/movies/{{ m.tmdb_id }}/detail" hx-target="#modal-container" hx-swap="innerHTML"
-           title="{{ m.title }}">{{ m.title }}</div>
+           title="Voir les details du film">
+        <i class="ti ti-photo text-3xl"></i>
+        {% if m.poster_url %}<img src="{{ m.poster_url }}" alt="{{ m.title }}" class="absolute inset-0 h-full w-full object-cover" loading="lazy" data-poster>{% endif %}
+      </div>
+      <div class="p-2 sm:p-2.5">
+        {% set jf = (owned or {}).get('movie:' ~ m.tmdb_id) %}
+        <div class="flex items-center gap-1 sm:gap-1.5 flex-wrap">
+          {% if m.status == 'grabbed' %}
+          <span class="rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] bg-green-500/15 text-green-300">Obtenu</span>
+          {% else %}
+          <span class="rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] bg-amber-500/15 text-amber-300">Voulu</span>
+          {% endif %}
+          {% if m.year %}<span class="text-[10px] sm:text-[11px] text-slate-500">{{ m.year }}</span>{% endif %}
+          {% if jf %}<span class="rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] bg-green-500/15 text-green-300">Dans Jellyfin</span>{% endif %}
+        </div>
+        <div class="mt-1 truncate text-xs sm:text-sm font-medium text-slate-100 cursor-pointer hover:text-white"
+             hx-get="/movies/{{ m.tmdb_id }}/detail" hx-target="#modal-container" hx-swap="innerHTML"
+             title="{{ m.title }}">{{ m.title }}</div>
+      </div>
+    </div>
+    <div class="p-2 sm:p-2.5 pt-0">
       <button hx-get="/movies/{{ m.tmdb_id }}/detail" hx-target="#modal-container" hx-swap="innerHTML"
-              class="mt-2 flex w-full items-center justify-center gap-1 rounded bg-sky-600/20 border border-sky-500/30 px-2 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-600/30 hover:text-sky-200 transition-colors">
+              class="flex w-full items-center justify-center gap-1 rounded bg-sky-600/20 border border-sky-500/30 px-2 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-600/30 hover:text-sky-200 transition-colors">
         <i class="ti ti-info-circle"></i> Details du film
       </button>
+      {% set jf = (owned or {}).get('movie:' ~ m.tmdb_id) %}
       {% if jf %}
       <a href="{{ jellyfin_url }}/web/#/details?id={{ jf }}" target="_blank" rel="noopener"
          class="mt-1.5 flex w-full items-center justify-center gap-1 rounded bg-emerald-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 transition-colors">
