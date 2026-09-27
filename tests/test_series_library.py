@@ -46,3 +46,11 @@ def test_get_existing_and_missing(tmp_path):
     assert found is not None
     assert found.title == "Severance"
     assert lib.get(999) is None
+
+
+def test_unmark_grabbed(tmp_path):
+    lib = SeriesLibrary(tmp_path / "series.json")
+    lib.add(_series(1))
+    lib.mark_grabbed(1, ["S01E01", "S01E02", "S01E03"])
+    lib.unmark_grabbed(1, ["S01E02"])
+    assert lib.list()[0].grabbed == ["S01E01", "S01E03"]

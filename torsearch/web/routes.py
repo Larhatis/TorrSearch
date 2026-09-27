@@ -24,6 +24,7 @@ from torsearch.web.discover_routes import discover_router
 from torsearch.web.downloads_routes import downloads_router
 from torsearch.web.forms import GB, split_words, to_int, to_size_bytes
 from torsearch.web.library_routes import library_router
+from torsearch.web.movie_routes import movie_router
 from torsearch.web.requests_routes import requests_router
 from torsearch.web.series_routes import series_router
 from torsearch.web.settings_routes import settings_router
@@ -181,6 +182,7 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(discover_router)
     app.include_router(library_router)
+    app.include_router(movie_router)
     app.include_router(series_router)
     app.include_router(requests_router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

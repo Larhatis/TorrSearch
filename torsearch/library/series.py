@@ -45,3 +45,12 @@ class SeriesLibrary:
         series = WantedSeries.model_validate(data)
         merged = sorted(set(series.grabbed) | set(keys))
         self._c.upsert(str(tmdb_id), series.model_copy(update={"grabbed": merged}).model_dump(mode="json"))
+
+    def unmark_grabbed(self, tmdb_id: int, keys: list[str]) -> None:  # type: ignore[valid-type]
+        data = self._c.get(str(tmdb_id))
+        if data is None:
+            return
+        series = WantedSeries.model_validate(data)
+        to_remove: set[str] = set(keys)
+        remaining = [k for k in series.grabbed if k not in to_remove]
+        self._c.upsert(str(tmdb_id), series.model_copy(update={"grabbed": remaining}).model_dump(mode="json"))

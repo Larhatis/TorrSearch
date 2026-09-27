@@ -26,6 +26,10 @@ class MovieLibrary:
     def list(self) -> list[WantedMovie]:
         return [WantedMovie.model_validate(d) for d in self._c.all()]
 
+    def get(self, tmdb_id: int) -> WantedMovie | None:
+        data = self._c.get(str(tmdb_id))
+        return WantedMovie.model_validate(data) if data is not None else None
+
     def wanted(self) -> list[WantedMovie]:  # type: ignore[valid-type]  # `list` method shadows builtin
         return [m for m in self.list() if m.status == "wanted"]
 
@@ -44,5 +48,14 @@ class MovieLibrary:
             return
         movie = WantedMovie.model_validate(data).model_copy(
             update={"status": "grabbed", "grabbed_title": grabbed_title, "grabbed_at": at}
+        )
+        self._c.upsert(str(tmdb_id), movie.model_dump(mode="json"))
+
+    def unmark_grabbed(self, tmdb_id: int) -> None:
+        data = self._c.get(str(tmdb_id))
+        if data is None:
+            return
+        movie = WantedMovie.model_validate(data).model_copy(
+            update={"status": "wanted", "grabbed_title": None, "grabbed_at": None}
         )
         self._c.upsert(str(tmdb_id), movie.model_dump(mode="json"))

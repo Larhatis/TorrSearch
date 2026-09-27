@@ -4,6 +4,7 @@ import asyncio
 import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
@@ -35,6 +36,7 @@ class TorrentInfo(BaseModel):
     peers_sending: int = 0
     error_string: str = ""
     info_hash: str = ""
+    date_added: datetime | None = None
 
     @property
     def size_formatted(self) -> str:
@@ -157,6 +159,13 @@ class TransmissionClient:
             elif isinstance(eta_val, (int, float)):
                 eta_sec = int(eta_val)
 
+            date_raw = getattr(t, "date_added", None)
+            date_val: datetime | None = None
+            if isinstance(date_raw, datetime):
+                date_val = date_raw if date_raw.tzinfo else date_raw.replace(tzinfo=UTC)
+            elif isinstance(date_raw, (int, float)) and date_raw > 0:
+                date_val = datetime.fromtimestamp(date_raw, tz=UTC)
+
             out.append(
                 TorrentInfo(
                     id=t.id,
@@ -171,6 +180,7 @@ class TransmissionClient:
                     peers_sending=int(getattr(t, "peers_sending_to_us", 0)),
                     error_string=str(getattr(t, "error_string", "") or ""),
                     info_hash=str(getattr(t, "hashString", "") or ""),
+                    date_added=date_val,
                 )
             )
         return out

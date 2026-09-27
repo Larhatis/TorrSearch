@@ -92,6 +92,7 @@ def test_monitor_defaults_off():
     cfg = Config()
     assert cfg.monitor.enabled is False
     assert cfg.monitor.interval_minutes == 30
+    assert cfg.monitor.stalled_hours == 2
     assert cfg.saved_searches == []
 
 

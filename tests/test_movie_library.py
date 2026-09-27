@@ -40,3 +40,24 @@ def test_wanted_excludes_grabbed_and_mark_grabbed(tmp_path):
     assert grabbed.status == "grabbed"
     assert grabbed.grabbed_title == "Dune.2024.1080p"
     assert grabbed.grabbed_at == NOW
+
+
+def test_get_existing_and_missing(tmp_path):
+    lib = MovieLibrary(tmp_path / "lib.json")
+    lib.add(_movie(1, "Dune"))
+    found = lib.get(1)
+    assert found is not None
+    assert found.title == "Dune"
+    assert lib.get(999) is None
+
+
+def test_unmark_grabbed(tmp_path):
+    lib = MovieLibrary(tmp_path / "lib.json")
+    lib.add(_movie(1))
+    lib.mark_grabbed(1, "Dune.2024.1080p", NOW)
+    assert lib.list()[0].status == "grabbed"
+    lib.unmark_grabbed(1)
+    m = lib.list()[0]
+    assert m.status == "wanted"
+    assert m.grabbed_title is None
+    assert m.grabbed_at is None

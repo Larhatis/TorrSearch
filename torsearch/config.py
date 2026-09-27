@@ -63,6 +63,7 @@ class MonitorConfig(BaseModel):
     enabled: bool = False
     interval_minutes: int = 30
     regrab_hours: int = 48
+    stalled_hours: int = 2
 
 
 class NotificationChannel(BaseModel):

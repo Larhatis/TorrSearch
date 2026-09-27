@@ -21,27 +21,28 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.6)
+## 2. État actuel (v0.3.7)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
 - Recherche multi-trackers Torznab (parallèle, dédoublonnage, filtres, tri).
 - Découverte TMDB (tendances films & séries séparées, recherche par titre, affiches, redirection vers recherche tracker, ajout direct en bibliothèque avec feedback instantané, fiche détail modal avec synopsis complet).
-- Bibliothèque **Films** (≈ Radarr-lite) et **Séries** (≈ Sonarr-lite) avec surveillance en
-  tâche de fond et téléchargement automatique.
-- Gestion détaillée des séries par saison et épisode (style Sonarr) : vue détaillée modale ou pleine page (`/series/{tmdb_id}`), état d'acquisition par épisode (Dans Jellyfin, Téléchargé, À venir, Manquant), bouton de recherche 1-clic pour saison complète (`/?q=Titre S01&cat=tv`) ou épisode unitaire (`/?q=Titre S01E01&cat=tv`).
+- Fiches détaillées **Films** (`/movies/{tmdb_id}`) et **Séries** (`/series/{tmdb_id}`) : vue modale ou pleine page, synopsis, casting, genres, statut Jellyfin, release téléchargée, boutons de recherche 1-clic par qualité (Tous, 1080p, 4K, Remux) ou par épisode/saison, bouton de remplacement (« Regrab »).
+- Bibliothèque **Films** (≈ Radarr-lite) et **Séries** (≈ Sonarr-lite) avec surveillance en tâche de fond et téléchargement automatique.
 - Suivi des téléchargements & Vue **Activité** (Chantier 3) : débits globaux, filtres par statut (Tous, En cours, Terminés, Actifs, En pause) avec compteurs en direct, barres de progression par release, ETA restant, nombre de pairs, statuts en français, pause/reprise, suppression avec ou sans données, scan Jellyfin immédiat ou automatique à 100%.
+- Détection d'échec & Bascule automatique (Torrent Stalled Fallback) : détection des torrents bloqués (0% et 0 pairs après délai configurable `stalled_hours`, ou erreur Transmission), purge du torrent, mise en liste noire (`Blacklist`) SQLite, démarquage bibliothèque et relance automatique de la surveillance pour saisir la release candidate suivante.
 - Moteur de décision intelligent (chantier 2) : analyseur de release, classement MULTI/VFF/VOSTFR,
   rejet des sources dégradées (CAM/TS/TC), double recherche titre français + original TMDB,
   minimisation du nombre de releases pour couvrir les saisons/séries, liste noire SQLite.
 - Intégration Jellyfin (alerte de disponibilité unitaire ou multi-titres/franchises dès la recherche manuelle, badge « Dans Jellyfin »,
   bouton Lire direct, scan après téléchargement).
+- Autonomie locale complète des assets (Zéro CDN) : Tailwind, Tabler Icons et HTMX servis localement depuis `/static/`, sans dépendance externe.
 - Multi-utilisateur (admin / membre / invité) + file de demandes validée par l'admin.
 - Notifications (Discord, ntfy, Telegram, webhook).
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **510 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **522 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
@@ -152,15 +153,16 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
 - Liste noire SQLite persistante (`library/blacklist.py`) pour éviter de re-télécharger des releases mortes ou échouées.
 - Détection et alerte visuelle de disponibilité Jellyfin dans la recherche manuelle.
 
-**Chantier 3 — suivi des téléchargements (prochain chantier prioritaire)** :
-1. **Mémorisation de l'infohash** : stocker le hash Transmission (`info_hash` ou ID) lors du grab (films, épisodes ou table `transfers`).
-2. **Statuts en direct / Vue Activité** : polling HTMX léger ou onglet Activité interrogeant `transmission.get_torrents()` (état `downloading`/`seeding`, %, vitesse, temps restant).
-3. **Détection d'échec & bascule** : si un torrent reste bloqué (0% / 0 peers après délai ou statut en erreur) → suppression du torrent, ajout à la `Blacklist` SQLite, et relance de l'auto-grab pour prendre la release candidate suivante.
-4. **Rafraîchissement Jellyfin ciblé** : dès qu'un torrent atteint 100% (ou état `seeding`), déclencher automatiquement un scan Jellyfin pour rendre le fichier disponible sans attendre la fin du cycle global.
+**Chantier 3 — suivi des téléchargements (terminé en v0.3.7)** :
+1. **Mémorisation de l'infohash** : stockage du hash Transmission (`info_hash`) lors du grab (films et épisodes).
+2. **Statuts en direct / Vue Activité** : polling HTMX avec onglet Activité interrogeant Transmission (statuts en français, filtres avec compteurs, %, débits, ETA, pairs).
+3. **Détection d'échec & bascule** : détection des torrents bloqués (0% / 0 pairs après `stalled_hours` ou erreur) → suppression du torrent, ajout à la `Blacklist` SQLite, démarquage bibliothèque et relance automatique de l'auto-grab.
+4. **Rafraîchissement Jellyfin ciblé** : scan Jellyfin manuel ou automatique dès qu'un torrent atteint 100%.
 
-**Chantier 4 — interface** : assets servis localement (fin des CDN, CSP possible, favicon),
-menu simplifié (Découvrir · Bibliothèque · Recherche · Activité · Réglages), pages détail
-film/série, Réglages en onglets.
+**Chantier 4 — interface & expérience utilisateur (en cours)** :
+- Assets servis localement (Zéro CDN : Tailwind, Tabler Icons, HTMX) : terminé en v0.3.7.
+- Pages détail film et série avec synopsis, statut Jellyfin et recherche 1-clic : terminé en v0.3.7.
+- Prochaines étapes : menu simplifié, favicon local, Réglages en onglets.
 
 **Petits chantiers** : clé de session dans le volume `/data` ; changement de mot de passe
 dans l'UI ; notifier le demandeur ; masquer les secrets dans les logs ; liens de

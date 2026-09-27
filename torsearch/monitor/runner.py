@@ -25,6 +25,101 @@ def select_new(results, filters, seen):
     return None
 
 
+async def handle_stalled_torrents(
+    transmission,
+    library=None,
+    series_library=None,
+    blacklist=None,
+    notifier=None,
+    config=None,
+    now: datetime | None = None,
+) -> list[str]:
+    """Detect and purge stalled or errored torrents, blacklist them, and reset library status."""
+    if transmission is None:
+        return []
+    try:
+        torrents = await transmission.list_torrents()
+    except Exception as exc:
+        logger.warning("Stalled check: listing torrents failed: %s", exc)
+        return []
+
+    stalled_hours = config.monitor.stalled_hours if config and hasattr(config, "monitor") else 2
+    stalled_window = timedelta(hours=stalled_hours)
+    current_time = now or datetime.now(UTC)
+    handled: list[str] = []
+
+    for t in torrents:
+        if t.percent >= 100.0:
+            continue
+        is_error = bool(t.error_string)
+        is_dead = (
+            t.percent == 0.0
+            and t.down_rate == 0
+            and t.peers_sending == 0
+            and "stop" not in t.status.lower()
+        )
+        if is_dead and t.date_added is not None:
+            at = t.date_added if t.date_added.tzinfo else t.date_added.replace(tzinfo=UTC)
+            if current_time - at < stalled_window:
+                is_dead = False
+
+        if not is_error and not is_dead:
+            continue
+
+        reason = "error" if is_error else "stalled"
+        logger.info("Purging %s torrent '%s' (id=%s)", reason, t.name, t.id)
+
+        # 1. Blacklist
+        if blacklist is not None:
+            blacklist.add(t.info_hash or None, t.name, reason=f"torrent_{reason}")
+
+        # 2. Remove from Transmission
+        try:
+            await transmission.remove(t.id, delete_data=True)
+        except Exception as exc:
+            logger.warning("Failed to remove stalled torrent %s: %s", t.id, exc)
+
+        # 3. Reset Movie Library if matching
+        if library is not None:
+            for m in library.list():
+                if m.status == "grabbed" and m.grabbed_title:
+                    if m.grabbed_title.strip().lower() == t.name.strip().lower():
+                        library.unmark_grabbed(m.tmdb_id)
+                        break
+
+        # 4. Reset Series Library if matching
+        if series_library is not None:
+            from torsearch.parser.release import parse_release
+            from torsearch.search.matcher import match_media_title
+
+            parsed_keys = parse_episodes(t.name)
+            for s in series_library.list():
+                rel = parse_release(t.name)
+                if match_media_title(rel, target_title=s.title, target_original_title=s.original_title, is_series=True):
+                    keys_to_unmark = [k for k in parsed_keys if k in s.grabbed]
+                    if keys_to_unmark:
+                        series_library.unmark_grabbed(s.tmdb_id, keys_to_unmark)
+
+        # 5. Notify if configured
+        if notifier is not None and config is not None and hasattr(config, "notifications"):
+            record = MonitorRecord(
+                search="Torrent purge",
+                title=t.name,
+                source="Transmission",
+                download_url="",
+                kind="failed",
+                at=current_time,
+            )
+            try:
+                await notifier.notify(config.notifications, record)
+            except Exception as exc:
+                logger.warning("Notification for purged torrent failed: %s", exc)
+
+        handled.append(t.name)
+
+    return handled
+
+
 
 async def run_jellyfin_refresh(transmission, jellyfin, completed_seen: set[int]) -> set[int]:
     """Refresh Jellyfin once when a torrent has newly finished. Returns finished ids."""
@@ -365,6 +460,14 @@ class MonitorRunner:
     async def _loop(self) -> None:
         while True:
             try:
+                await handle_stalled_torrents(
+                    self._ctx.transmission,
+                    library=self._library,
+                    series_library=self._series_library,
+                    blacklist=self._blacklist,
+                    notifier=self._notifier,
+                    config=self._ctx.config,
+                )
                 await run_cycle(
                     self._ctx.config, self._ctx.search_service, self._ctx.transmission,
                     self._history, self._notifier,
