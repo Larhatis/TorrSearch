@@ -23,6 +23,12 @@
 
   <section class="mb-8">
     <h2 class="font-semibold mb-2">Nouvelle recherche surveillee</h2>
+    <div class="mb-3 rounded-lg border border-violet-500/20 bg-violet-500/10 p-3 text-xs text-violet-300 flex items-start gap-2.5">
+      <i class="ti ti-info-circle text-base text-violet-400 shrink-0 mt-0.5"></i>
+      <div>
+        <span class="font-semibold text-slate-200">Pour suivre une serie</span> : utilisez de preference l'onglet <a href="/library" class="underline font-medium text-violet-200 hover:text-white">Series</a> ou <a href="/discover" class="underline font-medium text-violet-200 hover:text-white">Decouvrir</a>. La bibliotheque telecharge tous les episodes manquants d'un coup, evite les doublons et classe chaque saison dans son dossier.
+      </div>
+    </div>
     <form hx-post="/surveillance/searches" hx-target="#surveillance-body" hx-swap="outerHTML" class="flex flex-wrap items-end gap-2">
       <input name="name" placeholder="Nom" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
       <input name="query" placeholder="Recherche (ex: ma serie s02)" class="w-full sm:w-64 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1">

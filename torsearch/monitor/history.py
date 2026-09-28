@@ -50,6 +50,15 @@ class MonitorHistory:
             if r.search == search_name
         }
 
+    def seen_episodes(self, search_name: str) -> set[str]:
+        from torsearch.library.episodes import parse_episodes
+
+        out: set[str] = set()
+        for r in self._all():
+            if r.search == search_name and r.kind == "grabbed":
+                out |= parse_episodes(r.title)
+        return out
+
     def add(self, record: MonitorRecord) -> None:
         self._c.upsert(uuid.uuid4().hex, record.model_dump(mode="json"))
         if self._max_records:

@@ -168,7 +168,7 @@ class TorznabIndexer(Indexer):
         return ids
 
     def _build_params(self, query: str, category: Category) -> dict[str, str]:
-        params: dict[str, str] = {"t": "search", "q": query}
+        params: dict[str, str] = {"t": "search", "q": query, "limit": "100"}
         if self._auth == AuthMode.QUERY:
             params["apikey"] = self._api_key
         if category != Category.ALL:

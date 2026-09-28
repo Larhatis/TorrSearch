@@ -21,6 +21,7 @@ def test_build_params_query_auth_includes_apikey():
     params = ix._build_params("dune", Category.MOVIES)
     assert params["t"] == "search"
     assert params["q"] == "dune"
+    assert params["limit"] == "100"
     assert params["apikey"] == "KEY"
     assert params["cat"] == "2000"
     assert ix._build_headers() == {}

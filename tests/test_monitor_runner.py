@@ -70,6 +70,27 @@ async def test_run_cycle_skips_already_seen(tmp_path):
     assert await run_cycle(cfg, search, FakeTransmission(), history) == []
 
 
+async def test_run_cycle_tv_grabs_all_episodes_without_duplicates(tmp_path):
+    history = MonitorHistory(tmp_path / "m.json")
+    cfg = Config(
+        monitor=MonitorConfig(enabled=True),
+        saved_searches=[SavedSearch(name="Lanterns", query="Lanterns", category=Category.TV, mode="auto")],
+    )
+    tr = FakeTransmission()
+    results = [
+        _r("Lanterns.S01E01.1080p", infohash="E01-1080"),
+        _r("Lanterns.S01E01.2160p", infohash="E01-2160"),
+        _r("Lanterns.S01E02.1080p", infohash="E02-1080"),
+    ]
+    created = await run_cycle(cfg, FakeSearch(results), tr, history)
+    assert len(created) == 2
+    assert [r.title for r in created] == ["Lanterns.S01E01.1080p", "Lanterns.S01E02.1080p"]
+    assert len(tr.added) == 2
+
+    created2 = await run_cycle(cfg, FakeSearch(results), tr, history)
+    assert created2 == []
+
+
 async def test_run_cycle_disabled_globally(tmp_path):
     history = MonitorHistory(tmp_path / "m.json")
     cfg = Config(monitor=MonitorConfig(enabled=False), saved_searches=[SavedSearch(name="s", query="q")])

@@ -21,10 +21,12 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.10)
+## 2. État actuel (v0.3.11)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Dédoublonnage d'épisodes et envoi groupé dans les recherches surveillées : récupération de tous les épisodes disponibles en un seul cycle sans attente minute par minute, et élimination des releases doublons (ex. pas de 1080p + 2160p pour le même épisode).
+- Paramètre Torznab `limit=100` pour indexer jusqu'à 100 torrents par requête au lieu des 20 par défaut.
 - Gestion fine des séries & saisons acquises : possibilité de marquer des saisons ou épisodes entiers comme déjà acquis (« Marquer saison acquise », « Tout marquer acquis », « Démarquer » ou coche par épisode) afin de ne surveiller et télécharger que les saisons suivantes (ex. reprendre à la saison 6) sans re-télécharger l'existant.
 - Bouton « Ne plus suivre » présent directement sur les fiches séries pour désabonner en 1 clic.
 - Bouton « Vider l'historique » dans l'onglet Surveillance.

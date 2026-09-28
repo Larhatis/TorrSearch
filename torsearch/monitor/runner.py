@@ -25,6 +25,30 @@ def select_new(results, filters, seen):
     return None
 
 
+def select_new_tv(results, filters, seen_keys: set[str], seen_episodes: set[str]) -> list[SearchResult]:
+    """Pick at most one release per episode, skipping already grabbed episodes."""
+    picks: list[SearchResult] = []
+    current_eps = set(seen_episodes)
+    for result in apply(results, filters):
+        if grab_key(result) in seen_keys:
+            continue
+        rel_eps = parse_episodes(result.title)
+        if rel_eps:
+            unseen = {
+                ep for ep in rel_eps
+                if ep not in current_eps and (len(ep) < 3 or ep[:3] not in current_eps)
+            }
+            if not unseen:
+                continue
+            picks.append(result)
+            current_eps |= rel_eps
+        else:
+            if not picks:
+                picks.append(result)
+            break
+    return picks
+
+
 async def handle_stalled_torrents(
     transmission,
     library=None,
@@ -155,44 +179,56 @@ async def run_cycle(config, search_service, transmission, history, notifier=None
             min_seeders=saved.min_seeders, min_size=saved.min_size, max_size=saved.max_size,
             qualities=saved.qualities, exclude=saved.exclude, sort="seeders", direction="desc",
         )
-        pick = select_new(results, filters, history.seen_keys(saved.name))
-        if pick is None:
-            continue
-        if saved.mode == "auto":
-            from torsearch.parser.release import parse_release
-
-            rel = parse_release(pick.title)
-            is_tv = saved.category == Category.TV or (saved.category == Category.ALL and bool(rel.episodes))
-            if is_tv and rel.clean_title:
-                base_tv_dir = config.paths.for_category(Category.TV)
-                download_dir = build_tv_download_dir(
-                    base_dir=base_tv_dir,
-                    series_title=rel.clean_title or saved.name,
-                    episodes=rel.episodes,
-                    release_title=pick.title,
-                )
-            else:
-                download_dir = config.paths.for_category(saved.category)
-            try:
-                await transmission.add(pick.download_url, download_dir=download_dir)
-            except Exception as exc:
-                logger.warning("Monitor grab for '%s' failed: %s", saved.name, exc)
-                continue
-            kind = "grabbed"
-        else:
-            kind = "found"
-        record = MonitorRecord(
-            search=saved.name, title=pick.title, source=pick.source,
-            infohash=pick.infohash, download_url=pick.download_url,
-            kind=kind, at=datetime.now(UTC),
+        seen_keys = history.seen_keys(saved.name)
+        is_tv_search = saved.category == Category.TV or (
+            saved.category == Category.ALL and any(parse_episodes(r.title) for r in results)
         )
-        history.add(record)
-        created.append(record)
-        if notifier is not None:
-            try:
-                await notifier.notify(config.notifications, record)
-            except Exception as exc:
-                logger.warning("Notification for '%s' failed: %s", saved.name, exc)
+        if is_tv_search:
+            seen_eps = history.seen_episodes(saved.name) if hasattr(history, "seen_episodes") else set()
+            picks = select_new_tv(results, filters, seen_keys, seen_eps)
+        else:
+            p = select_new(results, filters, seen_keys)
+            picks = [p] if p is not None else []
+
+        if not picks:
+            continue
+
+        for pick in picks:
+            if saved.mode == "auto":
+                from torsearch.parser.release import parse_release
+
+                rel = parse_release(pick.title)
+                is_tv = saved.category == Category.TV or (saved.category == Category.ALL and bool(rel.episodes))
+                if is_tv and rel.clean_title:
+                    base_tv_dir = config.paths.for_category(Category.TV)
+                    download_dir = build_tv_download_dir(
+                        base_dir=base_tv_dir,
+                        series_title=rel.clean_title or saved.name,
+                        episodes=rel.episodes,
+                        release_title=pick.title,
+                    )
+                else:
+                    download_dir = config.paths.for_category(saved.category)
+                try:
+                    await transmission.add(pick.download_url, download_dir=download_dir)
+                except Exception as exc:
+                    logger.warning("Monitor grab for '%s' failed: %s", saved.name, exc)
+                    continue
+                kind = "grabbed"
+            else:
+                kind = "found"
+            record = MonitorRecord(
+                search=saved.name, title=pick.title, source=pick.source,
+                infohash=pick.infohash, download_url=pick.download_url,
+                kind=kind, at=datetime.now(UTC),
+            )
+            history.add(record)
+            created.append(record)
+            if notifier is not None:
+                try:
+                    await notifier.notify(config.notifications, record)
+                except Exception as exc:
+                    logger.warning("Notification for '%s' failed: %s", saved.name, exc)
     return created
 
 
