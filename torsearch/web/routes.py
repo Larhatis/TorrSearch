@@ -123,14 +123,36 @@ async def search(
 
 
 @router.post("/download", response_class=HTMLResponse, dependencies=[Depends(require_member)])
-async def download(request: Request, download_url: str = Form(...), category: str = Form("")):
+async def download(
+    request: Request,
+    download_url: str = Form(...),
+    category: str = Form(""),
+    title: str = Form(""),
+):
     ctx: AppContext = request.app.state.ctx
     try:
         cat = Category(category)
     except ValueError:
         cat = Category.OTHER
+
+    from torsearch.library.episodes import build_tv_download_dir
+    from torsearch.parser.release import parse_release
+
+    rel = parse_release(title) if title else None
+    is_tv = cat == Category.TV or (rel is not None and bool(rel.episodes))
+    if is_tv and rel is not None and rel.clean_title:
+        base_tv_dir = ctx.config.paths.for_category(Category.TV)
+        download_dir = build_tv_download_dir(
+            base_dir=base_tv_dir,
+            series_title=rel.clean_title,
+            episodes=rel.episodes,
+            release_title=title,
+        )
+    else:
+        download_dir = ctx.config.paths.for_category(cat)
+
     try:
-        torrent_id = await ctx.transmission.add(download_url, ctx.config.paths.for_category(cat))
+        torrent_id = await ctx.transmission.add(download_url, download_dir)
         message, ok = f"Ajoute a Transmission (#{torrent_id})", True
     except Exception as exc:
         message, ok = f"Erreur Transmission : {redact(str(exc))}", False

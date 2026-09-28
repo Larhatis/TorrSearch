@@ -227,6 +227,28 @@ def test_download_routes_to_category_path():
     assert transmission.dirs == ["/data/films"]
 
 
+def test_download_routes_to_structured_tv_path():
+    from torsearch.config import PathsConfig
+
+    service = SearchService([FakeIndexer("t1", [])])
+    transmission = FakeTransmission()
+    config = Config(
+        indexers=[IndexerConfig(name="t1", url="https://t1/api", api_key="k")],
+        paths=PathsConfig(by_category={"tv": "/data/series"}),
+    )
+    client = TestClient(create_app(FakeContext(service, transmission, config)))
+    resp = client.post(
+        "/download",
+        data={
+            "download_url": "magnet:?x",
+            "category": "tv",
+            "title": "Paolo.S01E01.FRENCH.720p-NOTEAM",
+        },
+    )
+    assert resp.status_code == 200
+    assert transmission.dirs == ["/data/series/Paolo/Saison 01"]
+
+
 def test_nav_labels_collapse_on_small_screens():
     client, _ = _make()
     assert "hidden lg:inline" in client.get("/").text

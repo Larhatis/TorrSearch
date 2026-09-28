@@ -49,3 +49,41 @@ def test_inverted_range_is_treated_as_single():
 def test_unparsable_returns_empty():
     assert parse_episodes("Show.2024.1080p.WEB") == set()
     assert parse_episodes("Random.Movie.2160p.BluRay") == set()
+
+
+def test_sanitize_folder_name():
+    from torsearch.library.episodes import sanitize_folder_name
+
+    assert sanitize_folder_name("Paolo") == "Paolo"
+    assert sanitize_folder_name("Marvel's What If...?") == "Marvel's What If"
+    assert sanitize_folder_name("Show: Subtitle / Part 1") == "Show Subtitle Part 1"
+    assert sanitize_folder_name("   ") == "Unknown"
+
+
+def test_extract_season_number():
+    from torsearch.library.episodes import extract_season_number
+
+    assert extract_season_number(episodes={"S01E01"}) == 1
+    assert extract_season_number(episodes={"S02E05", "S02E06"}) == 2
+    assert extract_season_number(episodes={"S01", "S02"}) is None  # multi-season
+    assert extract_season_number(title="Show.S03E01.1080p") == 3
+
+
+def test_build_tv_download_dir_single_season():
+    from torsearch.library.episodes import build_tv_download_dir
+
+    # With base dir
+    assert build_tv_download_dir("/downloads/disk2", "Paolo", {"S01E01"}) == "/downloads/disk2/Paolo/Saison 01"
+    # Trailing slash trimmed cleanly
+    assert build_tv_download_dir("/downloads/disk2/", "Paolo", {"S01E01"}) == "/downloads/disk2/Paolo/Saison 01"
+    # Season pack
+    assert build_tv_download_dir("/downloads/disk2", "Paolo", {"S02"}) == "/downloads/disk2/Paolo/Saison 02"
+    # No base dir (relative path)
+    assert build_tv_download_dir(None, "Paolo", {"S01E01"}) == "Paolo/Saison 01"
+
+
+def test_build_tv_download_dir_multi_season():
+    from torsearch.library.episodes import build_tv_download_dir
+
+    # Multiple seasons -> placed directly in show directory
+    assert build_tv_download_dir("/downloads/disk2", "Paolo", {"S01", "S02"}) == "/downloads/disk2/Paolo"

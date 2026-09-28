@@ -48,3 +48,71 @@ def covered_episodes(keys: set[str], wanted: set[str]) -> set[str]:
         else:
             out |= {ep for ep in wanted if ep.startswith(key + "E")}
     return out
+
+
+_INVALID_CHARS_RE = re.compile(r'[/\\?%*:|"<>]')
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def sanitize_folder_name(name: str) -> str:
+    """Clean a title to be safe as a directory name on Linux, Windows, and macOS."""
+    cleaned = _INVALID_CHARS_RE.sub("", name)
+    cleaned = _WHITESPACE_RE.sub(" ", cleaned).strip(" .")
+    return cleaned or "Unknown"
+
+
+def extract_season_number(
+    episodes: set[str] | list[str] | None = None,
+    title: str | None = None,
+) -> int | None:
+    """Return the single season number if all tokens/episodes belong to the same season.
+
+    If episodes span multiple distinct seasons or none is found, returns None.
+    """
+    seasons: set[int] = set()
+    if episodes:
+        for ep in episodes:
+            m = re.search(r"S(\d{1,2})", ep, re.IGNORECASE)
+            if m:
+                seasons.add(int(m.group(1)))
+    if not seasons and title:
+        parsed_eps = parse_episodes(title)
+        for ep in parsed_eps:
+            m = re.search(r"S(\d{1,2})", ep, re.IGNORECASE)
+            if m:
+                seasons.add(int(m.group(1)))
+    if len(seasons) == 1:
+        return next(iter(seasons))
+    return None
+
+
+def build_tv_download_dir(
+    base_dir: str | None,
+    series_title: str,
+    episodes: set[str] | list[str] | None = None,
+    release_title: str | None = None,
+    season_number: int | None = None,
+) -> str | None:
+    """Build the structured download path for a TV series episode or season.
+
+    Example:
+    base_dir="/downloads/disk2", series_title="Paolo", episodes={"S01E01"}
+    -> "/downloads/disk2/Paolo/Saison 01"
+
+    If multiple seasons are included:
+    base_dir="/downloads/disk2", series_title="Paolo", episodes={"S01", "S02"}
+    -> "/downloads/disk2/Paolo"
+    """
+    clean_series = sanitize_folder_name(series_title)
+    s_num = season_number if season_number is not None else extract_season_number(episodes, release_title)
+
+    if s_num is not None:
+        sub_path = f"{clean_series}/Saison {s_num:02d}"
+    else:
+        sub_path = clean_series
+
+    if not base_dir:
+        return sub_path
+
+    clean_base = base_dir.rstrip("/\\")
+    return f"{clean_base}/{sub_path}"

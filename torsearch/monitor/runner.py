@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
-from torsearch.library.episodes import parse_episodes
+from torsearch.library.episodes import build_tv_download_dir, parse_episodes
 from torsearch.models import Category, SearchResult
 from torsearch.monitor.history import MonitorRecord
 from torsearch.notifications.notifier import Notifier
@@ -159,8 +159,22 @@ async def run_cycle(config, search_service, transmission, history, notifier=None
         if pick is None:
             continue
         if saved.mode == "auto":
+            from torsearch.parser.release import parse_release
+
+            rel = parse_release(pick.title)
+            is_tv = saved.category == Category.TV or (saved.category == Category.ALL and bool(rel.episodes))
+            if is_tv and rel.clean_title:
+                base_tv_dir = config.paths.for_category(Category.TV)
+                download_dir = build_tv_download_dir(
+                    base_dir=base_tv_dir,
+                    series_title=rel.clean_title or saved.name,
+                    episodes=rel.episodes,
+                    release_title=pick.title,
+                )
+            else:
+                download_dir = config.paths.for_category(saved.category)
             try:
-                await transmission.add(pick.download_url)
+                await transmission.add(pick.download_url, download_dir=download_dir)
             except Exception as exc:
                 logger.warning("Monitor grab for '%s' failed: %s", saved.name, exc)
                 continue
@@ -403,12 +417,19 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             blacklist=blacklist,
         )
 
+        base_tv_dir = config.paths.for_category(Category.TV)
         newly: list[str] = []
         for r, covered in picks:
             if remaining is not None and not (covered & remaining):
                 continue
+            download_dir = build_tv_download_dir(
+                base_dir=base_tv_dir,
+                series_title=series.title,
+                episodes=covered,
+                release_title=r.title,
+            )
             try:
-                await transmission.add(r.download_url, download_dir=config.paths.for_category(Category.TV))
+                await transmission.add(r.download_url, download_dir=download_dir)
             except Exception as exc:
                 logger.warning("Series grab '%s' failed: %s", series.title, exc)
                 continue

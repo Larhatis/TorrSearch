@@ -84,6 +84,7 @@
       {% if r.kind == 'found' %}
       <form hx-post="/download" hx-target="#toast" class="inline">
         <input type="hidden" name="download_url" value="{{ r.download_url }}">
+        <input type="hidden" name="title" value="{{ r.title }}">
         <button class="rounded bg-emerald-600 hover:bg-emerald-500 px-2 py-1 text-xs">Envoyer</button>
       </form>
       {% endif %}

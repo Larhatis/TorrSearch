@@ -277,7 +277,7 @@ async def test_series_cycle_uses_tv_path(tmp_path):
     tr = FakeTransmission()
     await run_series_cycle(cfg, lib, FakeSearch([_r("Show.S01E01.1080p", infohash="A")]),
                            tr, MonitorHistory(tmp_path / "m.json"))
-    assert tr.dirs == ["/data/series"]
+    assert tr.dirs == ["/data/series/Show/Saison 01"]
 
 
 # --- Feature 1: Jellyfin auto-refresh on download completion ---
