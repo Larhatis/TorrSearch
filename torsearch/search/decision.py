@@ -188,6 +188,7 @@ def select_series_releases(
 
     target_missing = set(missing_episodes) if missing_episodes is not None else None
     current_have = set(have_episodes) if have_episodes is not None else set()
+    season_tags = {k for k in current_have if len(k) == 3 and k.startswith("S") and k[1:].isdigit()}
     picks: list[tuple[SearchResult, set[str]]] = []
 
     while True:
@@ -197,7 +198,8 @@ def select_series_releases(
             if target_missing is not None:
                 covered = covered_episodes(ev.parsed.episodes, target_missing)
             else:
-                covered = {ep for ep in ev.parsed.episodes if "E" in ep} - current_have
+                raw_eps = {ep for ep in ev.parsed.episodes if "E" in ep} - current_have
+                covered = {ep for ep in raw_eps if not any(ep.startswith(st + "E") for st in season_tags)}
             if covered:
                 candidates.append((r, ev, covered))
 

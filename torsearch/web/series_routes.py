@@ -27,8 +27,13 @@ async def series_add(
         year=year or None, poster_path=poster_path or None,
         added_at=datetime.now(UTC),
     ))
+    target = request.headers.get("HX-Target", "")
+    if target == "series-detail-view":
+        return await _render_series_detail_response(
+            request, tmdb_id, template_name="partials/series_detail_content.html"
+        )
     message = "Serie suivie." if added else "Serie deja suivie."
-    if request.headers.get("HX-Target", "").startswith("media-action-"):
+    if target.startswith("media-action-"):
         badge = (
             f'<div id="media-action-tv-{tmdb_id}" '
             f'class="mt-1.5 flex w-full items-center justify-center gap-1 rounded '
@@ -46,13 +51,18 @@ async def series_add(
 @series_router.post("/series/{tmdb_id}/remove", response_class=HTMLResponse, dependencies=[Depends(require_member)])
 async def series_remove(request: Request, tmdb_id: int):
     series_library = request.app.state.series_library
-    series_library.remove(tmdb_id)
-    return templates.TemplateResponse(request, "partials/series_list.html", {"series": series_library.list()})
+    if series_library:
+        series_library.remove(tmdb_id)
+    target = request.headers.get("HX-Target", "")
+    if target == "series-detail-view":
+        return await _render_series_detail_response(
+            request, tmdb_id, template_name="partials/series_detail_content.html"
+        )
+    items = series_library.list() if series_library else []
+    return templates.TemplateResponse(request, "partials/series_list.html", {"series": items})
 
 
-@series_router.get("/series/{tmdb_id}", response_class=HTMLResponse)
-@series_router.get("/series/{tmdb_id}/detail", response_class=HTMLResponse)
-async def series_detail(request: Request, tmdb_id: int):
+async def _build_series_detail_data(request: Request, tmdb_id: int) -> dict:
     ctx = request.app.state.ctx
     series_library = request.app.state.series_library
     series = series_library.get(tmdb_id) if series_library else None
@@ -160,7 +170,7 @@ async def series_detail(request: Request, tmdb_id: int):
     total_series_episodes = sum(s["total_episodes"] for s in enriched_seasons)
     total_series_acquired = sum(s["acquired_count"] for s in enriched_seasons)
 
-    template_data = {
+    return {
         "series": {
             "tmdb_id": tmdb_id,
             "title": title,
@@ -179,6 +189,144 @@ async def series_detail(request: Request, tmdb_id: int):
         "jellyfin_url": ctx.jellyfin.base_url,
     }
 
-    is_modal = request.headers.get("HX-Request") == "true" or request.url.path.endswith("/detail")
-    template_name = "partials/series_detail_modal.html" if is_modal else "series_detail.html"
-    return templates.TemplateResponse(request, template_name, template_data)
+
+async def _render_series_detail_response(
+    request: Request, tmdb_id: int, template_name: str | None = None
+) -> HTMLResponse:
+    data = await _build_series_detail_data(request, tmdb_id)
+    if template_name is None:
+        target = request.headers.get("HX-Target", "")
+        if target == "series-detail-view":
+            template_name = "partials/series_detail_content.html"
+        else:
+            is_modal = request.headers.get("HX-Request") == "true" or request.url.path.endswith("/detail")
+            template_name = "partials/series_detail_modal.html" if is_modal else "series_detail.html"
+    return templates.TemplateResponse(request, template_name, data)
+
+
+async def _ensure_series_in_library(request: Request, tmdb_id: int) -> WantedSeries:
+    ctx = request.app.state.ctx
+    series_library = request.app.state.series_library
+    series = series_library.get(tmdb_id) if series_library else None
+    if series is None:
+        tmdb_details = await ctx.tmdb.get_details("tv", tmdb_id)
+        series = WantedSeries(
+            tmdb_id=tmdb_id,
+            title=tmdb_details.title if tmdb_details else f"Serie {tmdb_id}",
+            original_title=tmdb_details.original_title if tmdb_details else None,
+            year=tmdb_details.year if tmdb_details else None,
+            poster_path=tmdb_details.poster_path if tmdb_details else None,
+            added_at=datetime.now(UTC),
+        )
+        if series_library:
+            series_library.add(series)
+    return series
+
+
+@series_router.get("/series/{tmdb_id}", response_class=HTMLResponse)
+@series_router.get("/series/{tmdb_id}/detail", response_class=HTMLResponse)
+async def series_detail(request: Request, tmdb_id: int):
+    return await _render_series_detail_response(request, tmdb_id)
+
+
+@series_router.post(
+    "/series/{tmdb_id}/season/{season_number}/toggle",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_member)],
+)
+async def series_toggle_season(request: Request, tmdb_id: int, season_number: int):
+    ctx = request.app.state.ctx
+    series_library = request.app.state.series_library
+    series = await _ensure_series_in_library(request, tmdb_id)
+
+    seasons_data = await ctx.tmdb.seasons(tmdb_id)
+    target_season = next((s for s in seasons_data if s.season_number == season_number), None)
+    if target_season is not None and series_library:
+        s_tag = target_season.season_tag
+        ep_codes = [ep.code for ep in target_season.episodes]
+        all_keys = [s_tag] + ep_codes
+
+        grabbed_set = set(series.grabbed)
+        is_already_grabbed = (s_tag in grabbed_set) or (
+            bool(ep_codes) and all(ep in grabbed_set for ep in ep_codes)
+        )
+
+        if is_already_grabbed:
+            series_library.unmark_grabbed(tmdb_id, all_keys)
+        else:
+            series_library.mark_grabbed(tmdb_id, all_keys)
+
+    return await _render_series_detail_response(request, tmdb_id, template_name="partials/series_detail_content.html")
+
+
+@series_router.post(
+    "/series/{tmdb_id}/episode/{code}/toggle",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_member)],
+)
+async def series_toggle_episode(request: Request, tmdb_id: int, code: str):
+    series_library = request.app.state.series_library
+    series = await _ensure_series_in_library(request, tmdb_id)
+
+    code = code.upper().strip()
+    grabbed_set = set(series.grabbed)
+    s_tag = code[:3] if len(code) >= 3 and code.startswith("S") else None
+
+    if series_library:
+        if code in grabbed_set or (s_tag and s_tag in grabbed_set):
+            to_remove = [code]
+            if s_tag and s_tag in grabbed_set:
+                to_remove.append(s_tag)
+                # Keep other episodes in this season marked
+                ctx = request.app.state.ctx
+                seasons_data = await ctx.tmdb.seasons(tmdb_id)
+                try:
+                    s_num = int(s_tag[1:])
+                    target_season = next((s for s in seasons_data if s.season_number == s_num), None)
+                    if target_season:
+                        other_eps = [ep.code for ep in target_season.episodes if ep.code != code]
+                        if other_eps:
+                            series_library.mark_grabbed(tmdb_id, other_eps)
+                except Exception:
+                    pass
+            series_library.unmark_grabbed(tmdb_id, to_remove)
+        else:
+            series_library.mark_grabbed(tmdb_id, [code])
+
+    return await _render_series_detail_response(request, tmdb_id, template_name="partials/series_detail_content.html")
+
+
+@series_router.post(
+    "/series/{tmdb_id}/mark-all",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_member)],
+)
+async def series_mark_all(request: Request, tmdb_id: int):
+    ctx = request.app.state.ctx
+    series_library = request.app.state.series_library
+    await _ensure_series_in_library(request, tmdb_id)
+
+    seasons_data = await ctx.tmdb.seasons(tmdb_id)
+    all_keys: list[str] = []
+    for s in seasons_data:
+        all_keys.append(s.season_tag)
+        all_keys.extend([ep.code for ep in s.episodes])
+
+    if all_keys and series_library:
+        series_library.mark_grabbed(tmdb_id, all_keys)
+
+    return await _render_series_detail_response(request, tmdb_id, template_name="partials/series_detail_content.html")
+
+
+@series_router.post(
+    "/series/{tmdb_id}/unmark-all",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_member)],
+)
+async def series_unmark_all(request: Request, tmdb_id: int):
+    series_library = request.app.state.series_library
+    series = series_library.get(tmdb_id) if series_library else None
+    if series and series.grabbed and series_library:
+        series_library.unmark_grabbed(tmdb_id, list(series.grabbed))
+
+    return await _render_series_detail_response(request, tmdb_id, template_name="partials/series_detail_content.html")

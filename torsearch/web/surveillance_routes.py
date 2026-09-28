@@ -86,6 +86,14 @@ async def run_now(request: Request):
     return _body(request, notice=notice)
 
 
+@surveillance_router.post("/surveillance/history/clear", response_class=HTMLResponse)
+async def clear_history(request: Request):
+    history = request.app.state.history
+    if history is not None:
+        history.clear()
+    return _body(request, notice="Historique vide.")
+
+
 @surveillance_router.post("/surveillance/searches", response_class=HTMLResponse)
 async def add_search(
     request: Request,

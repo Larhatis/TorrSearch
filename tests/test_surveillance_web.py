@@ -119,3 +119,21 @@ def test_run_now_triggers_when_enabled(tmp_path):
     assert resp.status_code == 200
     assert "Verification effectuee" in resp.text
     assert runner.ran is True
+
+
+def test_clear_history(tmp_path):
+    history = MonitorHistory(tmp_path / "monitor.json")
+    history.add(MonitorRecord(search="Paolo", title="Paolo.S01E01", source="trk", download_url="http://x", kind="grabbed", at=datetime.now(UTC)))
+    assert len(history.records()) == 1
+
+    client, _, _ = _client(tmp_path, history=history)
+    # The surveillance page shows clear history button when records exist
+    resp = client.get("/surveillance")
+    assert "Vider l&#39;historique" in resp.text or "Vider l'historique" in resp.text
+
+    # Clear history
+    resp = client.post("/surveillance/history/clear")
+    assert resp.status_code == 200
+    assert "Historique vide." in resp.text
+    assert len(history.records()) == 0
+

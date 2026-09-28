@@ -73,6 +73,10 @@ class Collection:
                 "DELETE FROM documents WHERE collection=? AND id=?", (self._name, id)
             )
 
+    def clear(self) -> None:
+        with self._db._connect() as con:
+            con.execute("DELETE FROM documents WHERE collection=?", (self._name,))
+
     def replace_all(self, items: list[tuple[str, dict]]) -> None:
         with self._db._connect() as con:
             con.execute("DELETE FROM documents WHERE collection=?", (self._name,))

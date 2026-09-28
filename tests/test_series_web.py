@@ -155,3 +155,84 @@ def test_series_detail_not_found_returns_404(tmp_path):
     client, _ = _client(tmp_path)
     resp = client.get("/series/999999")
     assert resp.status_code == 404
+
+
+def test_series_detail_toggle_season(tmp_path):
+    client, series = _client(tmp_path)
+    series.add(WantedSeries(tmdb_id=1399, title="Game of Thrones", year="2011", added_at=NOW))
+
+    # Toggle season 1 -> marks S01 and its episodes
+    resp = client.post("/series/1399/season/1/toggle", headers={"HX-Target": "series-detail-view"})
+    assert resp.status_code == 200
+    item = series.get(1399)
+    assert item is not None
+    assert "S01" in item.grabbed
+    assert "S01E01" in item.grabbed
+    assert "S01E02" in item.grabbed
+    assert "Demarquer la saison" in resp.text
+
+    # Toggle season 1 again -> unmarks S01 and its episodes
+    resp = client.post("/series/1399/season/1/toggle", headers={"HX-Target": "series-detail-view"})
+    assert resp.status_code == 200
+    item = series.get(1399)
+    assert item is not None
+    assert item.grabbed == []
+    assert "Marquer saison acquise" in resp.text
+
+
+def test_series_detail_toggle_episode(tmp_path):
+    client, series = _client(tmp_path)
+    series.add(WantedSeries(tmdb_id=1399, title="Game of Thrones", year="2011", added_at=NOW))
+
+    resp = client.post("/series/1399/episode/S01E01/toggle", headers={"HX-Target": "series-detail-view"})
+    assert resp.status_code == 200
+    item = series.get(1399)
+    assert item is not None
+    assert item.grabbed == ["S01E01"]
+
+    resp = client.post("/series/1399/episode/S01E01/toggle", headers={"HX-Target": "series-detail-view"})
+    assert resp.status_code == 200
+    item = series.get(1399)
+    assert item is not None
+    assert item.grabbed == []
+
+
+def test_series_detail_mark_and_unmark_all(tmp_path):
+    client, series = _client(tmp_path)
+    series.add(WantedSeries(tmdb_id=1399, title="Game of Thrones", year="2011", added_at=NOW))
+
+    resp = client.post("/series/1399/mark-all", headers={"HX-Target": "series-detail-view"})
+    assert resp.status_code == 200
+    item = series.get(1399)
+    assert item is not None
+    assert set(item.grabbed) == {"S01", "S01E01", "S01E02"}
+
+    resp = client.post("/series/1399/unmark-all", headers={"HX-Target": "series-detail-view"})
+    assert resp.status_code == 200
+    item = series.get(1399)
+    assert item is not None
+    assert item.grabbed == []
+
+
+def test_series_toggle_season_auto_adds_to_library(tmp_path):
+    client, series = _client(tmp_path)
+    assert series.get(1399) is None
+
+    # Toggling season 1 when series is not yet in library automatically adds it
+    resp = client.post("/series/1399/season/1/toggle", headers={"HX-Target": "series-detail-view"})
+    assert resp.status_code == 200
+    item = series.get(1399)
+    assert item is not None
+    assert item.title == "Game of Thrones"
+    assert "S01" in item.grabbed
+
+
+def test_series_remove_from_detail_view(tmp_path):
+    client, series = _client(tmp_path)
+    series.add(WantedSeries(tmdb_id=1399, title="Game of Thrones", year="2011", added_at=NOW))
+
+    resp = client.post("/series/1399/remove", headers={"HX-Target": "series-detail-view"})
+    assert resp.status_code == 200
+    assert series.get(1399) is None
+    assert "Suivre la serie" in resp.text
+

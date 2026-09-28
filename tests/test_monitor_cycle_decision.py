@@ -175,3 +175,42 @@ async def test_series_cycle_rejects_false_positive_titles(tmp_path: Path):
     records = await run_series_cycle(cfg, series_lib, search, tx, history, blacklist=bl)
     assert len(records) == 1
     assert records[0].title == "Lost.S01E01.FRENCH.1080p"
+
+
+@pytest.mark.asyncio
+async def test_series_skips_marked_seasons(tmp_path):
+    series_lib = SeriesLibrary(tmp_path / "series.db")
+    history = MonitorHistory(tmp_path / "history.db")
+    # Series with Season 1 marked as acquired
+    series_lib.add(
+        WantedSeries(
+            tmdb_id=4607,
+            title="Lost",
+            added_at=datetime.now(UTC),
+            grabbed=["S01", "S01E01", "S01E02"],
+        )
+    )
+
+    class FakeTmdb:
+        enabled = True
+
+        async def episodes(self, tv_id):
+            return {"S01E01", "S01E02", "S02E01"}
+
+    canned = {
+        "Lost": [
+            _res("Lost.S01E01.FRENCH.1080p"),
+            _res("Lost.S02E01.FRENCH.1080p"),
+        ]
+    }
+    search = FakeSearchService(canned)
+    tx = FakeTransmission()
+    cfg = Config(
+        monitor=MonitorConfig(enabled=True),
+        library=LibraryConfig(qualities=["1080p"]),
+    )
+
+    records = await run_series_cycle(cfg, series_lib, search, tx, history, tmdb=FakeTmdb())
+    assert len(records) == 1
+    assert records[0].title == "Lost.S02E01.FRENCH.1080p"
+

@@ -54,3 +54,9 @@ class MonitorHistory:
         self._c.upsert(uuid.uuid4().hex, record.model_dump(mode="json"))
         if self._max_records:
             self._c.trim(self._max_records)
+
+    def clear(self) -> None:
+        if hasattr(self._c, "clear"):
+            self._c.clear()
+        else:
+            self._c.replace_all([])

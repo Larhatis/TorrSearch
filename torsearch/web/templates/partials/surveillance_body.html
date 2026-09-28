@@ -74,7 +74,16 @@
   </section>
 
   <section>
-    <h2 class="font-semibold mb-2">Historique</h2>
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="font-semibold">Historique</h2>
+      {% if records %}
+      <form hx-post="/surveillance/history/clear" hx-target="#surveillance-body" hx-swap="outerHTML">
+        <button type="submit" class="rounded bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 text-xs transition-colors">
+          <i class="ti ti-trash mr-1"></i> Vider l'historique
+        </button>
+      </form>
+      {% endif %}
+    </div>
     {% for r in records %}
     <div class="flex items-center gap-3 border-b border-slate-800 py-2 text-sm">
       <span class="rounded px-2 py-0.5 text-xs {% if r.kind == 'grabbed' %}bg-emerald-700{% else %}bg-sky-700{% endif %}">{{ 'grabbe' if r.kind == 'grabbed' else 'trouve' }}</span>

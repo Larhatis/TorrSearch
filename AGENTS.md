@@ -21,10 +21,13 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.9)
+## 2. État actuel (v0.3.10)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Gestion fine des séries & saisons acquises : possibilité de marquer des saisons ou épisodes entiers comme déjà acquis (« Marquer saison acquise », « Tout marquer acquis », « Démarquer » ou coche par épisode) afin de ne surveiller et télécharger que les saisons suivantes (ex. reprendre à la saison 6) sans re-télécharger l'existant.
+- Bouton « Ne plus suivre » présent directement sur les fiches séries pour désabonner en 1 clic.
+- Bouton « Vider l'historique » dans l'onglet Surveillance.
 - Arborescence automatique des séries (Chantier 4) : classement automatique dans `Dossier_TV / Nom_Série / Saison XX /` directement à la racine ou dans le dossier Transmission, création récursive des dossiers, idéal pour Jellyfin / Plex.
 - Surveillance avec déclenchement immédiat (bouton « Vérifier maintenant »), case d'activation stylée et réveil instantané du timer (`runner.wake()`).
 - Diagnostic intelligent des indexeurs Torznab (détection des réponses HTML au lieu de XML, avec recommandation d'ajouter `/api/` ou `/api/torznab`).

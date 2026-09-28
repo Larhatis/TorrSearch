@@ -381,6 +381,10 @@ async def run_series_cycle(config, series_library, search_service, transmission,
     for series in series_library.list():
         have = await _series_have(series, jellyfin, owned_map, records, now, window)
         aired = await _series_aired(series, tmdb)
+        if aired:
+            season_tags = {k for k in have if len(k) == 3 and k.startswith("S") and k[1:].isdigit()}
+            if season_tags:
+                have = have | {ep for ep in aired if any(ep.startswith(stag + "E") for stag in season_tags)}
         # Targeted mode: we know what aired -> only chase the real gaps.
         remaining = (aired - have) if aired else None
         if remaining is not None and not remaining:
