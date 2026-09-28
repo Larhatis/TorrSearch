@@ -34,9 +34,34 @@ async def test_reports_rejected_key_on_401():
 async def test_reports_unexpected_response_on_non_caps_xml():
     ix = TorznabIndexer(_cfg())
     with respx.mock:
-        respx.get("https://t/api").mock(return_value=httpx.Response(200, content=b"<html>nope</html>"))
+        respx.get("https://t/api").mock(return_value=httpx.Response(200, content=b"<rss><channel/></rss>"))
         ok, msg = await ix.test()
     assert ok is False
+    assert "pas un flux Torznab" in msg
+
+
+async def test_reports_html_response_on_doctype_html():
+    ix = TorznabIndexer(_cfg())
+    with respx.mock:
+        respx.get("https://t/api").mock(
+            return_value=httpx.Response(200, content=b"<!DOCTYPE html><html><head><meta charset='utf-8'></head><body>Tr4ker</body></html>")
+        )
+        ok, msg = await ix.test()
+    assert ok is False
+    assert "HTML" in msg
+    assert "/api/" in msg
+
+
+async def test_reports_html_response_on_html_root_tag():
+    ix = TorznabIndexer(_cfg())
+    with respx.mock:
+        respx.get("https://t/api").mock(
+            return_value=httpx.Response(200, content=b"<html><body>Tr4ker</body></html>")
+        )
+        ok, msg = await ix.test()
+    assert ok is False
+    assert "HTML" in msg
+    assert "/api/" in msg
 
 
 async def test_sends_caps_query_with_apikey():

@@ -135,6 +135,12 @@ def parse_response(xml_bytes: bytes, source: str) -> list[SearchResult]:
     return results
 
 
+_HTML_NOT_TORZNAB = (
+    "Réponse HTML reçue au lieu d'un flux Torznab XML. "
+    "Vérifie l'URL (ajoute '/api/' ou '/api/torznab' à la fin)."
+)
+
+
 class TorznabIndexer(Indexer):
     def __init__(
         self,
@@ -216,6 +222,8 @@ class TorznabIndexer(Indexer):
                 return False, "Clé API refusée (401/403)."
             response.raise_for_status()
             root = ET.fromstring(response.content)
+            if root.tag == "html":
+                return False, _HTML_NOT_TORZNAB
             if root.tag != "caps":
                 return False, "Réponse inattendue (pas un flux Torznab)."
             return True, "OK"
@@ -231,6 +239,9 @@ class TorznabIndexer(Indexer):
         except httpx.HTTPError as exc:
             return False, f"Erreur réseau : {redact(str(exc))}."
         except ET.ParseError:
+            sample = response.text[:200].lstrip().lower()
+            if sample.startswith(("<!doctype html", "<html")):
+                return False, _HTML_NOT_TORZNAB
             return False, "Réponse invalide (XML illisible)."
         finally:
             if owns_client:
