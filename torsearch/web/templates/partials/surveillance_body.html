@@ -3,13 +3,21 @@
   {% if notice %}<div class="mb-3 rounded bg-emerald-600 px-3 py-2 text-sm">{{ notice }}</div>{% endif %}
 
   <section class="mb-8">
-    <h2 class="font-semibold mb-2">Surveillance globale</h2>
-    <form hx-post="/surveillance/monitor" hx-target="#surveillance-body" hx-swap="outerHTML" class="flex items-end gap-3">
-      <label class="text-xs text-slate-400 flex items-center gap-1">
-        <input type="checkbox" name="enabled" {% if monitor.enabled %}checked{% endif %}> activee</label>
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+      <h2 class="font-semibold">Surveillance globale</h2>
+      <button hx-post="/surveillance/run-now" hx-target="#surveillance-body" hx-swap="outerHTML"
+              class="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 px-3.5 py-2 text-xs font-semibold text-white shadow transition-colors">
+        <i class="ti ti-player-play"></i> Verifier maintenant
+      </button>
+    </div>
+    <form hx-post="/surveillance/monitor" hx-target="#surveillance-body" hx-swap="outerHTML" class="flex flex-wrap items-end gap-3">
+      <label class="text-xs text-slate-300 flex items-center gap-2 cursor-pointer bg-slate-800/80 border border-slate-700 hover:border-slate-600 rounded-lg px-3 py-2 transition-colors">
+        <input type="checkbox" name="enabled" class="h-4 w-4 rounded accent-emerald-500" {% if monitor.enabled %}checked{% endif %}>
+        <span class="font-medium text-slate-200">Activee</span>
+      </label>
       <label class="text-xs text-slate-400">Intervalle (min)<br>
-        <input type="number" min="1" name="interval_minutes" value="{{ monitor.interval_minutes }}" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-      <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+        <input type="number" min="1" name="interval_minutes" value="{{ monitor.interval_minutes }}" class="mt-1 w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1.5"></label>
+      <button class="rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2 text-xs">Enregistrer</button>
     </form>
   </section>
 

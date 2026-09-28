@@ -157,6 +157,7 @@ def create_app(
     app = FastAPI(title="TorrSearch", lifespan=lifespan)
     app.state.ctx = ctx
     app.state.history = history
+    app.state.monitor = monitor
     app.state.auth = auth
     app.state.library = library
     app.state.series_library = series_library

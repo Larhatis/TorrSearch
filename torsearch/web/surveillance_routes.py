@@ -57,9 +57,33 @@ async def update_monitor(request: Request, enabled: str | None = Form(None), int
         if monitor.interval_minutes < 1:
             raise SettingsError("l'intervalle doit etre d'au moins 1 minute.")
         ctx.update_settings(set_monitor(ctx.config, monitor))
+        runner = getattr(request.app.state, "monitor", None)
+        if runner is not None:
+            runner.wake()
         return _body(request, notice="Surveillance mise a jour.")
     except (ValidationError, SettingsError) as exc:
         return _body(request, error=f"Erreur : {exc}")
+
+
+@surveillance_router.post("/surveillance/run-now", response_class=HTMLResponse)
+async def run_now(request: Request):
+    ctx: AppContext = request.app.state.ctx
+    if not ctx.config.monitor.enabled:
+        return _body(request, error="Active d'abord la surveillance globale (coche la case et enregistre).")
+    runner = getattr(request.app.state, "monitor", None)
+    if runner is not None:
+        try:
+            records = await runner.run_once()
+            count = len(records)
+            if count > 0:
+                notice = f"Verification effectuee : {count} nouveau(x) torrent(s) envoye(s) a Transmission."
+            else:
+                notice = "Verification effectuee : aucun nouvel element a recuperer pour le moment."
+        except Exception as exc:
+            return _body(request, error=f"Erreur lors de la verification : {exc}")
+    else:
+        notice = "Module de surveillance non disponible."
+    return _body(request, notice=notice)
 
 
 @surveillance_router.post("/surveillance/searches", response_class=HTMLResponse)

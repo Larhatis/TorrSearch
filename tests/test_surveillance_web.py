@@ -87,3 +87,35 @@ def test_update_monitor_rejects_an_interval_below_one_minute(tmp_path):
     assert "Erreur" in resp.text
     assert ctx.config.monitor.interval_minutes == 30
     assert ctx.config.monitor.enabled is False
+
+
+def test_run_now_warns_when_disabled(tmp_path):
+    client, _, _ = _client(tmp_path)
+    resp = client.post("/surveillance/run-now")
+    assert resp.status_code == 200
+    assert "Active" in resp.text and "la surveillance" in resp.text
+
+
+def test_run_now_triggers_when_enabled(tmp_path):
+    from torsearch.config import MonitorConfig
+
+    class FakeRunner:
+        def __init__(self):
+            self.ran = False
+
+        async def run_once(self):
+            self.ran = True
+            return []
+
+    store = SettingsStore(tmp_path / "settings.json")
+    store.save(Config(monitor=MonitorConfig(enabled=True)))
+    ctx = AppContext(store)
+    history = MonitorHistory(tmp_path / "monitor.json")
+    runner = FakeRunner()
+    app = create_app(ctx, history=history, monitor=runner)
+    client = TestClient(app)
+
+    resp = client.post("/surveillance/run-now")
+    assert resp.status_code == 200
+    assert "Verification effectuee" in resp.text
+    assert runner.ran is True

@@ -443,6 +443,45 @@ class MonitorRunner:
         self._blacklist = blacklist
         self._completed_seen: set[int] = set()
         self._task = None
+        self._wake_event = asyncio.Event()
+
+    def wake(self) -> None:
+        """Wake the monitor loop immediately (e.g. settings changed or manual run)."""
+        self._wake_event.set()
+
+    async def run_once(self) -> list[MonitorRecord]:
+        """Execute all surveillance checks once and return any newly grabbed records."""
+        records: list[MonitorRecord] = []
+        await handle_stalled_torrents(
+            self._ctx.transmission,
+            library=self._library,
+            series_library=self._series_library,
+            blacklist=self._blacklist,
+            notifier=self._notifier,
+            config=self._ctx.config,
+        )
+        records.extend(await run_cycle(
+            self._ctx.config, self._ctx.search_service, self._ctx.transmission,
+            self._history, self._notifier,
+        ))
+        records.extend(await run_movie_cycle(
+            self._ctx.config, self._library, self._ctx.search_service,
+            self._ctx.transmission, self._history, self._notifier,
+            jellyfin=getattr(self._ctx, "jellyfin", None),
+            blacklist=self._blacklist,
+        ))
+        records.extend(await run_series_cycle(
+            self._ctx.config, self._series_library, self._ctx.search_service,
+            self._ctx.transmission, self._history, self._notifier,
+            jellyfin=getattr(self._ctx, "jellyfin", None),
+            tmdb=getattr(self._ctx, "tmdb", None),
+            blacklist=self._blacklist,
+        ))
+        self._completed_seen = await run_jellyfin_refresh(
+            self._ctx.transmission, getattr(self._ctx, "jellyfin", None),
+            self._completed_seen,
+        )
+        return records
 
     async def start(self) -> None:
         if self._task is None:
@@ -460,36 +499,12 @@ class MonitorRunner:
     async def _loop(self) -> None:
         while True:
             try:
-                await handle_stalled_torrents(
-                    self._ctx.transmission,
-                    library=self._library,
-                    series_library=self._series_library,
-                    blacklist=self._blacklist,
-                    notifier=self._notifier,
-                    config=self._ctx.config,
-                )
-                await run_cycle(
-                    self._ctx.config, self._ctx.search_service, self._ctx.transmission,
-                    self._history, self._notifier,
-                )
-                await run_movie_cycle(
-                    self._ctx.config, self._library, self._ctx.search_service,
-                    self._ctx.transmission, self._history, self._notifier,
-                    jellyfin=getattr(self._ctx, "jellyfin", None),
-                    blacklist=self._blacklist,
-                )
-                await run_series_cycle(
-                    self._ctx.config, self._series_library, self._ctx.search_service,
-                    self._ctx.transmission, self._history, self._notifier,
-                    jellyfin=getattr(self._ctx, "jellyfin", None),
-                    tmdb=getattr(self._ctx, "tmdb", None),
-                    blacklist=self._blacklist,
-                )
-                self._completed_seen = await run_jellyfin_refresh(
-                    self._ctx.transmission, getattr(self._ctx, "jellyfin", None),
-                    self._completed_seen,
-                )
+                await self.run_once()
             except Exception:
                 logger.exception("Monitor cycle failed")
+            self._wake_event.clear()
             interval = max(self._ctx.config.monitor.interval_minutes, 1) * 60
-            await asyncio.sleep(interval)
+            try:
+                await asyncio.wait_for(self._wake_event.wait(), timeout=interval)
+            except TimeoutError:
+                pass
