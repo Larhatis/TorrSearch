@@ -21,10 +21,13 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.8)
+## 2. État actuel (v0.3.9)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Arborescence automatique des séries (Chantier 4) : classement automatique dans `Dossier_TV / Nom_Série / Saison XX /` directement à la racine ou dans le dossier Transmission, création récursive des dossiers, idéal pour Jellyfin / Plex.
+- Surveillance avec déclenchement immédiat (bouton « Vérifier maintenant »), case d'activation stylée et réveil instantané du timer (`runner.wake()`).
+- Diagnostic intelligent des indexeurs Torznab (détection des réponses HTML au lieu de XML, avec recommandation d'ajouter `/api/` ou `/api/torznab`).
 - Interface entièrement responsive mobile (Barre de navigation tactile basse "Bottom Bar" avec menu popover pour les réglages/demandes, cartes de résultats fluides sans débordement horizontal, défilement d'onglets au doigt, affiches adaptées).
 - Recherche multi-trackers Torznab (parallèle, dédoublonnage, filtres, tri).
 - Découverte TMDB (tendances films & séries séparées, recherche par titre, affiches, redirection vers recherche tracker, ajout direct en bibliothèque avec feedback instantané, fiche détail modal avec synopsis complet).
@@ -43,7 +46,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **524 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **533 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
