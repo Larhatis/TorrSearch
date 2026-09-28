@@ -21,10 +21,16 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.11)
+## 2. État actuel (v0.3.12)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Protection anti-doublon d'épisodes multi-couches :
+  - Détection Transmission en direct (interrogation temps réel des torrents actifs ou terminés pour ne jamais renvoyer un épisode déjà en cours ou fini).
+  - Détection disque (scan du dossier de destination pour ne jamais re-télécharger un épisode déjà présent sur le NAS).
+  - Verrouillage asynchrone strict (`asyncio.Lock` dans `MonitorRunner`) empêchant les exécutions concurrentes entre la boucle automatique et le clic « Vérifier maintenant ».
+  - Synchronisation bidirectionnelle entre « Recherches surveillées » et la « Bibliothèque Séries ».
+  - Reconnaissance des épisodes déjà vus dans l'historique même en cas de renommage de recherche (ex. `Lanterns 2026` vs `Lanterns`).
 - Dédoublonnage d'épisodes et envoi groupé dans les recherches surveillées : récupération de tous les épisodes disponibles en un seul cycle sans attente minute par minute, et élimination des releases doublons (ex. pas de 1080p + 2160p pour le même épisode).
 - Paramètre Torznab `limit=100` pour indexer jusqu'à 100 torrents par requête au lieu des 20 par défaut.
 - Gestion fine des séries & saisons acquises : possibilité de marquer des saisons ou épisodes entiers comme déjà acquis (« Marquer saison acquise », « Tout marquer acquis », « Démarquer » ou coche par épisode) afin de ne surveiller et télécharger que les saisons suivantes (ex. reprendre à la saison 6) sans re-télécharger l'existant.
@@ -51,7 +57,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **533 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **547 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
