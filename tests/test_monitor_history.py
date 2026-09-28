@@ -48,3 +48,12 @@ def test_history_capped_to_max_records(tmp_path):
     titles = [r.title for r in h.records()]
     assert len(titles) == 5  # only the last 5 kept
     assert titles == ["t7", "t6", "t5", "t4", "t3"]  # most recent first, oldest dropped
+
+
+def test_seen_episodes_matches_search_name_and_clean_title(tmp_path):
+    h = MonitorHistory(tmp_path / "monitor.json")
+    h.add(_rec(search="Lanterns 2026", title="Lanterns.S01E01.MULTi.1080p.mkv"))
+    h.add(_rec(search="Lanterns", title="Lanterns.S01E02.MULTi.1080p.mkv"))
+    assert h.seen_episodes("Lanterns") == {"S01E01", "S01E02"}
+    assert h.seen_episodes("Lanterns 2026") == {"S01E01", "S01E02"}
+

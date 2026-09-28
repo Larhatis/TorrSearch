@@ -87,3 +87,31 @@ def test_build_tv_download_dir_multi_season():
 
     # Multiple seasons -> placed directly in show directory
     assert build_tv_download_dir("/downloads/disk2", "Paolo", {"S01", "S02"}) == "/downloads/disk2/Paolo"
+
+
+def test_find_episodes_on_disk(tmp_path):
+    from torsearch.library.episodes import find_episodes_on_disk
+
+    tv_dir = tmp_path / "TV"
+    show_dir = tv_dir / "Lanterns" / "Saison 01"
+    show_dir.mkdir(parents=True)
+
+    # Valid video file with size > 10MB
+    ep1 = show_dir / "Lanterns.S01E01.MULTi.1080p.mkv"
+    ep1.write_bytes(b"0" * 10_000_001)
+
+    # Valid video file in root of series folder
+    ep2 = tv_dir / "Lanterns" / "Lanterns.S01E02.1080p.mp4"
+    ep2.write_bytes(b"0" * 10_000_001)
+
+    # Too small / stub file (< 10MB) -> ignored
+    stub = show_dir / "Lanterns.S01E03.sample.mkv"
+    stub.write_bytes(b"0" * 100)
+
+    # Non-video file -> ignored
+    nfo = show_dir / "Lanterns.S01E04.nfo"
+    nfo.write_bytes(b"0" * 10_000_001)
+
+    found = find_episodes_on_disk(str(tv_dir), "Lanterns")
+    assert found == {"S01E01", "S01E02"}
+

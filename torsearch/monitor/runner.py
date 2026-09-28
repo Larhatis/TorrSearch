@@ -29,6 +29,7 @@ def select_new_tv(results, filters, seen_keys: set[str], seen_episodes: set[str]
     """Pick at most one release per episode, skipping already grabbed episodes."""
     picks: list[SearchResult] = []
     current_eps = set(seen_episodes)
+    season_tags = {k for k in current_eps if len(k) == 3 and k.startswith("S") and k[1:].isdigit()}
     for result in apply(results, filters):
         if grab_key(result) in seen_keys:
             continue
@@ -36,17 +37,51 @@ def select_new_tv(results, filters, seen_keys: set[str], seen_episodes: set[str]
         if rel_eps:
             unseen = {
                 ep for ep in rel_eps
-                if ep not in current_eps and (len(ep) < 3 or ep[:3] not in current_eps)
+                if ep not in current_eps and not any(ep.startswith(st + "E") for st in season_tags)
             }
             if not unseen:
                 continue
             picks.append(result)
             current_eps |= rel_eps
+            for ep in rel_eps:
+                if len(ep) == 3 and ep.startswith("S") and ep[1:].isdigit():
+                    season_tags.add(ep)
         else:
             if not picks:
                 picks.append(result)
             break
     return picks
+
+
+async def _transmission_series_episodes(transmission, title: str, original_title: str | None = None) -> set[str]:
+    """Retrieve episodes of a series currently downloading or completed in Transmission."""
+    if transmission is None or not hasattr(transmission, "list_torrents"):
+        return set()
+    from torsearch.parser.release import parse_release
+    from torsearch.search.matcher import match_media_title, normalize_title
+
+    eps: set[str] = set()
+    clean_title = parse_release(title).clean_title or title
+    norm_title = normalize_title(clean_title)
+    clean_orig = (parse_release(original_title).clean_title or original_title) if original_title else None
+    norm_orig = normalize_title(clean_orig) if clean_orig else None
+    try:
+        torrents = await transmission.list_torrents()
+        for t in torrents:
+            t_eps = parse_episodes(t.name)
+            if not t_eps:
+                continue
+            rel = parse_release(t.name)
+            t_clean = normalize_title(rel.clean_title) if rel.clean_title else None
+            matches = (
+                (t_clean and t_clean in (norm_title, norm_orig))
+                or match_media_title(rel, target_title=clean_title, target_original_title=clean_orig, is_series=True)
+            )
+            if matches:
+                eps |= t_eps
+    except Exception as exc:
+        logger.debug("Failed listing torrents for series '%s': %s", title, exc)
+    return eps
 
 
 async def handle_stalled_torrents(
@@ -163,7 +198,9 @@ async def run_jellyfin_refresh(transmission, jellyfin, completed_seen: set[int])
     return done
 
 
-async def run_cycle(config, search_service, transmission, history, notifier=None) -> list[MonitorRecord]:
+async def run_cycle(
+    config, search_service, transmission, history, notifier=None, series_library=None
+) -> list[MonitorRecord]:
     if not config.monitor.enabled:
         return []
     created: list[MonitorRecord] = []
@@ -183,8 +220,41 @@ async def run_cycle(config, search_service, transmission, history, notifier=None
         is_tv_search = saved.category == Category.TV or (
             saved.category == Category.ALL and any(parse_episodes(r.title) for r in results)
         )
+        matching_series = None
         if is_tv_search:
             seen_eps = history.seen_episodes(saved.name) if hasattr(history, "seen_episodes") else set()
+            from torsearch.library.episodes import find_episodes_on_disk
+            from torsearch.parser.release import parse_release
+            from torsearch.search.matcher import normalize_title
+
+            clean_sname = parse_release(saved.name).clean_title or saved.name
+            norm_sname = normalize_title(clean_sname)
+
+            # 1. Sync with series library if available
+            if series_library is not None:
+                for s in series_library.list():
+                    s_clean = normalize_title(s.title)
+                    s_orig = normalize_title(s.original_title) if s.original_title else None
+                    if norm_sname in (s_clean, s_orig):
+                        matching_series = s
+                        seen_eps |= set(s.grabbed)
+                        break
+
+            # 2. Check disk for existing episode files
+            base_tv_dir = config.paths.for_category(Category.TV)
+            if base_tv_dir:
+                seen_eps |= find_episodes_on_disk(base_tv_dir, clean_sname)
+
+            # 3. Check Transmission for active or completed torrents of this show
+            if transmission is not None and hasattr(transmission, "list_torrents"):
+                seen_eps |= await _transmission_series_episodes(transmission, clean_sname)
+                try:
+                    for t in await transmission.list_torrents():
+                        if t.info_hash:
+                            seen_keys.add(t.info_hash.lower())
+                except Exception:
+                    pass
+
             picks = select_new_tv(results, filters, seen_keys, seen_eps)
         else:
             p = select_new(results, filters, seen_keys)
@@ -215,6 +285,10 @@ async def run_cycle(config, search_service, transmission, history, notifier=None
                     logger.warning("Monitor grab for '%s' failed: %s", saved.name, exc)
                     continue
                 kind = "grabbed"
+                if is_tv and matching_series is not None and series_library is not None:
+                    rel_eps = parse_episodes(pick.title)
+                    if rel_eps:
+                        series_library.mark_grabbed(matching_series.tmdb_id, sorted(rel_eps))
             else:
                 kind = "found"
             record = MonitorRecord(
@@ -354,8 +428,25 @@ def _history_episodes(series, records, now, window):
     """
     recent: set[str] = set()
     historic: set[str] = set()
+    from torsearch.parser.release import parse_release
+    from torsearch.search.matcher import match_media_title, normalize_title
+
+    norm_title = normalize_title(series.title)
+    norm_orig = normalize_title(series.original_title) if series.original_title else None
+
     for r in records:
-        if r.search != series.title or r.kind != "grabbed":
+        if r.kind != "grabbed":
+            continue
+        rel = parse_release(r.title)
+        t_clean = normalize_title(rel.clean_title) if rel.clean_title else None
+        matches = (
+            r.search == series.title
+            or (t_clean and t_clean in (norm_title, norm_orig))
+            or match_media_title(
+                rel, target_title=series.title, target_original_title=series.original_title, is_series=True
+            )
+        )
+        if not matches:
             continue
         keys = parse_episodes(r.title)
         historic |= keys
@@ -365,16 +456,25 @@ def _history_episodes(series, records, now, window):
     return recent, historic
 
 
-async def _series_have(series, jellyfin, owned_map, records, now, window) -> set[str]:
+async def _series_have(
+    series, jellyfin, owned_map, records, now, window,
+    base_tv_dir: str | None = None, transmission=None,
+) -> set[str]:
     """Episodes considered already on hand.
 
     With Jellyfin as source of truth: present-on-disk + recently-grabbed (cooldown) +
-    legacy grabs (recorded before timestamps existed). An episode grabbed long ago but
-    absent from Jellyfin drops out -> it gets re-chased. Without Jellyfin we keep the
-    permanent ``series.grabbed`` (no truth source to confirm failures against).
+    legacy grabs (recorded before timestamps existed) + files on disk + transmission downloads.
+    Without Jellyfin we combine series.grabbed, historic, disk files, and transmission.
     """
+    from torsearch.library.episodes import find_episodes_on_disk
+
+    recent, historic = _history_episodes(series, records, now, window)
+    disk_eps = find_episodes_on_disk(base_tv_dir, series.title) if base_tv_dir else set()
+    tr_eps = await _transmission_series_episodes(transmission, series.title, series.original_title)
+
     if jellyfin is None or not getattr(jellyfin, "enabled", False):
-        return set(series.grabbed)
+        return set(series.grabbed) | recent | historic | disk_eps | tr_eps
+
     present: set[str] = set()
     item_id = owned_map.get(f"tv:{series.tmdb_id}")
     if item_id:
@@ -382,9 +482,8 @@ async def _series_have(series, jellyfin, owned_map, records, now, window) -> set
             present = await jellyfin.episodes(item_id)
         except Exception as exc:
             logger.warning("Jellyfin episodes for '%s' failed: %s", series.title, exc)
-    recent, historic = _history_episodes(series, records, now, window)
     legacy = set(series.grabbed) - historic
-    return present | recent | legacy
+    return present | recent | legacy | disk_eps | tr_eps
 
 
 async def _series_aired(series, tmdb) -> set[str]:
@@ -414,8 +513,12 @@ async def run_series_cycle(config, series_library, search_service, transmission,
     records = history.records()
     now = datetime.now(UTC)
     window = timedelta(hours=config.monitor.regrab_hours)
+    base_tv_dir = config.paths.for_category(Category.TV)
     for series in series_library.list():
-        have = await _series_have(series, jellyfin, owned_map, records, now, window)
+        have = await _series_have(
+            series, jellyfin, owned_map, records, now, window,
+            base_tv_dir=base_tv_dir, transmission=transmission,
+        )
         aired = await _series_aired(series, tmdb)
         if aired:
             season_tags = {k for k in have if len(k) == 3 and k.startswith("S") and k[1:].isdigit()}
@@ -505,6 +608,7 @@ class MonitorRunner:
         self._completed_seen: set[int] = set()
         self._task = None
         self._wake_event = asyncio.Event()
+        self._lock = asyncio.Lock()
 
     def wake(self) -> None:
         """Wake the monitor loop immediately (e.g. settings changed or manual run)."""
@@ -512,37 +616,39 @@ class MonitorRunner:
 
     async def run_once(self) -> list[MonitorRecord]:
         """Execute all surveillance checks once and return any newly grabbed records."""
-        records: list[MonitorRecord] = []
-        await handle_stalled_torrents(
-            self._ctx.transmission,
-            library=self._library,
-            series_library=self._series_library,
-            blacklist=self._blacklist,
-            notifier=self._notifier,
-            config=self._ctx.config,
-        )
-        records.extend(await run_cycle(
-            self._ctx.config, self._ctx.search_service, self._ctx.transmission,
-            self._history, self._notifier,
-        ))
-        records.extend(await run_movie_cycle(
-            self._ctx.config, self._library, self._ctx.search_service,
-            self._ctx.transmission, self._history, self._notifier,
-            jellyfin=getattr(self._ctx, "jellyfin", None),
-            blacklist=self._blacklist,
-        ))
-        records.extend(await run_series_cycle(
-            self._ctx.config, self._series_library, self._ctx.search_service,
-            self._ctx.transmission, self._history, self._notifier,
-            jellyfin=getattr(self._ctx, "jellyfin", None),
-            tmdb=getattr(self._ctx, "tmdb", None),
-            blacklist=self._blacklist,
-        ))
-        self._completed_seen = await run_jellyfin_refresh(
-            self._ctx.transmission, getattr(self._ctx, "jellyfin", None),
-            self._completed_seen,
-        )
-        return records
+        async with self._lock:
+            records: list[MonitorRecord] = []
+            await handle_stalled_torrents(
+                self._ctx.transmission,
+                library=self._library,
+                series_library=self._series_library,
+                blacklist=self._blacklist,
+                notifier=self._notifier,
+                config=self._ctx.config,
+            )
+            records.extend(await run_cycle(
+                self._ctx.config, self._ctx.search_service, self._ctx.transmission,
+                self._history, self._notifier,
+                series_library=self._series_library,
+            ))
+            records.extend(await run_movie_cycle(
+                self._ctx.config, self._library, self._ctx.search_service,
+                self._ctx.transmission, self._history, self._notifier,
+                jellyfin=getattr(self._ctx, "jellyfin", None),
+                blacklist=self._blacklist,
+            ))
+            records.extend(await run_series_cycle(
+                self._ctx.config, self._series_library, self._ctx.search_service,
+                self._ctx.transmission, self._history, self._notifier,
+                jellyfin=getattr(self._ctx, "jellyfin", None),
+                tmdb=getattr(self._ctx, "tmdb", None),
+                blacklist=self._blacklist,
+            ))
+            self._completed_seen = await run_jellyfin_refresh(
+                self._ctx.transmission, getattr(self._ctx, "jellyfin", None),
+                self._completed_seen,
+            )
+            return records
 
     async def start(self) -> None:
         if self._task is None:

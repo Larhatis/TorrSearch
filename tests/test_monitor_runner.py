@@ -23,14 +23,18 @@ class FakeSearch:
 
 
 class FakeTransmission:
-    def __init__(self):
+    def __init__(self, torrents=None):
         self.added = []
         self.dirs = []
+        self._torrents = torrents or []
 
     async def add(self, url, download_dir=None):
         self.added.append(url)
         self.dirs.append(download_dir)
         return 1
+
+    async def list_torrents(self):
+        return list(self._torrents)
 
 
 def test_select_new_picks_best_unseen():
@@ -304,9 +308,11 @@ async def test_series_cycle_uses_tv_path(tmp_path):
 # --- Feature 1: Jellyfin auto-refresh on download completion ---
 
 class _Torrent:
-    def __init__(self, tid, percent):
+    def __init__(self, tid, percent, name="Show", info_hash=""):
         self.id = tid
         self.percent = percent
+        self.name = name
+        self.info_hash = info_hash
 
 
 class FakeTransmissionList:
@@ -628,3 +634,103 @@ async def test_movie_cycle_no_upgrade_when_not_better(tmp_path):
                                 tr, MonitorHistory(tmp_path / "m.json"))
     assert out == []
     assert tr.added == []
+
+
+async def test_run_cycle_tv_skips_episodes_already_in_transmission(tmp_path):
+    history = MonitorHistory(tmp_path / "m.json")
+    cfg = Config(
+        monitor=MonitorConfig(enabled=True),
+        saved_searches=[SavedSearch(name="Lanterns", query="Lanterns", category=Category.TV, mode="auto")],
+    )
+    # Transmission already has S01E01 downloading
+    tr = FakeTransmission([_Torrent(1, 15.0, name="Lanterns.S01E01.1080p.mkv")])
+    results = [
+        _r("Lanterns.S01E01.1080p", infohash="E01-1080"),
+        _r("Lanterns.S01E02.1080p", infohash="E02-1080"),
+    ]
+    created = await run_cycle(cfg, FakeSearch(results), tr, history)
+    # Should only grab S01E02
+    assert len(created) == 1
+    assert created[0].title == "Lanterns.S01E02.1080p"
+
+
+async def test_run_cycle_tv_skips_episodes_already_on_disk(tmp_path):
+    history = MonitorHistory(tmp_path / "m.json")
+    tv_dir = tmp_path / "TV"
+    show_dir = tv_dir / "Lanterns" / "Saison 01"
+    show_dir.mkdir(parents=True)
+    # Create existing S01E01 file on disk
+    (show_dir / "Lanterns.S01E01.1080p.mkv").write_bytes(b"0" * 10_000_001)
+
+    from torsearch.config import PathsConfig
+    cfg = Config(
+        monitor=MonitorConfig(enabled=True),
+        paths=PathsConfig(by_category={"tv": str(tv_dir)}),
+        saved_searches=[SavedSearch(name="Lanterns", query="Lanterns", category=Category.TV, mode="auto")],
+    )
+    tr = FakeTransmission()
+    results = [
+        _r("Lanterns.S01E01.1080p", infohash="E01-1080"),
+        _r("Lanterns.S01E02.1080p", infohash="E02-1080"),
+    ]
+    created = await run_cycle(cfg, FakeSearch(results), tr, history)
+    # Should skip S01E01 because it's already on disk
+    assert len(created) == 1
+    assert created[0].title == "Lanterns.S01E02.1080p"
+
+
+async def test_run_cycle_syncs_with_series_library(tmp_path):
+    from datetime import UTC, datetime
+
+    from torsearch.library.series import SeriesLibrary
+    from torsearch.models import WantedSeries
+    history = MonitorHistory(tmp_path / "m.json")
+    series_lib = SeriesLibrary(tmp_path / "series.json")
+    series_lib.add(WantedSeries(tmdb_id=123, title="Lanterns", grabbed=["S01E01"], added_at=datetime.now(UTC)))
+
+    cfg = Config(
+        monitor=MonitorConfig(enabled=True),
+        saved_searches=[SavedSearch(name="Lanterns", query="Lanterns", category=Category.TV, mode="auto")],
+    )
+    tr = FakeTransmission()
+    results = [
+        _r("Lanterns.S01E01.1080p", infohash="E01-1080"),
+        _r("Lanterns.S01E02.1080p", infohash="E02-1080"),
+    ]
+    created = await run_cycle(cfg, FakeSearch(results), tr, history, series_library=series_lib)
+    # S01E01 was already grabbed in series_lib -> skips S01E01, grabs S01E02
+    assert len(created) == 1
+    assert created[0].title == "Lanterns.S01E02.1080p"
+    # Series library is updated with newly grabbed episode
+    item = series_lib.get(123)
+    assert item is not None and "S01E02" in item.grabbed
+
+
+async def test_monitor_runner_lock_serializes_concurrent_calls(tmp_path):
+    import asyncio
+
+    import pytest
+    history = MonitorHistory(tmp_path / "m.json")
+    cfg = Config(monitor=MonitorConfig(enabled=True))
+    ctx = type("Ctx", (), {"config": cfg, "transmission": FakeTransmission(), "search_service": FakeSearch([])})()
+    runner = MonitorRunner(ctx, history)
+
+    order = []
+
+    async def mock_run_cycle(*args, **kwargs):
+        order.append("start")
+        await asyncio.sleep(0.05)
+        order.append("end")
+        return []
+
+    import torsearch.monitor.runner as runner_mod
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(runner_mod, "run_cycle", mock_run_cycle)
+    try:
+        t1 = asyncio.create_task(runner.run_once())
+        t2 = asyncio.create_task(runner.run_once())
+        await asyncio.gather(t1, t2)
+        assert order == ["start", "end", "start", "end"]
+    finally:
+        monkeypatch.undo()
+

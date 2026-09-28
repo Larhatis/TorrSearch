@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 # An episode segment after Sxx: one or more e-tokens, each optionally a range
 # (eNN-eMM or eNN-MM). The (?!\d) stops a trailing resolution like "-1080p" being
@@ -116,3 +117,45 @@ def build_tv_download_dir(
 
     clean_base = base_dir.rstrip("/\\")
     return f"{clean_base}/{sub_path}"
+
+
+VIDEO_EXTENSIONS = {".mkv", ".mp4", ".avi", ".ts", ".m4v", ".mov"}
+
+
+def find_episodes_on_disk(base_dir: str | None, series_title: str) -> set[str]:
+    """Scan existing directory for video files belonging to a series and parse their episodes."""
+    if not base_dir:
+        return set()
+    base_p = Path(base_dir)
+    if not base_p.is_dir():
+        return set()
+
+    clean_series = sanitize_folder_name(series_title)
+    target_dirs = [base_p / clean_series]
+
+    # Also search subdirectories in base_dir whose name starts with clean_series
+    try:
+        clean_lower = clean_series.lower()
+        for child in base_p.iterdir():
+            if child.is_dir() and child not in target_dirs:
+                if child.name.lower().startswith(clean_lower):
+                    target_dirs.append(child)
+    except OSError:
+        pass
+
+    found: set[str] = set()
+    for s_dir in target_dirs:
+        if not s_dir.is_dir():
+            continue
+        try:
+            for file in s_dir.rglob("*"):
+                if file.is_file() and file.suffix.lower() in VIDEO_EXTENSIONS:
+                    try:
+                        # Exclude stub files or small sample clips
+                        if file.stat().st_size > 10_000_000:
+                            found |= parse_episodes(file.name)
+                    except OSError:
+                        continue
+        except OSError:
+            pass
+    return found

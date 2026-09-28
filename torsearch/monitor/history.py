@@ -52,10 +52,21 @@ class MonitorHistory:
 
     def seen_episodes(self, search_name: str) -> set[str]:
         from torsearch.library.episodes import parse_episodes
+        from torsearch.parser.release import parse_release
+        from torsearch.search.matcher import normalize_title
 
         out: set[str] = set()
+        clean_search = parse_release(search_name).clean_title or search_name
+        norm_search = normalize_title(clean_search)
+
         for r in self._all():
-            if r.search == search_name and r.kind == "grabbed":
+            if r.kind != "grabbed":
+                continue
+            if r.search == search_name:
+                out |= parse_episodes(r.title)
+                continue
+            rel = parse_release(r.title)
+            if rel.clean_title and normalize_title(rel.clean_title) == norm_search:
                 out |= parse_episodes(r.title)
         return out
 
