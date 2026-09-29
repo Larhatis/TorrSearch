@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
+from torsearch import __version__
 from torsearch.search.filters import detect_quality
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -19,6 +20,7 @@ def _auth_context(request):
     requests_store = getattr(request.app.state, "requests", None)
     pending = requests_store.count_pending() if (role == "admin" and requests_store) else 0
     return {
+        "app_version": __version__,
         "auth_enabled": enabled,
         "role": role,
         "is_admin": role == "admin",
@@ -29,3 +31,4 @@ def _auth_context(request):
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR), context_processors=[_auth_context])
 templates.env.globals["detect_quality"] = detect_quality
+templates.env.globals["app_version"] = __version__

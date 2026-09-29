@@ -30,9 +30,10 @@
 <body class="bg-slate-900 text-slate-100 min-h-screen">
   {% set path = request.url.path %}
   <header class="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-800 bg-slate-900/95 px-4 sm:px-6 py-3 backdrop-blur">
-    <a href="/" class="flex shrink-0 items-center gap-2.5 text-base sm:text-lg font-bold tracking-wide text-white">
+    <a href="/" class="flex shrink-0 items-center gap-2 text-base sm:text-lg font-bold tracking-wide text-white">
       <svg width="18" height="18" viewBox="0 0 5 5" fill="#fff" shape-rendering="crispEdges" aria-hidden="true"><rect width=".86" height=".86" x="0" y="0"/><rect width=".86" height=".86" x="1" y="0"/><rect width=".86" height=".86" x="2" y="0"/><rect width=".86" height=".86" x="3" y="0"/><rect width=".86" height=".86" x="4" y="0"/><rect width=".86" height=".86" x="2" y="1"/><rect width=".86" height=".86" x="2" y="2"/><rect width=".86" height=".86" x="2" y="3"/><rect width=".86" height=".86" x="2" y="4"/></svg>
       <span>TorrSearch</span>
+      <span class="rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 text-[10px] font-mono text-slate-400">v{{ app_version }}</span>
     </a>
 
     <!-- Navigation pour grand ecran (desktop) -->
