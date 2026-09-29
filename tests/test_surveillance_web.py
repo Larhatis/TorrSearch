@@ -4,19 +4,21 @@ from fastapi.testclient import TestClient
 
 from torsearch.config import Config, SavedSearch
 from torsearch.context import AppContext
-from torsearch.models import Category
+from torsearch.library.movies import MovieLibrary
+from torsearch.library.series import SeriesLibrary
+from torsearch.models import Category, WantedMovie, WantedSeries
 from torsearch.monitor.history import MonitorHistory, MonitorRecord
 from torsearch.settings.store import SettingsStore
 from torsearch.web.routes import create_app
 
 
-def _client(tmp_path, config=None, history=None):
+def _client(tmp_path, config=None, history=None, library=None, series_library=None):
     store = SettingsStore(tmp_path / "settings.json")
     if config is not None:
         store.save(config)
     ctx = AppContext(store)
     history = history if history is not None else MonitorHistory(tmp_path / "monitor.json")
-    return TestClient(create_app(ctx, history=history)), ctx, history
+    return TestClient(create_app(ctx, history=history, library=library, series_library=series_library)), ctx, history
 
 
 def test_surveillance_page_renders(tmp_path):
@@ -190,6 +192,80 @@ def test_quick_add_wakes_runner(tmp_path):
     resp = client.post("/surveillance/quick-add", data={"query": "Inception 2", "cat": "movies"})
     assert resp.status_code == 200
     assert runner.woken is True
+
+
+def test_surveillance_page_displays_monitored_movies_and_series(tmp_path):
+    lib = MovieLibrary(tmp_path / "movies.json")
+    series_lib = SeriesLibrary(tmp_path / "series.json")
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+
+    lib.add(WantedMovie(
+        tmdb_id=101, title="Dune Deux", year="2024", poster_path="/dune.jpg",
+        status="wanted", added_at=now,
+    ))
+    lib.add(WantedMovie(
+        tmdb_id=102, title="Avatar 2", year="2022", poster_path="/avatar.jpg",
+        status="grabbed", added_at=now, grabbed_title="Avatar.2022.MULTi.1080p",
+    ))
+    series_lib.add(WantedSeries(
+        tmdb_id=201, title="Lanterns", year="2026", poster_path="/lanterns.jpg",
+        added_at=now, grabbed=["S01E01", "S01E02"],
+    ))
+
+    client, _, _ = _client(tmp_path, library=lib, series_library=series_lib)
+    resp = client.get("/surveillance")
+    assert resp.status_code == 200
+    # Movies & series titles
+    assert "Dune Deux" in resp.text
+    assert "Avatar 2" in resp.text
+    assert "Lanterns" in resp.text
+    # Posters
+    assert "https://image.tmdb.org/t/p/w342/dune.jpg" in resp.text
+    assert "https://image.tmdb.org/t/p/w342/lanterns.jpg" in resp.text
+    # Status badges
+    assert "En attente" in resp.text
+    assert "Telecharge" in resp.text
+    assert "Avatar.2022.MULTi.1080p" in resp.text
+    assert "2 episodes" in resp.text
+
+
+def test_surveillance_remove_movie_and_series(tmp_path):
+    lib = MovieLibrary(tmp_path / "movies.json")
+    series_lib = SeriesLibrary(tmp_path / "series.json")
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+
+    lib.add(WantedMovie(tmdb_id=101, title="Dune", added_at=now))
+    series_lib.add(WantedSeries(tmdb_id=201, title="Severance", added_at=now))
+
+    client, _, _ = _client(tmp_path, library=lib, series_library=series_lib)
+    resp = client.post("/surveillance/movies/101/remove")
+    assert resp.status_code == 200
+    assert lib.list() == []
+    assert "Film retire de la surveillance." in resp.text
+
+    resp2 = client.post("/surveillance/series/201/remove")
+    assert resp2.status_code == 200
+    assert series_lib.list() == []
+    assert "Serie retiree de la surveillance." in resp2.text
+
+
+def test_surveillance_regrab_movie(tmp_path):
+    lib = MovieLibrary(tmp_path / "movies.json")
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    lib.add(WantedMovie(
+        tmdb_id=101, title="Dune", added_at=now,
+        status="grabbed", grabbed_title="Dune.720p",
+    ))
+
+    client, _, _ = _client(tmp_path, library=lib)
+    resp = client.post("/surveillance/movies/101/regrab")
+    assert resp.status_code == 200
+    movie = lib.get(101)
+    assert movie is not None
+    assert movie.status == "wanted"
+    assert movie.grabbed_title is None
+    assert "Film remis en recherche active." in resp.text
+
 
 
 

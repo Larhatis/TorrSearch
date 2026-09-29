@@ -19,45 +19,70 @@ from torsearch.web.templating import templates
 surveillance_router = APIRouter()
 
 
-def _context(request: Request, error=None, notice=None):
+async def _get_context(request: Request, error=None, notice=None):
     ctx: AppContext = request.app.state.ctx
-    history = request.app.state.history
+    history = getattr(request.app.state, "history", None)
     records = history.records() if history is not None else []
     runner = getattr(request.app.state, "monitor", None)
+
+    library = getattr(request.app.state, "library", None)
+    series_library = getattr(request.app.state, "series_library", None)
+    movies = library.list() if library is not None else []
+    series = series_library.list() if series_library is not None else []
+
+    owned: dict[str, str] = {}
+    jf = getattr(ctx, "jellyfin", None)
+    if jf and getattr(jf, "enabled", False) and hasattr(jf, "owned"):
+        try:
+            owned = await jf.owned()
+        except Exception:
+            pass
+
+    jellyfin_url = ctx.jellyfin.base_url if getattr(ctx, "jellyfin", None) else ""
+
     return {
-        "config": ctx.config, "searches": ctx.config.saved_searches,
-        "monitor": ctx.config.monitor, "records": records,
-        "categories": list(Category), "error": error, "notice": notice,
+        "config": ctx.config,
+        "searches": ctx.config.saved_searches,
+        "monitor": ctx.config.monitor,
+        "records": records,
+        "categories": list(Category),
+        "error": error,
+        "notice": notice,
         "runner": runner,
+        "movies": movies,
+        "series": series,
+        "owned": owned,
+        "jellyfin_url": jellyfin_url,
     }
 
 
-def _page(request, **kw):
-    return templates.TemplateResponse(request, "surveillance.html", _context(request, **kw))
+async def _page(request, **kw):
+    data = await _get_context(request, **kw)
+    return templates.TemplateResponse(request, "surveillance.html", data)
 
 
-def _body(request, **kw):
-    return templates.TemplateResponse(request, "partials/surveillance_body.html", _context(request, **kw))
+async def _body(request, **kw):
+    data = await _get_context(request, **kw)
+    return templates.TemplateResponse(request, "partials/surveillance_body.html", data)
 
 
 @surveillance_router.get("/surveillance", response_class=HTMLResponse)
 async def page(request: Request):
     if request.headers.get("HX-Request"):
-        return _body(request)
-    return _page(request)
+        return await _body(request)
+    return await _page(request)
 
 
 @surveillance_router.get("/surveillance/history", response_class=HTMLResponse)
 async def history_list(request: Request):
-    return templates.TemplateResponse(request, "partials/surveillance_history.html", _context(request))
+    data = await _get_context(request)
+    return templates.TemplateResponse(request, "partials/surveillance_history.html", data)
 
 
 @surveillance_router.post("/surveillance/monitor", response_class=HTMLResponse)
 async def update_monitor(request: Request, enabled: str | None = Form(None), interval_minutes: str = Form("30")):
     ctx: AppContext = request.app.state.ctx
     try:
-        # Rebuild from the current config (keeps regrab_hours) and validate the form values;
-        # model_copy(update=...) would skip validation and store "30" as a string.
         monitor = MonitorConfig.model_validate({
             **ctx.config.monitor.model_dump(),
             "enabled": enabled is not None,
@@ -69,16 +94,16 @@ async def update_monitor(request: Request, enabled: str | None = Form(None), int
         runner = getattr(request.app.state, "monitor", None)
         if runner is not None:
             runner.wake()
-        return _body(request, notice="Surveillance mise a jour.")
+        return await _body(request, notice="Surveillance mise a jour.")
     except (ValidationError, SettingsError) as exc:
-        return _body(request, error=f"Erreur : {exc}")
+        return await _body(request, error=f"Erreur : {exc}")
 
 
 @surveillance_router.post("/surveillance/run-now", response_class=HTMLResponse)
 async def run_now(request: Request):
     ctx: AppContext = request.app.state.ctx
     if not ctx.config.monitor.enabled:
-        return _body(request, error="Active d'abord la surveillance globale (coche la case et enregistre).")
+        return await _body(request, error="Active d'abord la surveillance globale (coche la case et enregistre).")
     runner = getattr(request.app.state, "monitor", None)
     if runner is not None:
         try:
@@ -92,10 +117,10 @@ async def run_now(request: Request):
                     "(les torrents/episodes sont deja presents dans Transmission ou sur le disque)."
                 )
         except Exception as exc:
-            return _body(request, error=f"Erreur lors de la verification : {exc}")
+            return await _body(request, error=f"Erreur lors de la verification : {exc}")
     else:
         notice = "Module de surveillance non disponible."
-    return _body(request, notice=notice)
+    return await _body(request, notice=notice)
 
 
 @surveillance_router.post("/surveillance/history/clear", response_class=HTMLResponse)
@@ -103,7 +128,7 @@ async def clear_history(request: Request):
     history = request.app.state.history
     if history is not None:
         history.clear()
-    return _body(request, notice="Historique vide.")
+    return await _body(request, notice="Historique vide.")
 
 
 @surveillance_router.post("/surveillance/searches", response_class=HTMLResponse)
@@ -134,9 +159,9 @@ async def add_search(
             exclude=split_words(exclude),
         )
         ctx.update_settings(add_saved_search(ctx.config, saved))
-        return _body(request, notice=f"Recherche « {name} » enregistree.")
+        return await _body(request, notice=f"Recherche « {name} » enregistree.")
     except (ValidationError, SettingsError) as exc:
-        return _body(request, error=f"Erreur : {exc}")
+        return await _body(request, error=f"Erreur : {exc}")
 
 
 @surveillance_router.post("/surveillance/searches/{name}/toggle", response_class=HTMLResponse)
@@ -147,9 +172,9 @@ async def toggle_search(request: Request, name: str):
         ctx.update_settings(
             set_saved_search_enabled(ctx.config, name, not current.enabled if current else True)
         )
-        return _body(request)
+        return await _body(request)
     except SettingsError as exc:
-        return _body(request, error=f"Erreur : {exc}")
+        return await _body(request, error=f"Erreur : {exc}")
 
 
 @surveillance_router.post("/surveillance/searches/{name}/delete", response_class=HTMLResponse)
@@ -157,9 +182,37 @@ async def delete_search(request: Request, name: str):
     ctx: AppContext = request.app.state.ctx
     try:
         ctx.update_settings(remove_saved_search(ctx.config, name))
-        return _body(request, notice=f"Recherche « {name} » supprimee.")
+        return await _body(request, notice=f"Recherche « {name} » supprimee.")
     except SettingsError as exc:
-        return _body(request, error=f"Erreur : {exc}")
+        return await _body(request, error=f"Erreur : {exc}")
+
+
+@surveillance_router.post("/surveillance/movies/{tmdb_id}/remove", response_class=HTMLResponse)
+async def surveillance_movie_remove(request: Request, tmdb_id: int):
+    library = getattr(request.app.state, "library", None)
+    if library is not None:
+        library.remove(tmdb_id)
+    return await _body(request, notice="Film retire de la surveillance.")
+
+
+@surveillance_router.post("/surveillance/series/{tmdb_id}/remove", response_class=HTMLResponse)
+async def surveillance_series_remove(request: Request, tmdb_id: int):
+    series_library = getattr(request.app.state, "series_library", None)
+    if series_library is not None:
+        series_library.remove(tmdb_id)
+    return await _body(request, notice="Serie retiree de la surveillance.")
+
+
+@surveillance_router.post("/surveillance/movies/{tmdb_id}/regrab", response_class=HTMLResponse)
+async def surveillance_movie_regrab(request: Request, tmdb_id: int):
+    library = getattr(request.app.state, "library", None)
+    if library is not None:
+        library.unmark_grabbed(tmdb_id)
+        runner = getattr(request.app.state, "monitor", None)
+        if runner is not None:
+            runner.wake()
+        return await _body(request, notice="Film remis en recherche active.")
+    return await _body(request)
 
 
 @surveillance_router.post("/surveillance/quick-add", response_class=HTMLResponse)

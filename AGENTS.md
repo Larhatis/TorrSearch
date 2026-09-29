@@ -21,12 +21,15 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.17)
+## 2. État actuel (v0.3.18)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
-- Suggestions unifiées TMDB Films & Séries sur recherche infructueuse :
-  - Sur la page de recherche (`/`), si une recherche renvoie 0 torrent, proposition automatique de surveillance de la requête en 1 clic (« Surveiller cette recherche ») et suggestions des correspondances TMDB (Films avec bouton « Surveiller la sortie » vers la Bibliothèque, Séries avec bouton « Suivre la série » vers la Bibliothèque).
+- Nouveau tableau de bord Surveillance unifié et visuel :
+  - Centralisation de toutes les œuvres sous surveillance (Films en attente ou téléchargés, Séries suivies avec compteur d'épisodes acquis, Recherches libres par mot-clé).
+  - Affichage direct des affiches (posters TMDB), badges dynamiques d'état (« En attente », « Téléchargé » avec nom de release, « Suivi actif » avec progression), intégration Jellyfin en direct.
+  - Filtres fluides instantanés (Tous, Films, Séries, Recherches, Historique).
+  - Bandeau de contrôle du robot avec indicateur en direct (pulsé), bouton « Vérifier maintenant », réglage de l'intervalle et ajout rapide de recherche libre.
   - Dans l'onglet Découvrir et les fiches détail, remplacement du libellé ambigu « Bibliothèque » par un bouton clair « Surveiller la sortie » avec badge dynamique « En surveillance ».
   - Activation automatique de la surveillance globale et réveil immédiat du runner d'auto-grab dès l'ajout d'un film ou d'une recherche surveillée.
 - Indicateur en direct de dernière vérification avec badge pulsé et rafraîchissement automatique silencieux de l'historique sur l'onglet Surveillance.

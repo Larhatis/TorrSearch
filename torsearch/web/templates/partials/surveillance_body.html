@@ -1,96 +1,410 @@
-<div id="surveillance-body">
-  {% if error %}<div class="mb-3 rounded bg-red-600 px-3 py-2 text-sm">{{ error }}</div>{% endif %}
-  {% if notice %}<div class="mb-3 rounded bg-emerald-600 px-3 py-2 text-sm">{{ notice }}</div>{% endif %}
+<div id="surveillance-body" class="space-y-6">
+  {% if error %}
+  <div class="rounded-xl border border-red-500/30 bg-red-600/15 p-4 text-xs sm:text-sm text-red-300 flex items-center gap-2.5">
+    <i class="ti ti-alert-triangle text-base text-red-400 shrink-0"></i>
+    <span>{{ error }}</span>
+  </div>
+  {% endif %}
+  {% if notice %}
+  <div class="rounded-xl border border-emerald-500/30 bg-emerald-600/15 p-4 text-xs sm:text-sm text-emerald-300 flex items-center gap-2.5">
+    <i class="ti ti-circle-check text-base text-emerald-400 shrink-0"></i>
+    <span>{{ notice }}</span>
+  </div>
+  {% endif %}
 
-  <section class="mb-8">
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-      <div class="flex items-center gap-2.5 flex-wrap">
-        <h2 class="font-semibold">Surveillance globale</h2>
-        {% if monitor.enabled and runner and runner.last_run_at %}
-        <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-xs text-emerald-400">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          Derniere verif : {{ runner.last_run_at.strftime('%H:%M:%S') }} ({{ runner.last_run_count }} nouveau)
-        </span>
-        {% elif monitor.enabled %}
-        <span class="inline-flex items-center gap-1.5 rounded-full bg-sky-500/10 border border-sky-500/20 px-2.5 py-0.5 text-xs text-sky-400">
-          <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
-          Active (en attente du prochain cycle)
-        </span>
-        {% endif %}
-      </div>
-      <button hx-post="/surveillance/run-now" hx-target="#surveillance-body" hx-swap="outerHTML"
-              class="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 px-3.5 py-2 text-xs font-semibold text-white shadow transition-colors">
-        <i class="ti ti-player-play"></i> Verifier maintenant
-      </button>
-    </div>
-    <form hx-post="/surveillance/monitor" hx-target="#surveillance-body" hx-swap="outerHTML" class="flex flex-wrap items-end gap-3">
-      <label class="text-xs text-slate-300 flex items-center gap-2 cursor-pointer bg-slate-800/80 border border-slate-700 hover:border-slate-600 rounded-lg px-3 py-2 transition-colors">
-        <input type="checkbox" name="enabled" class="h-4 w-4 rounded accent-emerald-500" {% if monitor.enabled %}checked{% endif %}>
-        <span class="font-medium text-slate-200">Activee</span>
-      </label>
-      <label class="text-xs text-slate-400">Intervalle (min)<br>
-        <input type="number" min="1" name="interval_minutes" value="{{ monitor.interval_minutes }}" class="mt-1 w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1.5"></label>
-      <button class="rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2 text-xs">Enregistrer</button>
-    </form>
-  </section>
-
-  <section class="mb-8">
-    <h2 class="font-semibold mb-2">Nouvelle recherche surveillee</h2>
-    <div class="mb-3 rounded-lg border border-violet-500/20 bg-violet-500/10 p-3 text-xs text-violet-300 flex items-start gap-2.5">
-      <i class="ti ti-info-circle text-base text-violet-400 shrink-0 mt-0.5"></i>
+  <!-- BANDEAU DE CONTROLE DU ROBOT -->
+  <div class="rounded-2xl border border-slate-800 bg-slate-800/40 p-4 sm:p-6 shadow-xl backdrop-blur">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
-        <span class="font-semibold text-slate-200">Pour suivre une serie</span> : utilisez de preference l'onglet <a href="/library" class="underline font-medium text-violet-200 hover:text-white">Series</a> ou <a href="/discover" class="underline font-medium text-violet-200 hover:text-white">Decouvrir</a>. La bibliotheque telecharge tous les episodes manquants d'un coup, evite les doublons et classe chaque saison dans son dossier.
-      </div>
-    </div>
-    <form hx-post="/surveillance/searches" hx-target="#surveillance-body" hx-swap="outerHTML" class="flex flex-wrap items-end gap-2">
-      <input name="name" placeholder="Nom" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
-      <input name="query" placeholder="Recherche (ex: ma serie s02)" class="w-full sm:w-64 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1">
-      <select name="cat" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
-        {% for c in categories %}<option value="{{ c.value }}">{{ c.value | capitalize }}</option>{% endfor %}
-      </select>
-      <select name="mode" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
-        <option value="auto">auto (envoi)</option><option value="notify">notify (signaler)</option>
-      </select>
-      <label class="text-xs text-slate-400">Seeders min<br>
-        <input type="number" name="min_seeders" value="0" min="0" class="w-20 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-      <label class="text-xs text-slate-400">Taille min (Go)<br>
-        <input type="number" name="min_size_gb" step="0.1" min="0" class="w-20 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-      <label class="text-xs text-slate-400">Taille max (Go)<br>
-        <input type="number" name="max_size_gb" step="0.1" min="0" class="w-20 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-      <fieldset class="text-xs text-slate-400"><legend>Qualite</legend>
-        <div class="flex gap-2">
-          {% for qv in ["2160p", "1080p", "720p", "480p", "other"] %}
-          <label class="flex items-center gap-1"><input type="checkbox" name="quality" value="{{ qv }}"> {{ qv }}</label>
-          {% endfor %}
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+            <i class="ti ti-radar text-emerald-400"></i> Surveillance
+          </h1>
+          {% if monitor.enabled and runner and runner.last_run_at %}
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-xs text-emerald-400 font-medium">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            Robot actif &middot; Verif {{ runner.last_run_at.strftime('%H:%M:%S') }}
+            {% if runner.last_run_count > 0 %}({{ runner.last_run_count }} nouveau{{ 'x' if runner.last_run_count > 1 else '' }}){% endif %}
+          </span>
+          {% elif monitor.enabled %}
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-sky-500/10 border border-sky-500/20 px-2.5 py-0.5 text-xs text-sky-400 font-medium">
+            <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+            Robot actif &middot; Toutes les {{ monitor.interval_minutes }} min
+          </span>
+          {% else %}
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 text-xs text-amber-300 font-medium">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            Surveillance en pause
+          </span>
+          {% endif %}
         </div>
-      </fieldset>
-      <label class="text-xs text-slate-400">Exclure<br>
-        <input name="exclude" placeholder="cam, ts" class="w-full sm:w-40 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-      <button class="w-full sm:w-auto rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white">Ajouter</button>
-    </form>
-  </section>
-
-  <section class="mb-8">
-    <h2 class="font-semibold mb-2">Recherches surveillees</h2>
-    {% for s in searches %}
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 py-2.5 text-sm">
-      <div class="flex items-center gap-2 flex-wrap">
-        <span class="font-medium text-slate-100">{{ s.name }}</span>
-        <span class="text-slate-400 text-xs">{{ s.query }}</span>
-        <span class="rounded bg-slate-700 px-2 py-0.5 text-xs text-slate-300">{{ s.mode }}</span>
+        <p class="mt-1 text-xs sm:text-sm text-slate-400">
+          Suivi automatique des sorties, detection sur vos trackers et telechargement direct dans Transmission.
+        </p>
       </div>
-      <div class="flex items-center gap-1.5 self-end sm:self-auto">
-        <button hx-post="/surveillance/searches/{{ s.name }}/toggle" hx-target="#surveillance-body" hx-swap="outerHTML"
-                class="rounded {% if s.enabled %}bg-amber-600{% else %}bg-slate-600{% endif %} px-2.5 py-1 text-xs text-white">
-          {{ "Desactiver" if s.enabled else "Activer" }}</button>
-        <button hx-post="/surveillance/searches/{{ s.name }}/delete" hx-target="#surveillance-body" hx-swap="outerHTML"
-                class="rounded bg-red-700 px-2.5 py-1 text-xs text-white">Supprimer</button>
+
+      <div class="flex items-center gap-2 flex-wrap shrink-0">
+        <button hx-post="/surveillance/run-now" hx-target="#surveillance-body" hx-swap="outerHTML"
+                class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-emerald-950/50 transition-all hover:scale-[1.02] active:scale-[0.98]">
+          <i class="ti ti-player-play"></i>
+          <span>Verifier maintenant</span>
+        </button>
+
+        <!-- Menu Reglages -->
+        <details class="relative" data-dropdown>
+          <summary class="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-800 px-3 py-2 text-xs sm:text-sm font-medium text-slate-200 cursor-pointer list-none transition-colors">
+            <i class="ti ti-settings"></i>
+            <span>Reglages</span>
+          </summary>
+          <div class="absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl border border-slate-700 bg-slate-900/98 p-4 shadow-2xl backdrop-blur z-20">
+            <h3 class="text-xs sm:text-sm font-semibold text-white mb-2.5 flex items-center gap-1.5">
+              <i class="ti ti-adjustments"></i> Parametres du robot
+            </h3>
+            <form hx-post="/surveillance/monitor" hx-target="#surveillance-body" hx-swap="outerHTML" class="space-y-3">
+              <label class="flex items-center gap-2.5 p-2.5 rounded-lg border border-slate-800 bg-slate-800/50 cursor-pointer hover:border-slate-700 transition-colors">
+                <input type="checkbox" name="enabled" class="h-4 w-4 rounded accent-emerald-500" {% if monitor.enabled %}checked{% endif %}>
+                <div>
+                  <div class="text-xs font-semibold text-slate-200">Surveillance active</div>
+                  <div class="text-[10px] text-slate-400">Verifie automatiquement vos trackers</div>
+                </div>
+              </label>
+              <div>
+                <label class="text-[11px] text-slate-400 block mb-1">Intervalle entre les verifications (minutes)</label>
+                <input type="number" min="1" name="interval_minutes" value="{{ monitor.interval_minutes }}"
+                       class="w-full rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white">
+              </div>
+              <button type="submit" class="w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 text-xs transition-colors">
+                Enregistrer les reglages
+              </button>
+            </form>
+          </div>
+        </details>
+
+        <!-- Menu Recherche libre -->
+        <details class="relative" data-dropdown>
+          <summary class="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-800 px-3 py-2 text-xs sm:text-sm font-medium text-slate-200 cursor-pointer list-none transition-colors">
+            <i class="ti ti-plus"></i>
+            <span class="hidden sm:inline">Recherche libre</span>
+          </summary>
+          <div class="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-slate-700 bg-slate-900/98 p-4 shadow-2xl backdrop-blur z-20">
+            <h3 class="text-xs sm:text-sm font-semibold text-white mb-1 flex items-center gap-1.5">
+              <i class="ti ti-search"></i> Ajouter une recherche libre
+            </h3>
+            <p class="text-[11px] text-slate-400 mb-3">Recherche periodique par mots-cles purs sur vos trackers.</p>
+            <form hx-post="/surveillance/searches" hx-target="#surveillance-body" hx-swap="outerHTML" class="space-y-2.5">
+              <div>
+                <label class="text-[11px] text-slate-400 block mb-0.5">Nom du suivi</label>
+                <input name="name" required placeholder="Ex: Ma recherche" class="w-full rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white">
+              </div>
+              <div>
+                <label class="text-[11px] text-slate-400 block mb-0.5">Requete torrent</label>
+                <input name="query" required placeholder="Ex: Dune 2024" class="w-full rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white">
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-[11px] text-slate-400 block mb-0.5">Categorie</label>
+                  <select name="cat" class="w-full rounded-lg bg-slate-800 border border-slate-700 px-2 py-1.5 text-xs text-white">
+                    {% for c in categories %}<option value="{{ c.value }}">{{ c.value | capitalize }}</option>{% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label class="text-[11px] text-slate-400 block mb-0.5">Mode</label>
+                  <select name="mode" class="w-full rounded-lg bg-slate-800 border border-slate-700 px-2 py-1.5 text-xs text-white">
+                    <option value="auto">Auto (envoi Transmission)</option>
+                    <option value="notify">Notify (signalement)</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label class="text-[11px] text-slate-400 block mb-0.5">Mots a exclure (separes par virgule)</label>
+                <input name="exclude" placeholder="cam, ts" value="cam, ts" class="w-full rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white">
+              </div>
+              <button type="submit" class="w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-1.5 text-xs transition-colors">
+                Lancer la recherche surveillee
+              </button>
+            </form>
+          </div>
+        </details>
       </div>
     </div>
-    {% else %}
-    <p class="text-slate-400 text-sm">Aucune recherche surveillee.</p>
-    {% endfor %}
-  </section>
+  </div>
 
-  {% include "partials/surveillance_history.html" %}
+  <!-- BARRE D'ONGLETS / FILTRES FLUIDES -->
+  <div class="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto no-scrollbar">
+    <button type="button" data-surveillance-tab="all"
+            class="surveillance-tab-btn flex items-center gap-2 rounded-xl bg-emerald-600 text-white px-3.5 py-2 text-xs sm:text-sm font-semibold transition-all">
+      <span>Tous</span>
+      <span class="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold">{{ (movies|length) + (series|length) + (searches|length) }}</span>
+    </button>
+    <button type="button" data-surveillance-tab="movie"
+            class="surveillance-tab-btn flex items-center gap-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white px-3.5 py-2 text-xs sm:text-sm font-medium transition-all">
+      <i class="ti ti-movie text-sky-400"></i>
+      <span>Films</span>
+      <span class="rounded-full bg-slate-700 px-2 py-0.5 text-[10px] text-slate-300 font-bold">{{ movies|length }}</span>
+    </button>
+    <button type="button" data-surveillance-tab="series"
+            class="surveillance-tab-btn flex items-center gap-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white px-3.5 py-2 text-xs sm:text-sm font-medium transition-all">
+      <i class="ti ti-device-tv text-violet-400"></i>
+      <span>Series</span>
+      <span class="rounded-full bg-slate-700 px-2 py-0.5 text-[10px] text-slate-300 font-bold">{{ series|length }}</span>
+    </button>
+    {% if searches %}
+    <button type="button" data-surveillance-tab="search"
+            class="surveillance-tab-btn flex items-center gap-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white px-3.5 py-2 text-xs sm:text-sm font-medium transition-all">
+      <i class="ti ti-search text-amber-400"></i>
+      <span>Recherches</span>
+      <span class="rounded-full bg-slate-700 px-2 py-0.5 text-[10px] text-slate-300 font-bold">{{ searches|length }}</span>
+    </button>
+    {% endif %}
+    <button type="button" data-surveillance-tab="history"
+            class="surveillance-tab-btn flex items-center gap-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white px-3.5 py-2 text-xs sm:text-sm font-medium transition-all">
+      <i class="ti ti-history text-emerald-400"></i>
+      <span>Historique</span>
+      <span class="rounded-full bg-slate-700 px-2 py-0.5 text-[10px] text-slate-300 font-bold">{{ records|length }}</span>
+    </button>
+  </div>
+
+  <!-- GRILLE D'OEUVRES SOUS SURVEILLANCE -->
+  {% if not movies and not series and not searches %}
+  <div data-surveillance-item="empty" class="rounded-2xl border border-slate-800 bg-slate-800/20 p-8 text-center">
+    <div class="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400 text-3xl mb-4">
+      <i class="ti ti-radar"></i>
+    </div>
+    <h3 class="text-base sm:text-lg font-semibold text-white">Aucune oeuvre sous surveillance</h3>
+    <p class="mt-1 text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
+      Ajoutez des films et series a surveiller : des qu'une release sortira sur vos trackers, TorrSearch la telechargera automatiquement !
+    </p>
+    <div class="mt-5 flex items-center justify-center gap-3">
+      <a href="/discover" class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-xs sm:text-sm font-semibold text-white transition-colors">
+        <i class="ti ti-compass"></i> Decouvrir les tendances
+      </a>
+      <a href="/" class="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-4 py-2 text-xs sm:text-sm font-medium text-slate-200 transition-colors">
+        <i class="ti ti-search"></i> Rechercher un titre
+      </a>
+    </div>
+  </div>
+  {% else %}
+  <div class="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5" id="surveillance-cards-grid">
+    <!-- FILMS -->
+    {% for m in movies %}
+    <div data-surveillance-item="movie" class="surveillance-card flex flex-col justify-between overflow-hidden rounded-xl border border-slate-800 bg-slate-800/40 hover:border-slate-700 transition-all shadow-md group">
+      <div>
+        <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-900 cursor-pointer"
+             hx-get="/movies/{{ m.tmdb_id }}/detail" hx-target="#modal-container" hx-swap="innerHTML"
+             title="Voir les details">
+          {% if m.poster_url %}
+          <img src="{{ m.poster_url }}" alt="{{ m.title }}" class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" data-poster>
+          {% else %}
+          <div class="flex h-full w-full items-center justify-center text-slate-700"><i class="ti ti-photo text-4xl"></i></div>
+          {% endif %}
+
+          <div class="absolute top-2 left-2 flex flex-col gap-1 items-start">
+            <span class="rounded px-1.5 py-0.5 text-[9px] font-semibold bg-sky-500/90 text-white shadow">Film</span>
+            {% if m.year %}<span class="rounded px-1.5 py-0.5 text-[9px] font-semibold bg-slate-900/80 text-slate-300 backdrop-blur">{{ m.year }}</span>{% endif %}
+          </div>
+
+          {% set jf = (owned or {}).get('movie:' ~ m.tmdb_id) %}
+          {% if jf %}
+          <span class="absolute top-2 right-2 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-green-500/90 text-white shadow backdrop-blur">
+            <i class="ti ti-device-tv"></i> Jellyfin
+          </span>
+          {% endif %}
+
+          <div class="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent">
+            {% if m.status == 'grabbed' %}
+            <span class="inline-flex items-center gap-1 rounded-md bg-emerald-500/20 border border-emerald-400/40 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 backdrop-blur">
+              <i class="ti ti-check"></i> Telecharge
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-1 rounded-md bg-sky-500/20 border border-sky-400/40 px-2 py-0.5 text-[10px] font-semibold text-sky-300 backdrop-blur">
+              <i class="ti ti-eye animate-pulse"></i> En attente
+            </span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="p-2.5 sm:p-3">
+          <h3 class="text-xs sm:text-sm font-semibold text-white truncate cursor-pointer hover:text-emerald-400 transition-colors"
+              hx-get="/movies/{{ m.tmdb_id }}/detail" hx-target="#modal-container" hx-swap="innerHTML"
+              title="{{ m.title }}">{{ m.title }}</h3>
+
+          {% if m.status == 'grabbed' and m.grabbed_title %}
+          <div class="mt-1.5 rounded bg-slate-900/80 p-1.5 border border-slate-800 text-[10px] font-mono text-emerald-400 truncate" title="{{ m.grabbed_title }}">
+            <i class="ti ti-download text-[11px]"></i> {{ m.grabbed_title }}
+          </div>
+          {% if m.grabbed_at %}
+          <div class="mt-1 text-[10px] text-slate-500">
+            Obtenu le {{ m.grabbed_at.strftime('%d/%m/%Y') }}
+          </div>
+          {% endif %}
+          {% else %}
+          <p class="mt-1 text-[11px] text-slate-400 flex items-center gap-1">
+            <i class="ti ti-radar text-sky-400"></i> Recherche active trackers
+          </p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="p-2.5 sm:p-3 pt-0 flex flex-col gap-1.5">
+        {% if jf %}
+        <a href="{{ jellyfin_url }}/web/#/details?id={{ jf }}" target="_blank" rel="noopener"
+           class="flex items-center justify-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 py-1.5 text-xs font-semibold text-white transition-colors">
+          <i class="ti ti-player-play"></i> Lire sur Jellyfin
+        </a>
+        {% endif %}
+
+        <div class="flex items-center gap-1.5">
+          <button hx-get="/movies/{{ m.tmdb_id }}/detail" hx-target="#modal-container" hx-swap="innerHTML"
+                  class="flex-1 flex items-center justify-center gap-1 rounded-lg border border-slate-700 bg-slate-800/50 hover:bg-slate-800 py-1.5 text-xs font-medium text-slate-200 transition-colors">
+            <i class="ti ti-info-circle"></i> Details
+          </button>
+
+          {% if m.status == 'grabbed' %}
+          <form hx-post="/surveillance/movies/{{ m.tmdb_id }}/regrab" hx-target="#surveillance-body" hx-swap="outerHTML" class="shrink-0">
+            <button type="submit" title="Relancer la recherche (Regrab)"
+                    class="flex items-center justify-center rounded-lg border border-amber-500/30 bg-amber-600/10 hover:bg-amber-600/20 px-2 py-1.5 text-xs text-amber-400 transition-colors">
+              <i class="ti ti-refresh"></i>
+            </button>
+          </form>
+          {% endif %}
+
+          <form hx-post="/surveillance/movies/{{ m.tmdb_id }}/remove" hx-target="#surveillance-body" hx-swap="outerHTML" class="shrink-0">
+            <button type="submit" title="Retirer de la surveillance"
+                    class="flex items-center justify-center rounded-lg border border-slate-700 hover:border-red-500/40 hover:bg-red-600/10 px-2 py-1.5 text-xs text-slate-400 hover:text-red-400 transition-colors">
+              <i class="ti ti-trash"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+    <!-- SERIES -->
+    {% for s in series %}
+    <div data-surveillance-item="series" class="surveillance-card flex flex-col justify-between overflow-hidden rounded-xl border border-slate-800 bg-slate-800/40 hover:border-slate-700 transition-all shadow-md group">
+      <div>
+        <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-900 cursor-pointer"
+             hx-get="/series/{{ s.tmdb_id }}/detail" hx-target="#modal-container" hx-swap="innerHTML"
+             title="Voir les saisons et episodes">
+          {% if s.poster_url %}
+          <img src="{{ s.poster_url }}" alt="{{ s.title }}" class="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" data-poster>
+          {% else %}
+          <div class="flex h-full w-full items-center justify-center text-slate-700"><i class="ti ti-photo text-4xl"></i></div>
+          {% endif %}
+
+          <div class="absolute top-2 left-2 flex flex-col gap-1 items-start">
+            <span class="rounded px-1.5 py-0.5 text-[9px] font-semibold bg-violet-600/90 text-white shadow">Serie</span>
+            {% if s.year %}<span class="rounded px-1.5 py-0.5 text-[9px] font-semibold bg-slate-900/80 text-slate-300 backdrop-blur">{{ s.year }}</span>{% endif %}
+          </div>
+
+          {% set jf = (owned or {}).get('tv:' ~ s.tmdb_id) %}
+          {% if jf %}
+          <span class="absolute top-2 right-2 rounded px-1.5 py-0.5 text-[9px] font-semibold bg-green-500/90 text-white shadow backdrop-blur">
+            <i class="ti ti-device-tv"></i> Jellyfin
+          </span>
+          {% endif %}
+
+          <div class="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent">
+            <span class="inline-flex items-center gap-1 rounded-md bg-violet-500/20 border border-violet-400/40 px-2 py-0.5 text-[10px] font-semibold text-violet-300 backdrop-blur">
+              <i class="ti ti-eye animate-pulse"></i> Suivi actif
+            </span>
+          </div>
+        </div>
+
+        <div class="p-2.5 sm:p-3">
+          <h3 class="text-xs sm:text-sm font-semibold text-white truncate cursor-pointer hover:text-violet-400 transition-colors"
+              hx-get="/series/{{ s.tmdb_id }}/detail" hx-target="#modal-container" hx-swap="innerHTML"
+              title="{{ s.title }}">{{ s.title }}</h3>
+
+          <div class="mt-1.5 flex items-center justify-between text-[11px] text-slate-400">
+            <span class="flex items-center gap-1 text-violet-300 font-medium">
+              <i class="ti ti-stack-2"></i> {{ s.grabbed|length }} episode{{ 's' if s.grabbed|length > 1 else '' }}
+            </span>
+            <span class="text-[10px] text-slate-500">acquis</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-2.5 sm:p-3 pt-0 flex flex-col gap-1.5">
+        {% if jf %}
+        <a href="{{ jellyfin_url }}/web/#/details?id={{ jf }}" target="_blank" rel="noopener"
+           class="flex items-center justify-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 py-1.5 text-xs font-semibold text-white transition-colors">
+          <i class="ti ti-player-play"></i> Lire sur Jellyfin
+        </a>
+        {% endif %}
+
+        <button hx-get="/series/{{ s.tmdb_id }}/detail" hx-target="#modal-container" hx-swap="innerHTML"
+                class="w-full flex items-center justify-center gap-1 rounded-lg bg-violet-600/20 border border-violet-500/30 hover:bg-violet-600/30 py-1.5 text-xs font-semibold text-violet-300 transition-colors">
+          <i class="ti ti-list"></i> Saisons & Episodes
+        </button>
+
+        <div class="flex items-center gap-1.5">
+          <a href="/?q={{ s.title | urlencode }}&cat=tv"
+             class="flex-1 flex items-center justify-center gap-1 rounded-lg border border-slate-700 bg-slate-800/50 hover:bg-slate-800 py-1 text-[11px] font-medium text-slate-300 transition-colors">
+            <i class="ti ti-search"></i> Torrents
+          </a>
+          <form hx-post="/surveillance/series/{{ s.tmdb_id }}/remove" hx-target="#surveillance-body" hx-swap="outerHTML" class="shrink-0">
+            <button type="submit" title="Ne plus suivre"
+                    class="flex items-center justify-center rounded-lg border border-slate-700 hover:border-red-500/40 hover:bg-red-600/10 px-2 py-1 text-[11px] text-slate-400 hover:text-red-400 transition-colors">
+              <i class="ti ti-trash"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- SECTION RECHERCHES PAR MOT-CLE -->
+  {% if searches %}
+  <div data-surveillance-item="search" class="surveillance-section rounded-2xl border border-slate-800 bg-slate-800/40 p-4 sm:p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+        <i class="ti ti-search text-amber-400"></i> Recherches surveillees par mot-cle
+      </h2>
+      <span class="text-xs text-slate-400">{{ searches|length }} active{{ 's' if searches|length > 1 else '' }}</span>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {% for s in searches %}
+      <div class="flex flex-col justify-between rounded-xl border border-slate-700/80 bg-slate-900/60 p-3.5 gap-3">
+        <div>
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-semibold text-xs sm:text-sm text-slate-100 truncate" title="{{ s.name }}">{{ s.name }}</span>
+            <span class="rounded px-1.5 py-0.5 text-[10px] font-medium {{ 'bg-emerald-500/15 text-emerald-300' if s.mode == 'auto' else 'bg-sky-500/15 text-sky-300' }}">{{ s.mode }}</span>
+          </div>
+          <div class="mt-1 text-xs text-slate-400 font-mono truncate" title="{{ s.query }}">
+            <i class="ti ti-tag text-[10px] text-slate-500"></i> {{ s.query }}
+          </div>
+          <div class="mt-1 flex items-center gap-1.5 text-[10px] text-slate-500">
+            <span>Cat: {{ s.category.value }}</span>
+            {% if s.exclude %}<span>&middot; Excl: {{ s.exclude | join(', ') }}</span>{% endif %}
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between border-t border-slate-800 pt-2.5">
+          <form hx-post="/surveillance/searches/{{ s.name }}/toggle" hx-target="#surveillance-body" hx-swap="outerHTML">
+            <button type="submit"
+                    class="rounded-lg px-2.5 py-1 text-xs font-medium {{ 'bg-amber-600/20 text-amber-300 border border-amber-500/30' if s.enabled else 'bg-slate-800 text-slate-400 border border-slate-700' }} transition-colors">
+              {{ 'Desactiver' if s.enabled else 'Activer' }}
+            </button>
+          </form>
+          <form hx-post="/surveillance/searches/{{ s.name }}/delete" hx-target="#surveillance-body" hx-swap="outerHTML">
+            <button type="submit" title="Supprimer la recherche"
+                    class="rounded-lg border border-slate-700/80 hover:border-red-500/30 px-2 py-1 text-xs text-slate-400 hover:text-red-400 transition-colors">
+              <i class="ti ti-trash"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- SECTION HISTORIQUE DES DETECTIONS -->
+  <div data-surveillance-item="history" class="surveillance-section">
+    {% include "partials/surveillance_history.html" %}
+  </div>
 </div>

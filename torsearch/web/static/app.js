@@ -44,6 +44,33 @@
     }
     var chip = event.target.closest('[data-filter]');
     if (chip) clearFilter(chip.dataset.filter, chip.dataset.value || '');
+    var tabBtn = event.target.closest('[data-surveillance-tab]');
+    if (tabBtn) {
+      var targetTab = tabBtn.dataset.surveillanceTab;
+      var container = document.getElementById('surveillance-body');
+      if (container) {
+        container.querySelectorAll('[data-surveillance-tab]').forEach(function (btn) {
+          if (btn === tabBtn) {
+            btn.classList.add('bg-emerald-600', 'text-white');
+            btn.classList.remove('bg-slate-800/80', 'text-slate-300');
+          } else {
+            btn.classList.remove('bg-emerald-600', 'text-white');
+            btn.classList.add('bg-slate-800/80', 'text-slate-300');
+          }
+        });
+        container.querySelectorAll('[data-surveillance-item]').forEach(function (el) {
+          var itemType = el.dataset.surveillanceItem;
+          if (targetTab === 'all') {
+            el.style.display = itemType === 'history' ? 'none' : '';
+          } else if (targetTab === 'history') {
+            el.style.display = itemType === 'history' ? '' : 'none';
+          } else {
+            el.style.display = itemType === targetTab ? '' : 'none';
+          }
+        });
+      }
+      return;
+    }
   });
 
   document.addEventListener('keydown', function (event) {
