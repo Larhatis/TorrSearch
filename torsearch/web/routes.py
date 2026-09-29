@@ -105,16 +105,23 @@ async def search(
             one = await ctx.jellyfin.find_matching(q)
             if one is not None:
                 jellyfin_matches = [one]
-    tmdb_movies = []
+    tmdb_matches = []
     if not results and q.strip() and getattr(ctx, "tmdb", None) and getattr(ctx.tmdb, "enabled", False):
         try:
             tmdb_res = await ctx.tmdb.search(q.strip())
-            tmdb_movies = [m for m in tmdb_res if m.media_type == "movie"][:3]
+            if cat == "movies":
+                tmdb_matches = [m for m in tmdb_res if m.media_type == "movie"][:3]
+            elif cat == "tv":
+                tmdb_matches = [m for m in tmdb_res if m.media_type == "tv"][:3]
+            else:
+                tmdb_matches = [m for m in tmdb_res if m.media_type in ("movie", "tv")][:3]
         except Exception:
             pass
 
     library = getattr(request.app.state, "library", None)
-    library_ids = {m.tmdb_id for m in library.list()} if library else set()
+    series_library = getattr(request.app.state, "series_library", None)
+    movie_ids = {m.tmdb_id for m in library.list()} if library else set()
+    series_ids = {s.tmdb_id for s in series_library.list()} if series_library else set()
 
     return templates.TemplateResponse(
         request,
@@ -130,8 +137,11 @@ async def search(
             "jellyfin_matches": jellyfin_matches,
             "jellyfin_match": jellyfin_matches[0] if jellyfin_matches else None,
             "jellyfin_url": ctx.jellyfin.base_url if getattr(ctx, "jellyfin", None) else "",
-            "tmdb_movies": tmdb_movies,
-            "library_ids": library_ids,
+            "tmdb_matches": tmdb_matches,
+            "tmdb_movies": tmdb_matches,
+            "movie_ids": movie_ids,
+            "series_ids": series_ids,
+            "library_ids": movie_ids,
         },
     )
 

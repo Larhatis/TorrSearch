@@ -87,13 +87,13 @@
         </div>
       </div>
 
-      {% if tmdb_movies %}
+      {% if tmdb_matches %}
       <div class="mt-4 pt-4 border-t border-slate-700/60">
         <div class="text-xs font-medium text-slate-300 mb-2.5 flex items-center gap-1.5">
-          <i class="ti ti-movie text-sky-400"></i> Films correspondants trouves sur TMDB :
+          <i class="ti ti-sparkles text-sky-400"></i> Titres correspondants trouves sur TMDB :
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {% for m in tmdb_movies %}
+          {% for m in tmdb_matches %}
           <div class="flex gap-2.5 rounded-lg border border-slate-700/80 bg-slate-900/60 p-2.5 items-center">
             <div class="w-12 aspect-[2/3] shrink-0 rounded bg-slate-800 overflow-hidden relative">
               {% if m.poster_url %}
@@ -103,18 +103,27 @@
               {% endif %}
             </div>
             <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 mb-0.5">
+                <span class="rounded px-1.5 py-0.5 text-[9px] {{ 'bg-sky-500/15 text-sky-300' if m.media_type == 'movie' else 'bg-violet-500/15 text-violet-300' }}">{{ 'Film' if m.media_type == 'movie' else 'Serie' }}</span>
+                {% if m.year %}<span class="text-[11px] text-slate-400">{{ m.year }}</span>{% endif %}
+              </div>
               <div class="text-xs font-medium text-slate-100 truncate" title="{{ m.title }}">{{ m.title }}</div>
-              {% if m.year %}<div class="text-[11px] text-slate-400">{{ m.year }}</div>{% endif %}
-              <div id="media-action-movie-{{ m.tmdb_id }}" class="mt-1.5">
-                {% if m.tmdb_id in (library_ids or []) %}
+              <div id="media-action-{{ m.media_type }}-{{ m.tmdb_id }}" class="mt-1.5">
+                {% if (m.media_type == 'movie' and m.tmdb_id in (movie_ids or library_ids or [])) or (m.media_type == 'tv' and m.tmdb_id in (series_ids or [])) %}
                 <span class="inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-400 font-medium">
                   <i class="ti ti-check"></i> En surveillance
                 </span>
-                {% else %}
+                {% elif m.media_type == 'movie' %}
                 <button hx-post="/library/add" hx-target="#media-action-movie-{{ m.tmdb_id }}" hx-swap="outerHTML"
                         hx-vals='{{ {"tmdb_id": m.tmdb_id, "title": m.title, "original_title": (m.original_title or ""), "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
                         class="inline-flex items-center gap-1 rounded bg-sky-600/30 border border-sky-500/40 hover:bg-sky-600/50 px-2 py-1 text-[11px] font-medium text-sky-200 transition-colors">
                   <i class="ti ti-eye"></i> Surveiller la sortie
+                </button>
+                {% else %}
+                <button hx-post="/series/add" hx-target="#media-action-tv-{{ m.tmdb_id }}" hx-swap="outerHTML"
+                        hx-vals='{{ {"tmdb_id": m.tmdb_id, "title": m.title, "original_title": (m.original_title or ""), "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
+                        class="inline-flex items-center gap-1 rounded bg-violet-600/30 border border-violet-500/40 hover:bg-violet-600/50 px-2 py-1 text-[11px] font-medium text-violet-200 transition-colors">
+                  <i class="ti ti-bookmark-plus"></i> Suivre la serie
                 </button>
                 {% endif %}
               </div>

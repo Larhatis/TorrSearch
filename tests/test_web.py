@@ -379,3 +379,27 @@ def test_search_no_results_suggests_surveillance_and_tmdb():
     assert "Surveiller la sortie" in resp.text
 
 
+def test_search_no_results_suggests_tv_series_tmdb():
+    class FakeTmdb:
+        def __init__(self, items):
+            self.enabled = True
+            self._items = items
+
+        async def search(self, query):
+            return self._items
+
+    fake_series = MediaResult(
+        tmdb_id=99999,
+        media_type="tv",
+        title="Lanterns 2026",
+        year="2026",
+        poster_path="/lanterns.jpg",
+    )
+    client, _ = _make(results=[], tmdb=FakeTmdb([fake_series]))
+    resp = client.get("/search", params={"q": "Lanterns", "cat": "tv"})
+    assert resp.status_code == 200
+    assert "Lanterns 2026" in resp.text
+    assert "Suivre la serie" in resp.text
+
+
+
