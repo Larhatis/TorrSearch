@@ -609,6 +609,8 @@ class MonitorRunner:
         self._task = None
         self._wake_event = asyncio.Event()
         self._lock = asyncio.Lock()
+        self.last_run_at: datetime | None = None
+        self.last_run_count: int = 0
 
     def wake(self) -> None:
         """Wake the monitor loop immediately (e.g. settings changed or manual run)."""
@@ -648,6 +650,8 @@ class MonitorRunner:
                 self._ctx.transmission, getattr(self._ctx, "jellyfin", None),
                 self._completed_seen,
             )
+            self.last_run_at = datetime.now(UTC)
+            self.last_run_count = len(records)
             return records
 
     async def start(self) -> None:

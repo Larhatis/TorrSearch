@@ -21,10 +21,11 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.12)
+## 2. État actuel (v0.3.13)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Indicateur en direct de dernière vérification avec badge pulsé et rafraîchissement automatique silencieux de l'historique sur l'onglet Surveillance.
 - Protection anti-doublon d'épisodes multi-couches :
   - Détection Transmission en direct (interrogation temps réel des torrents actifs ou terminés pour ne jamais renvoyer un épisode déjà en cours ou fini).
   - Détection disque (scan du dossier de destination pour ne jamais re-télécharger un épisode déjà présent sur le NAS).
@@ -57,7 +58,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **547 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **548 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

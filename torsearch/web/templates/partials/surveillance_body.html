@@ -4,7 +4,20 @@
 
   <section class="mb-8">
     <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-      <h2 class="font-semibold">Surveillance globale</h2>
+      <div class="flex items-center gap-2.5 flex-wrap">
+        <h2 class="font-semibold">Surveillance globale</h2>
+        {% if monitor.enabled and runner and runner.last_run_at %}
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-xs text-emerald-400">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          Derniere verif : {{ runner.last_run_at.strftime('%H:%M:%S') }} ({{ runner.last_run_count }} nouveau)
+        </span>
+        {% elif monitor.enabled %}
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-sky-500/10 border border-sky-500/20 px-2.5 py-0.5 text-xs text-sky-400">
+          <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+          Active (en attente du prochain cycle)
+        </span>
+        {% endif %}
+      </div>
       <button hx-post="/surveillance/run-now" hx-target="#surveillance-body" hx-swap="outerHTML"
               class="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 px-3.5 py-2 text-xs font-semibold text-white shadow transition-colors">
         <i class="ti ti-player-play"></i> Verifier maintenant
@@ -79,33 +92,5 @@
     {% endfor %}
   </section>
 
-  <section>
-    <div class="flex items-center justify-between mb-2">
-      <h2 class="font-semibold">Historique</h2>
-      {% if records %}
-      <form hx-post="/surveillance/history/clear" hx-target="#surveillance-body" hx-swap="outerHTML">
-        <button type="submit" class="rounded bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 text-xs transition-colors">
-          <i class="ti ti-trash mr-1"></i> Vider l'historique
-        </button>
-      </form>
-      {% endif %}
-    </div>
-    {% for r in records %}
-    <div class="flex items-center gap-3 border-b border-slate-800 py-2 text-sm">
-      <span class="rounded px-2 py-0.5 text-xs {% if r.kind == 'grabbed' %}bg-emerald-700{% else %}bg-sky-700{% endif %}">{{ 'grabbe' if r.kind == 'grabbed' else 'trouve' }}</span>
-      <span class="text-slate-400">{{ r.search }}</span>
-      <span>{{ r.title }}</span>
-      <span class="ml-auto text-slate-500 text-xs">{{ r.at.strftime('%Y-%m-%d %H:%M') }}</span>
-      {% if r.kind == 'found' %}
-      <form hx-post="/download" hx-target="#toast" class="inline">
-        <input type="hidden" name="download_url" value="{{ r.download_url }}">
-        <input type="hidden" name="title" value="{{ r.title }}">
-        <button class="rounded bg-emerald-600 hover:bg-emerald-500 px-2 py-1 text-xs">Envoyer</button>
-      </form>
-      {% endif %}
-    </div>
-    {% else %}
-    <p class="text-slate-400 text-sm">Aucune detection pour le moment.</p>
-    {% endfor %}
-  </section>
+  {% include "partials/surveillance_history.html" %}
 </div>

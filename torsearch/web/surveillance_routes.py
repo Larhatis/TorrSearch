@@ -23,10 +23,12 @@ def _context(request: Request, error=None, notice=None):
     ctx: AppContext = request.app.state.ctx
     history = request.app.state.history
     records = history.records() if history is not None else []
+    runner = getattr(request.app.state, "monitor", None)
     return {
         "config": ctx.config, "searches": ctx.config.saved_searches,
         "monitor": ctx.config.monitor, "records": records,
         "categories": list(Category), "error": error, "notice": notice,
+        "runner": runner,
     }
 
 
@@ -40,7 +42,14 @@ def _body(request, **kw):
 
 @surveillance_router.get("/surveillance", response_class=HTMLResponse)
 async def page(request: Request):
+    if request.headers.get("HX-Request"):
+        return _body(request)
     return _page(request)
+
+
+@surveillance_router.get("/surveillance/history", response_class=HTMLResponse)
+async def history_list(request: Request):
+    return templates.TemplateResponse(request, "partials/surveillance_history.html", _context(request))
 
 
 @surveillance_router.post("/surveillance/monitor", response_class=HTMLResponse)
@@ -78,7 +87,10 @@ async def run_now(request: Request):
             if count > 0:
                 notice = f"Verification effectuee : {count} nouveau(x) torrent(s) envoye(s) a Transmission."
             else:
-                notice = "Verification effectuee : aucun nouvel element a recuperer pour le moment."
+                notice = (
+                    "Verification effectuee : aucun nouvel element a recuperer "
+                    "(les torrents/episodes sont deja presents dans Transmission ou sur le disque)."
+                )
         except Exception as exc:
             return _body(request, error=f"Erreur lors de la verification : {exc}")
     else:

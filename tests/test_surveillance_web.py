@@ -137,3 +137,14 @@ def test_clear_history(tmp_path):
     assert "Historique vide." in resp.text
     assert len(history.records()) == 0
 
+
+def test_surveillance_history_route(tmp_path):
+    history = MonitorHistory(tmp_path / "monitor.json")
+    history.add(MonitorRecord(search="Paolo", title="Paolo.S01E01", source="trk", download_url="http://x", kind="grabbed", at=datetime.now(UTC)))
+    client, _, _ = _client(tmp_path, history=history)
+
+    resp = client.get("/surveillance/history")
+    assert resp.status_code == 200
+    assert "Paolo.S01E01" in resp.text
+
+
