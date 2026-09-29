@@ -21,7 +21,7 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.13)
+## 2. État actuel (v0.3.14)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 

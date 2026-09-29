@@ -95,6 +95,29 @@ async def test_run_cycle_tv_grabs_all_episodes_without_duplicates(tmp_path):
     assert created2 == []
 
 
+def test_select_new_tv_does_not_break_on_non_episodic_in_middle():
+    from torsearch.monitor.runner import select_new_tv
+
+    results = [
+        _r("Lanterns.S01E01.1080p", seeders=50, infohash="E01"),
+        _r("Lanterns.2026.1080p", seeders=40, infohash="MOVIE"),
+        _r("Lanterns.S01E02.1080p", seeders=30, infohash="E02"),
+    ]
+    picks = select_new_tv(results, ResultFilters(), seen_keys=set(), seen_episodes=set())
+    assert [p.title for p in picks] == ["Lanterns.S01E01.1080p", "Lanterns.S01E02.1080p"]
+
+
+def test_select_new_tv_fallback_when_no_episodes():
+    from torsearch.monitor.runner import select_new_tv
+
+    results = [
+        _r("Lanterns.2026.1080p", seeders=40, infohash="MOVIE"),
+        _r("Lanterns.2026.720p", seeders=20, infohash="MOVIE-720"),
+    ]
+    picks = select_new_tv(results, ResultFilters(), seen_keys=set(), seen_episodes=set())
+    assert [p.title for p in picks] == ["Lanterns.2026.1080p"]
+
+
 async def test_run_cycle_disabled_globally(tmp_path):
     history = MonitorHistory(tmp_path / "m.json")
     cfg = Config(monitor=MonitorConfig(enabled=False), saved_searches=[SavedSearch(name="s", query="q")])

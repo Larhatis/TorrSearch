@@ -47,7 +47,7 @@ class MonitorHistory:
         return {
             r.infohash or r.download_url
             for r in self._all()
-            if r.search == search_name
+            if r.search == search_name and (r.infohash or r.download_url)
         }
 
     def seen_episodes(self, search_name: str) -> set[str]:

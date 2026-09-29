@@ -15,12 +15,14 @@ logger = logging.getLogger(__name__)
 
 
 def grab_key(result: SearchResult) -> str:
-    return result.infohash or result.download_url
+    k = result.infohash or result.download_url
+    return k.lower() if k else ""
 
 
 def select_new(results, filters, seen):
+    seen_lower = {k.lower() for k in seen}
     for result in apply(results, filters):
-        if grab_key(result) not in seen:
+        if grab_key(result) not in seen_lower:
             return result
     return None
 
@@ -29,9 +31,12 @@ def select_new_tv(results, filters, seen_keys: set[str], seen_episodes: set[str]
     """Pick at most one release per episode, skipping already grabbed episodes."""
     picks: list[SearchResult] = []
     current_eps = set(seen_episodes)
+    seen_lower = {k.lower() for k in seen_keys}
     season_tags = {k for k in current_eps if len(k) == 3 and k.startswith("S") and k[1:].isdigit()}
+    fallback_non_episodic: SearchResult | None = None
+
     for result in apply(results, filters):
-        if grab_key(result) in seen_keys:
+        if grab_key(result) in seen_lower:
             continue
         rel_eps = parse_episodes(result.title)
         if rel_eps:
@@ -47,9 +52,11 @@ def select_new_tv(results, filters, seen_keys: set[str], seen_episodes: set[str]
                 if len(ep) == 3 and ep.startswith("S") and ep[1:].isdigit():
                     season_tags.add(ep)
         else:
-            if not picks:
-                picks.append(result)
-            break
+            if fallback_non_episodic is None:
+                fallback_non_episodic = result
+
+    if not picks and fallback_non_episodic is not None:
+        picks.append(fallback_non_episodic)
     return picks
 
 
@@ -217,9 +224,7 @@ async def run_cycle(
             qualities=saved.qualities, exclude=saved.exclude, sort="seeders", direction="desc",
         )
         seen_keys = history.seen_keys(saved.name)
-        is_tv_search = saved.category == Category.TV or (
-            saved.category == Category.ALL and any(parse_episodes(r.title) for r in results)
-        )
+        is_tv_search = saved.category == Category.TV or any(parse_episodes(r.title) for r in results)
         matching_series = None
         if is_tv_search:
             seen_eps = history.seen_episodes(saved.name) if hasattr(history, "seen_episodes") else set()
