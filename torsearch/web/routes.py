@@ -105,12 +105,24 @@ async def search(
             one = await ctx.jellyfin.find_matching(q)
             if one is not None:
                 jellyfin_matches = [one]
+    tmdb_movies = []
+    if not results and q.strip() and getattr(ctx, "tmdb", None) and getattr(ctx.tmdb, "enabled", False):
+        try:
+            tmdb_res = await ctx.tmdb.search(q.strip())
+            tmdb_movies = [m for m in tmdb_res if m.media_type == "movie"][:3]
+        except Exception:
+            pass
+
+    library = getattr(request.app.state, "library", None)
+    library_ids = {m.tmdb_id for m in library.list()} if library else set()
+
     return templates.TemplateResponse(
         request,
         "partials/results.html",
         {
             "results": results,
             "query": q,
+            "cat": cat,
             "sort": effective_sort,
             "dir": effective_dir,
             "active_filters": _active_filters(filters),
@@ -118,6 +130,8 @@ async def search(
             "jellyfin_matches": jellyfin_matches,
             "jellyfin_match": jellyfin_matches[0] if jellyfin_matches else None,
             "jellyfin_url": ctx.jellyfin.base_url if getattr(ctx, "jellyfin", None) else "",
+            "tmdb_movies": tmdb_movies,
+            "library_ids": library_ids,
         },
     )
 

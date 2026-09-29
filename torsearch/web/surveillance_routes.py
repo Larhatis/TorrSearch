@@ -160,3 +160,58 @@ async def delete_search(request: Request, name: str):
         return _body(request, notice=f"Recherche « {name} » supprimee.")
     except SettingsError as exc:
         return _body(request, error=f"Erreur : {exc}")
+
+
+@surveillance_router.post("/surveillance/quick-add", response_class=HTMLResponse)
+async def quick_add_search(
+    request: Request,
+    query: str = Form(...),
+    cat: str = Form("movies"),
+    name: str = Form(""),
+):
+    ctx: AppContext = request.app.state.ctx
+    search_name = name.strip() or query.strip()
+    try:
+        category = Category(cat)
+    except ValueError:
+        category = Category.MOVIES
+    try:
+        saved = SavedSearch(
+            name=search_name,
+            query=query.strip(),
+            category=category,
+            mode="auto",
+            min_seeders=0,
+            qualities=[],
+            exclude=["cam", "ts"],
+        )
+        new_config = add_saved_search(ctx.config, saved)
+        if not new_config.monitor.enabled:
+            new_config = set_monitor(new_config, new_config.monitor.model_copy(update={"enabled": True}))
+        ctx.update_settings(new_config)
+        runner = getattr(request.app.state, "monitor", None)
+        if runner is not None:
+            runner.wake()
+
+        badge = (
+            '<div class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 '
+            'border border-emerald-500/20 px-3 py-1.5 text-xs text-emerald-400 font-medium">'
+            '<i class="ti ti-check"></i> En surveillance (auto-download)</div>'
+        )
+        toast = (
+            f'<div id="toast" hx-swap-oob="innerHTML">'
+            f'<div class="rounded bg-emerald-600 px-3 py-2 text-sm text-white shadow-lg">'
+            f'« {search_name} » sera telecharge automatiquement des sa premiere sortie en torrent.'
+            f'</div></div>'
+        )
+        return HTMLResponse(content=f"{badge}{toast}")
+    except SettingsError:
+        badge = (
+            '<div class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 '
+            'border border-emerald-500/20 px-3 py-1.5 text-xs text-emerald-400 font-medium">'
+            '<i class="ti ti-check"></i> Deja en surveillance</div>'
+        )
+        return HTMLResponse(content=badge)
+    except ValidationError as exc:
+        badge = f'<div class="text-xs text-red-400">{exc}</div>'
+        return HTMLResponse(content=badge)

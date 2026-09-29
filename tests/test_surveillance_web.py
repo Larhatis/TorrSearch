@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from torsearch.config import Config, SavedSearch
 from torsearch.context import AppContext
+from torsearch.models import Category
 from torsearch.monitor.history import MonitorHistory, MonitorRecord
 from torsearch.settings.store import SettingsStore
 from torsearch.web.routes import create_app
@@ -146,5 +147,49 @@ def test_surveillance_history_route(tmp_path):
     resp = client.get("/surveillance/history")
     assert resp.status_code == 200
     assert "Paolo.S01E01" in resp.text
+
+
+def test_quick_add_saved_search(tmp_path):
+    client, ctx, _ = _client(tmp_path)
+    assert ctx.config.monitor.enabled is False
+    resp = client.post("/surveillance/quick-add", data={"query": "Avatar 3", "cat": "movies"})
+    assert resp.status_code == 200
+    assert "En surveillance (auto-download)" in resp.text
+    assert "Avatar 3" in resp.text
+    assert [s.name for s in ctx.config.saved_searches] == ["Avatar 3"]
+    assert ctx.config.saved_searches[0].mode == "auto"
+    assert ctx.config.saved_searches[0].category == Category.MOVIES
+    assert ctx.config.saved_searches[0].exclude == ["cam", "ts"]
+    assert ctx.config.monitor.enabled is True
+
+
+def test_quick_add_duplicate(tmp_path):
+    client, ctx, _ = _client(tmp_path)
+    client.post("/surveillance/quick-add", data={"query": "Avatar 3", "cat": "movies"})
+    resp = client.post("/surveillance/quick-add", data={"query": "Avatar 3", "cat": "movies"})
+    assert resp.status_code == 200
+    assert "Deja en surveillance" in resp.text
+    assert len(ctx.config.saved_searches) == 1
+
+
+def test_quick_add_wakes_runner(tmp_path):
+    class FakeRunner:
+        def __init__(self):
+            self.woken = False
+
+        def wake(self):
+            self.woken = True
+
+    store = SettingsStore(tmp_path / "settings.json")
+    ctx = AppContext(store)
+    history = MonitorHistory(tmp_path / "monitor.json")
+    runner = FakeRunner()
+    app = create_app(ctx, history=history, monitor=runner)
+    client = TestClient(app)
+
+    resp = client.post("/surveillance/quick-add", data={"query": "Inception 2", "cat": "movies"})
+    assert resp.status_code == 200
+    assert runner.woken is True
+
 
 

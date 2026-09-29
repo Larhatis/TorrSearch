@@ -181,7 +181,7 @@ def test_discover_library_add_movie():
         },
     )
     assert resp.status_code == 200
-    assert "En bibliotheque" in resp.text
+    assert "En surveillance" in resp.text
     assert len(lib.list()) == 1
     assert lib.list()[0].tmdb_id == 693134
 
@@ -198,7 +198,7 @@ def test_discover_library_add_series():
         },
     )
     assert resp.status_code == 200
-    assert "En bibliotheque" in resp.text
+    assert "En surveillance" in resp.text
     assert len(series_lib.list()) == 1
     assert series_lib.list()[0].tmdb_id == 1399
 

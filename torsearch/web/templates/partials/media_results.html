@@ -21,7 +21,7 @@
           <span class="rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] {{ 'bg-sky-500/15 text-sky-300' if m.media_type == 'movie' else 'bg-violet-500/15 text-violet-300' }}">{{ 'Film' if m.media_type == 'movie' else 'Serie' }}</span>
           {% if m.year %}<span class="text-[10px] sm:text-[11px] text-slate-500">{{ m.year }}</span>{% endif %}
           {% if jf %}<span class="rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] bg-green-500/15 text-green-300">Dans Jellyfin</span>
-          {% elif in_lib %}<span class="rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] bg-green-500/15 text-green-300">Dans la bibliotheque</span>
+          {% elif in_lib %}<span class="rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] bg-emerald-500/15 text-emerald-300">En surveillance</span>
           {% elif req %}<span class="rounded px-1.5 py-0.5 text-[9px] sm:text-[10px] bg-amber-500/15 text-amber-300">Demande</span>{% endif %}
         </div>
         <div class="mt-1 truncate text-xs sm:text-sm font-medium text-slate-100 cursor-pointer hover:text-emerald-400 transition-colors"
@@ -51,7 +51,7 @@
         <button hx-post="/library/add" hx-target="#media-action-{{ m.media_type }}-{{ m.tmdb_id }}" hx-swap="outerHTML"
                 hx-vals='{{ {"tmdb_id": m.tmdb_id, "title": m.title, "original_title": (m.original_title or ""), "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
                 class="mt-1.5 flex w-full items-center justify-center gap-1 rounded border border-slate-700 px-2 py-1.5 text-xs text-slate-300 hover:border-emerald-500/50 hover:text-emerald-400 transition-colors">
-          <i class="ti ti-bookmark-plus"></i> Bibliotheque
+          <i class="ti ti-eye"></i> Surveiller la sortie
         </button>
         {% elif m.media_type == 'tv' %}
         <button hx-post="/series/add" hx-target="#media-action-{{ m.media_type }}-{{ m.tmdb_id }}" hx-swap="outerHTML"
@@ -62,7 +62,7 @@
         {% endif %}
         {% else %}
         <div class="mt-1.5 flex w-full items-center justify-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-1.5 text-xs text-emerald-400 font-medium">
-          <i class="ti ti-check"></i> En bibliotheque
+          <i class="ti ti-check"></i> En surveillance
         </div>
         {% endif %}
       </div>

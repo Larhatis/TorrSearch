@@ -27,18 +27,27 @@ async def series_add(
         year=year or None, poster_path=poster_path or None,
         added_at=datetime.now(UTC),
     ))
+    ctx = request.app.state.ctx
+    if hasattr(ctx, "update_settings") and hasattr(ctx, "config") and not ctx.config.monitor.enabled:
+        from torsearch.settings.mutations import set_monitor
+        ctx.update_settings(set_monitor(ctx.config, ctx.config.monitor.model_copy(update={"enabled": True})))
+    runner = getattr(request.app.state, "monitor", None)
+    if runner is not None:
+        runner.wake()
+
     target = request.headers.get("HX-Target", "")
     if target == "series-detail-view":
         return await _render_series_detail_response(
             request, tmdb_id, template_name="partials/series_detail_content.html"
         )
     message = "Serie suivie." if added else "Serie deja suivie."
-    if target.startswith("media-action-"):
+    if target.startswith("media-action-") or target == "modal-action-wrapper":
+        badge_id = target if target == "modal-action-wrapper" else f"media-action-tv-{tmdb_id}"
         badge = (
-            f'<div id="media-action-tv-{tmdb_id}" '
-            f'class="mt-1.5 flex w-full items-center justify-center gap-1 rounded '
+            f'<div id="{badge_id}" '
+            f'class="mt-1.5 flex items-center justify-center gap-1 rounded '
             f'bg-emerald-500/10 border border-emerald-500/20 px-2 py-1.5 text-xs text-emerald-400 font-medium">'
-            f'<i class="ti ti-check"></i> En bibliotheque</div>'
+            f'<i class="ti ti-check"></i> En surveillance</div>'
         )
         toast = (
             f'<div id="toast" hx-swap-oob="innerHTML">'

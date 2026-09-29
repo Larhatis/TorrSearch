@@ -21,10 +21,14 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.15)
+## 2. État actuel (v0.3.16)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Surveillance automatique des sorties films (« Pas encore sorti en torrent ? ») :
+  - Sur la page de recherche (`/`), si une recherche renvoie 0 torrent, proposition automatique de surveillance de la requête en 1 clic (« Surveiller cette recherche ») et suggestion des films correspondants sur TMDB avec bouton « Surveiller la sortie ».
+  - Dans l'onglet Découvrir et les fiches détail, remplacement du libellé ambigu « Bibliothèque » par un bouton clair « Surveiller la sortie » avec badge dynamique « En surveillance ».
+  - Activation automatique de la surveillance globale et réveil immédiat du runner d'auto-grab dès l'ajout d'un film ou d'une recherche surveillée.
 - Indicateur en direct de dernière vérification avec badge pulsé et rafraîchissement automatique silencieux de l'historique sur l'onglet Surveillance.
 - Protection anti-doublon d'épisodes multi-couches :
   - Détection Transmission en direct (interrogation temps réel des torrents actifs ou terminés pour ne jamais renvoyer un épisode déjà en cours ou fini).

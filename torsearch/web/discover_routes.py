@@ -164,7 +164,7 @@ async def discover_library_add(
                     added_at=now,
                 )
             )
-        message = "Film ajoute a la bibliotheque."
+        message = f"« {title} » sera automatiquement telecharge des sa sortie."
     else:
         series_library = request.app.state.series_library
         if series_library is not None:
@@ -178,13 +178,21 @@ async def discover_library_add(
                     added_at=now,
                 )
             )
-        message = "Serie suivie."
+        message = f"Serie « {title} » suivie."
+
+    ctx = request.app.state.ctx
+    if hasattr(ctx, "update_settings") and hasattr(ctx, "config") and not ctx.config.monitor.enabled:
+        from torsearch.settings.mutations import set_monitor
+        ctx.update_settings(set_monitor(ctx.config, ctx.config.monitor.model_copy(update={"enabled": True})))
+    runner = getattr(request.app.state, "monitor", None)
+    if runner is not None:
+        runner.wake()
 
     badge = (
         f'<div id="media-action-{media_type}-{tmdb_id}" '
         f'class="mt-1.5 flex w-full items-center justify-center gap-1 rounded '
         f'bg-emerald-500/10 border border-emerald-500/20 px-2 py-1.5 text-xs text-emerald-400 font-medium">'
-        f'<i class="ti ti-check"></i> En bibliotheque</div>'
+        f'<i class="ti ti-check"></i> En surveillance</div>'
     )
     toast = (
         f'<div id="toast" hx-swap-oob="innerHTML">'

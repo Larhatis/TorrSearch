@@ -16,9 +16,8 @@
         {% if movie.status == 'grabbed' %}
         <span class="rounded px-2 py-0.5 text-xs bg-green-500/15 text-green-300 font-medium">Obtenu</span>
         {% else %}
-        <span class="rounded px-2 py-0.5 text-xs bg-amber-500/15 text-amber-300 font-medium">Voulu</span>
+        <span class="rounded px-2 py-0.5 text-xs bg-emerald-500/15 text-emerald-300 font-medium">En surveillance</span>
         {% endif %}
-        <span class="rounded bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-300 font-medium">En bibliotheque</span>
       {% endif %}
       {% if owned_jf %}<span class="rounded bg-green-500/15 px-2 py-0.5 text-xs text-green-300 font-medium">Dans Jellyfin</span>{% endif %}
     </div>
@@ -66,7 +65,7 @@
         <input type="hidden" name="poster_path" value="{{ movie.poster_path or '' }}">
         <button id="detail-add-btn" type="submit"
                 class="flex items-center gap-1.5 rounded-lg border border-sky-500/40 bg-sky-600/20 hover:bg-sky-600/30 px-3.5 py-2 text-xs font-semibold text-sky-300 transition-colors">
-          <i class="ti ti-plus"></i> Ajouter a la bibliotheque
+          <i class="ti ti-eye"></i> Surveiller la sortie
         </button>
       </form>
       {% endif %}

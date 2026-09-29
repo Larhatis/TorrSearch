@@ -60,7 +60,73 @@
 </div>
 {% endif %}
 {% if not results %}
-  <p class="text-slate-400">Aucun resultat{% if query %} pour "{{ query }}"{% endif %}.</p>
+  <div class="py-2">
+    <p class="text-slate-400 text-sm mb-4">Aucun torrent disponible{% if query %} pour "<span class="text-slate-200 font-medium">{{ query }}</span>"{% endif %}.</p>
+
+    {% if query %}
+    <div class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2 text-sm sm:text-base font-semibold text-slate-100">
+            <i class="ti ti-bell-ringing text-emerald-400 text-lg"></i>
+            <span>Pas encore sorti en torrent ?</span>
+          </div>
+          <p class="mt-1 text-xs text-slate-400 max-w-lg">
+            Active la surveillance automatique : des qu'une release sortira sur vos trackers, TorrSearch la telechargera automatiquement !
+          </p>
+        </div>
+        <div id="quick-surveillance-btn" class="shrink-0">
+          <form hx-post="/surveillance/quick-add" hx-target="#quick-surveillance-btn" hx-swap="outerHTML">
+            <input type="hidden" name="query" value="{{ query }}">
+            <input type="hidden" name="cat" value="{{ cat or 'movies' }}">
+            <button type="submit"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-2 text-xs font-semibold text-white transition-colors shadow">
+              <i class="ti ti-eye"></i> Surveiller cette recherche
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {% if tmdb_movies %}
+      <div class="mt-4 pt-4 border-t border-slate-700/60">
+        <div class="text-xs font-medium text-slate-300 mb-2.5 flex items-center gap-1.5">
+          <i class="ti ti-movie text-sky-400"></i> Films correspondants trouves sur TMDB :
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {% for m in tmdb_movies %}
+          <div class="flex gap-2.5 rounded-lg border border-slate-700/80 bg-slate-900/60 p-2.5 items-center">
+            <div class="w-12 aspect-[2/3] shrink-0 rounded bg-slate-800 overflow-hidden relative">
+              {% if m.poster_url %}
+              <img src="{{ m.poster_url }}" alt="{{ m.title }}" class="h-full w-full object-cover">
+              {% else %}
+              <div class="flex h-full w-full items-center justify-center text-slate-600"><i class="ti ti-photo"></i></div>
+              {% endif %}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="text-xs font-medium text-slate-100 truncate" title="{{ m.title }}">{{ m.title }}</div>
+              {% if m.year %}<div class="text-[11px] text-slate-400">{{ m.year }}</div>{% endif %}
+              <div id="media-action-movie-{{ m.tmdb_id }}" class="mt-1.5">
+                {% if m.tmdb_id in (library_ids or []) %}
+                <span class="inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-400 font-medium">
+                  <i class="ti ti-check"></i> En surveillance
+                </span>
+                {% else %}
+                <button hx-post="/library/add" hx-target="#media-action-movie-{{ m.tmdb_id }}" hx-swap="outerHTML"
+                        hx-vals='{{ {"tmdb_id": m.tmdb_id, "title": m.title, "original_title": (m.original_title or ""), "year": (m.year or ""), "poster_path": (m.poster_path or "")} | tojson }}'
+                        class="inline-flex items-center gap-1 rounded bg-sky-600/30 border border-sky-500/40 hover:bg-sky-600/50 px-2 py-1 text-[11px] font-medium text-sky-200 transition-colors">
+                  <i class="ti ti-eye"></i> Surveiller la sortie
+                </button>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
 {% else %}
 <div class="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
   <span class="text-slate-400"><span class="text-slate-100">{{ results | length }} resultat{{ 's' if results | length > 1 else '' }}</span>{% if sources %} &middot; {{ sources | join(', ') }}{% endif %}</span>

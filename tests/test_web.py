@@ -3,7 +3,7 @@ import re
 from fastapi.testclient import TestClient
 
 from torsearch.config import Config, IndexerConfig
-from torsearch.models import Category, SearchResult
+from torsearch.models import Category, MediaResult, SearchResult
 from torsearch.search.service import SearchService
 from torsearch.web.routes import create_app
 
@@ -30,18 +30,21 @@ class FakeTransmission:
 
 
 class FakeContext:
-    def __init__(self, search_service, transmission, config, jellyfin=None):
+    def __init__(self, search_service, transmission, config, jellyfin=None, tmdb=None):
         self.search_service = search_service
         self.transmission = transmission
         self.config = config
         self.jellyfin = jellyfin
+        self.tmdb = tmdb
 
 
-def _make(results=None):
+def _make(results=None, jellyfin=None, tmdb=None, library=None):
     service = SearchService([FakeIndexer("t1", results or [])])
     transmission = FakeTransmission()
     config = Config(indexers=[IndexerConfig(name="t1", url="https://t1/api", api_key="k")])
-    client = TestClient(create_app(FakeContext(service, transmission, config)))
+    client = TestClient(
+        create_app(FakeContext(service, transmission, config, jellyfin=jellyfin, tmdb=tmdb), library=library)
+    )
     return client, transmission
 
 
@@ -349,4 +352,30 @@ def test_search_results_mobile_responsive_layout():
     assert resp.status_code == 200
     assert "flex-col sm:flex-row" in resp.text
     assert "line-clamp-2" in resp.text
+
+
+def test_search_no_results_suggests_surveillance_and_tmdb():
+    class FakeTmdb:
+        def __init__(self, movies):
+            self.enabled = True
+            self._movies = movies
+
+        async def search(self, query):
+            return self._movies
+
+    fake_movie = MediaResult(
+        tmdb_id=12345,
+        media_type="movie",
+        title="Unreleased Movie",
+        year="2027",
+        poster_path="/poster.jpg",
+    )
+    client, _ = _make(results=[], tmdb=FakeTmdb([fake_movie]))
+    resp = client.get("/search", params={"q": "Unreleased Movie", "cat": "movies"})
+    assert resp.status_code == 200
+    assert "Pas encore sorti en torrent ?" in resp.text
+    assert "Surveiller cette recherche" in resp.text
+    assert "Unreleased Movie" in resp.text
+    assert "Surveiller la sortie" in resp.text
+
 

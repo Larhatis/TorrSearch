@@ -67,14 +67,14 @@ def test_guest_sees_request_button_not_add(tmp_path):
     _login(client, "guest")
     html = client.get("/discover/trending").text
     assert "Demander" in html
-    assert "Bibliotheque" not in html
+    assert "Surveiller la sortie" not in html
 
 
 def test_member_sees_add_not_request(tmp_path):
     client, _, _ = _client(tmp_path)
     _login(client, "mem")
     html = client.get("/discover/trending").text
-    assert "Bibliotheque" in html
+    assert "Surveiller la sortie" in html
     assert "Demander" not in html
 
 
@@ -167,7 +167,7 @@ def test_discover_shows_in_library_badge_and_hides_button(tmp_path):
                             added_at=datetime(2026, 1, 1, tzinfo=UTC)))
     _login(client, "guest")
     html = client.get("/discover/trending").text
-    assert "Dans la bibliotheque" in html
+    assert "En surveillance" in html
     assert "Demander" not in html
 
 

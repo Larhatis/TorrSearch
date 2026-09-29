@@ -55,7 +55,7 @@ def test_library_page_lists_movies_with_status(tmp_path):
     lib.add(WantedMovie(tmdb_id=1, title="Dune", year="2024", added_at=NOW))
     html = client.get("/library").text
     assert "Dune" in html
-    assert "Voulu" in html
+    assert "En surveillance" in html
 
 
 def test_library_page_warns_when_monitor_off(tmp_path):
