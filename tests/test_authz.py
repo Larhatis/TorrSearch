@@ -84,6 +84,7 @@ def test_guest_blocked_from_admin_and_member_routes(tmp_path):
     assert client.get("/search", params={"q": "x"}).status_code == 403
     assert client.post("/download", data={"download_url": "magnet:?x"}).status_code == 403
     assert client.get("/surveillance").status_code == 403
+    assert client.get("/library").status_code == 403
     assert client.post("/library/add", data={"tmdb_id": "1", "title": "X"}).status_code == 403
 
 
@@ -92,7 +93,6 @@ def test_guest_allowed_on_open_routes(tmp_path):
     _login(client, "guest")
     assert client.get("/").status_code == 200
     assert client.get("/discover").status_code == 200
-    assert client.get("/library").status_code == 200
 
 
 def test_member_blocked_from_admin_routes_only(tmp_path):
@@ -100,6 +100,7 @@ def test_member_blocked_from_admin_routes_only(tmp_path):
     _login(client, "mem")
     assert client.get("/settings").status_code == 403
     assert client.get("/surveillance").status_code == 403
+    assert client.get("/library").status_code == 403
     # but member can use the member capabilities
     assert client.get("/search", params={"q": "x"}).status_code == 200
     assert client.get("/downloads").status_code == 200

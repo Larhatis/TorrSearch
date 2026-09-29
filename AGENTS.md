@@ -21,11 +21,16 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.18)
+## 2. État actuel (v0.3.19)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
-- Nouveau tableau de bord Surveillance unifié et visuel :
+- Remplacement complet de « Bibliothèque » par le tableau unifié « Surveillance » :
+  - Suppression de tout onglet ou référence à « Bibliothèque » dans la navigation (desktop & bottom bar mobile tactile).
+  - Redirection automatique et fluide de `/library` vers `/surveillance`.
+  - Liens de retour sur les fiches de détail (Films et Séries) pointant directement vers `/surveillance` (« Retour à la surveillance »).
+  - Profil de qualité des téléchargements automatiques renommé « Surveillance (profil de qualité) » dans les réglages.
+- Tableau de bord Surveillance unifié et visuel :
   - Centralisation de toutes les œuvres sous surveillance (Films en attente ou téléchargés, Séries suivies avec compteur d'épisodes acquis, Recherches libres par mot-clé).
   - Affichage direct des affiches (posters TMDB), badges dynamiques d'état (« En attente », « Téléchargé » avec nom de release, « Suivi actif » avec progression), intégration Jellyfin en direct.
   - Filtres fluides instantanés (Tous, Films, Séries, Recherches, Historique).

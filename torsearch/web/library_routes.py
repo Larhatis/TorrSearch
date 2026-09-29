@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from torsearch.models import WantedMovie
 from torsearch.web.authz import require_member
@@ -12,17 +12,11 @@ from torsearch.web.templating import templates
 library_router = APIRouter()
 
 
-@library_router.get("/library", response_class=HTMLResponse)
+@library_router.get("/library")
 async def library_page(request: Request):
-    ctx = request.app.state.ctx
-    library = request.app.state.library
-    series_library = request.app.state.series_library
-    return templates.TemplateResponse(
-        request, "library.html",
-        {"movies": library.list(), "series": series_library.list(),
-         "monitor_on": ctx.config.monitor.enabled,
-         "owned": await ctx.jellyfin.owned(), "jellyfin_url": ctx.jellyfin.base_url},
-    )
+    if request.headers.get("HX-Request"):
+        return HTMLResponse(content="", headers={"HX-Redirect": "/surveillance"})
+    return RedirectResponse(url="/surveillance", status_code=307)
 
 
 @library_router.post("/library/add", response_class=HTMLResponse, dependencies=[Depends(require_member)])

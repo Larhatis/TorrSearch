@@ -341,7 +341,7 @@ def test_base_template_has_mobile_bottom_bar():
     assert "viewport-fit=cover" in resp.text
     assert "md:hidden fixed bottom-0" in resp.text
     assert 'href="/discover"' in resp.text
-    assert 'href="/library"' in resp.text
+    assert 'href="/surveillance"' in resp.text
     assert 'href="/downloads"' in resp.text
     assert "Menu" in resp.text
 

@@ -22,6 +22,7 @@ class FakeTmdb:
 
 class _FakeJellyfin:
     base_url = "http://jelly"
+    enabled = True
 
     def __init__(self, owned=None):
         self._owned = owned or {}
@@ -53,9 +54,12 @@ def test_library_add_persists(tmp_path):
 def test_library_page_lists_movies_with_status(tmp_path):
     client, lib = _client(tmp_path)
     lib.add(WantedMovie(tmdb_id=1, title="Dune", year="2024", added_at=NOW))
-    html = client.get("/library").text
+    resp = client.get("/library", follow_redirects=False)
+    assert resp.status_code == 307
+    assert resp.headers["location"] == "/surveillance"
+    html = client.get("/surveillance").text
     assert "Dune" in html
-    assert "En surveillance" in html
+    assert "En attente" in html
 
 
 def test_library_page_warns_when_monitor_off(tmp_path):
@@ -74,8 +78,8 @@ def test_library_marks_owned_movie(tmp_path):
     client, lib = _client(tmp_path)
     lib.add(WantedMovie(tmdb_id=693134, title="Dune", year="2024", added_at=NOW))
     client.app.state.ctx.jellyfin = _FakeJellyfin(owned={"movie:693134": "it-1"})
-    html = client.get("/library").text
-    assert "Dans Jellyfin" in html
+    html = client.get("/surveillance").text
+    assert "Jellyfin" in html
     assert "it-1" in html
 
 
@@ -85,9 +89,9 @@ def test_discover_movie_card_has_add_button(tmp_path):
     assert 'hx-post="/library/add"' in html
 
 
-def test_nav_marks_library_active(tmp_path):
+def test_nav_marks_surveillance_active(tmp_path):
     client, _ = _client(tmp_path)
-    assert re.search(r'href="/library"[^>]*aria-current="page"', client.get("/library").text)
+    assert re.search(r'href="/surveillance"[^>]*aria-current="page"', client.get("/surveillance").text)
 
 
 def test_update_library_profile(tmp_path):

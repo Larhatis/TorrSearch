@@ -40,10 +40,9 @@
     <nav class="hidden md:flex items-center gap-1 lg:gap-2 text-sm">
       {% if is_member %}<a href="/" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path == '/' %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path == '/' %} aria-current="page"{% endif %}><i class="ti ti-search"></i><span class="hidden lg:inline">Recherche</span></a>{% endif %}
       <a href="/discover" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path.startswith('/discover') %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path.startswith('/discover') %} aria-current="page"{% endif %}><i class="ti ti-compass"></i><span class="hidden lg:inline">Decouvrir</span></a>
-      <a href="/library" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path.startswith('/library') %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path.startswith('/library') %} aria-current="page"{% endif %}><i class="ti ti-bookmark"></i><span class="hidden lg:inline">Bibliotheque</span></a>
-      {% if is_admin %}<a href="/settings" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path.startswith('/settings') %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path.startswith('/settings') %} aria-current="page"{% endif %}><i class="ti ti-settings"></i><span class="hidden lg:inline">Reglages</span></a>{% endif %}
-      {% if is_member %}<a href="/downloads" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path.startswith('/downloads') or path.startswith('/activity') %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path.startswith('/downloads') or path.startswith('/activity') %} aria-current="page"{% endif %}><i class="ti ti-activity"></i><span class="hidden lg:inline">Activite</span></a>{% endif %}
       {% if is_admin %}<a href="/surveillance" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path.startswith('/surveillance') %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path.startswith('/surveillance') %} aria-current="page"{% endif %}><i class="ti ti-eye"></i><span class="hidden lg:inline">Surveillance</span></a>{% endif %}
+      {% if is_member %}<a href="/downloads" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path.startswith('/downloads') or path.startswith('/activity') %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path.startswith('/downloads') or path.startswith('/activity') %} aria-current="page"{% endif %}><i class="ti ti-activity"></i><span class="hidden lg:inline">Activite</span></a>{% endif %}
+      {% if is_admin %}<a href="/settings" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path.startswith('/settings') %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path.startswith('/settings') %} aria-current="page"{% endif %}><i class="ti ti-settings"></i><span class="hidden lg:inline">Reglages</span></a>{% endif %}
       {% if is_admin %}<a href="/requests" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path == '/requests' %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path == '/requests' %} aria-current="page"{% endif %}><i class="ti ti-inbox"></i><span class="hidden lg:inline">Demandes</span>{% if pending_requests %}<span class="ml-1 rounded-full bg-emerald-500 px-1.5 text-[10px] font-semibold text-slate-900">{{ pending_requests }}</span>{% endif %}</a>{% endif %}
       {% if auth_enabled and not is_admin %}<a href="/requests/mine" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path.startswith('/requests/mine') %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path.startswith('/requests/mine') %} aria-current="page"{% endif %}><i class="ti ti-send"></i><span class="hidden lg:inline">Mes demandes</span></a>{% endif %}
     </nav>
@@ -76,10 +75,12 @@
       <i class="ti ti-compass text-lg"></i>
       <span class="text-[10px] mt-0.5">Decouvrir</span>
     </a>
-    <a href="/library" class="flex flex-1 flex-col items-center py-1 rounded-lg {% if path.startswith('/library') %}text-emerald-400 font-semibold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
-      <i class="ti ti-bookmark text-lg"></i>
-      <span class="text-[10px] mt-0.5">Bibliotheque</span>
+    {% if is_admin %}
+    <a href="/surveillance" class="flex flex-1 flex-col items-center py-1 rounded-lg {% if path.startswith('/surveillance') %}text-emerald-400 font-semibold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+      <i class="ti ti-eye text-lg"></i>
+      <span class="text-[10px] mt-0.5">Surveillance</span>
     </a>
+    {% endif %}
     {% if is_member %}
     <a href="/downloads" class="flex flex-1 flex-col items-center py-1 rounded-lg {% if path.startswith('/downloads') or path.startswith('/activity') %}text-emerald-400 font-semibold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
       <i class="ti ti-activity text-lg"></i>
@@ -94,7 +95,6 @@
       <div class="absolute bottom-full mb-3 right-0 w-52 rounded-xl border border-slate-700 bg-slate-900/98 backdrop-blur p-2 shadow-2xl flex flex-col gap-1 text-xs">
         {% if is_admin %}
         <a href="/settings" class="flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-slate-800 text-slate-200"><i class="ti ti-settings text-base text-slate-400"></i> Reglages</a>
-        <a href="/surveillance" class="flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-slate-800 text-slate-200"><i class="ti ti-eye text-base text-slate-400"></i> Surveillance</a>
         <a href="/requests" class="flex items-center justify-between p-2.5 rounded-lg hover:bg-slate-800 text-slate-200">
           <div class="flex items-center gap-2.5"><i class="ti ti-inbox text-base text-slate-400"></i> Demandes</div>
           {% if pending_requests %}<span class="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-semibold text-slate-900">{{ pending_requests }}</span>{% endif %}
