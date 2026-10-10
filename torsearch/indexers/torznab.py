@@ -66,6 +66,10 @@ def _int(value: str | None) -> int:
 
 def parse_response(xml_bytes: bytes, source: str) -> list[SearchResult]:
     root = ET.fromstring(xml_bytes)
+    if root.tag == "error":
+        desc = root.get("description") or "Erreur API Torznab"
+        logger.warning("Indexer %s returned API error: %s", source, desc)
+        return []
     results: list[SearchResult] = []
     for item in root.iter("item"):
         attrs = {a.get("name"): a.get("value") for a in item.findall(f"{TORZNAB_NS}attr")}
@@ -202,6 +206,16 @@ class TorznabIndexer(Indexer):
             response = await self._get(client, params, headers)
             response.raise_for_status()
             return parse_response(response.content, self.name)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (401, 403):
+                logger.warning(
+                    "Indexer %s: clé API rejetée (HTTP %d). Vérifiez la clé API dans les réglages.",
+                    self.name,
+                    exc.response.status_code,
+                )
+            else:
+                logger.warning("Indexer %s failed with HTTP %d", self.name, exc.response.status_code)
+            return []
         except Exception as exc:  # resilience: never raise to the orchestrator
             logger.warning("Indexer %s failed: %s", self.name, exc)
             return []
@@ -226,6 +240,34 @@ class TorznabIndexer(Indexer):
                 return False, _HTML_NOT_TORZNAB
             if root.tag != "caps":
                 return False, "Réponse inattendue (pas un flux Torznab)."
+
+            # Many trackers (e.g. C411, Unit3d) make `t=caps` public without validating
+            # the API key. If an API key is configured, verify it with an authenticated request.
+            if self._api_key:
+                auth_params: dict[str, str] = {"t": "search", "limit": "1"}
+                if self._auth == AuthMode.QUERY:
+                    auth_params["apikey"] = self._api_key
+                auth_resp = await self._get(client, auth_params, headers)
+                if auth_resp.status_code in (401, 403):
+                    try:
+                        err_root = ET.fromstring(auth_resp.content)
+                        desc = err_root.get("description")
+                        if desc:
+                            return False, f"Clé API refusée ({desc}) : vérifiez votre clé API dans votre profil."
+                    except Exception:
+                        pass
+                    return False, "Clé API refusée (401/403) : vérifiez votre clé API dans votre profil."
+                if auth_resp.status_code == 429:
+                    return False, "Limite de requêtes atteinte (Rate limit 429)."
+                auth_resp.raise_for_status()
+                try:
+                    auth_root = ET.fromstring(auth_resp.content)
+                    if auth_root.tag == "error":
+                        desc = auth_root.get("description") or "Erreur API"
+                        return False, f"Clé API refusée ({desc}) : vérifiez votre clé API."
+                except ET.ParseError:
+                    pass
+
             return True, "OK"
         except RedirectRefused as exc:
             return False, str(exc)

@@ -21,10 +21,14 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.20)
+## 2. État actuel (v0.3.21)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Diagnostic et validation stricte de l'authentification Torznab (v0.3.21) :
+  - Détection précoce des clés API invalides, expirées ou erronées : validation systématique par une requête authentifiée (`t=search&limit=1`) dans le test de connexion, évitant le faux positif « OK » sur les trackers (comme C411) qui répondent 200 à `t=caps` de manière publique sans authentification.
+  - Message clair et explicite dans l'interface Réglages et la page d'état : `Clé API refusée (Invalid API Key) : vérifiez votre clé API dans votre profil`.
+  - Gestion améliorée des erreurs XML d'API Torznab (`<error code="..." description="...">`) et logs préventifs en cas de refus d'authentification lors des recherches.
 - Classement intelligent par pertinence et entrelacement multi-trackers (v0.3.20) :
   - Tri par pertinence (« Pertinence ») actif par défaut lors d'une recherche, combinant correspondance exacte ou partielle du titre, correspondance de l'année (ex. 2024), saison/épisode (ex. S01), synonymes numériques (ex. 2 / Part Two / II), langue (MULTI/VFF > VF > VOSTFR) et pénalisation sévère des sources dégradées (CAM/TS/TC/SCR).
   - Entrelacement automatique des résultats de tous les trackers : évite d'afficher en bloc tous les torrents du premier tracker puis ceux du second (particulièrement quand les seeders valent 0 ou sont égaux).

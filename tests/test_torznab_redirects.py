@@ -22,7 +22,7 @@ async def test_follows_a_same_site_redirect_and_resends_its_params():
             return_value=httpx.Response(301, headers={"Location": "https://t.example/api/"}))
         final = respx.get("https://t.example/api/").mock(return_value=httpx.Response(200, content=CAPS))
         assert await _indexer().test() == (True, "OK")
-    params = final.calls.last.request.url.params
+    params = final.calls[0].request.url.params
     assert params["t"] == "caps" and params["apikey"] == "K"
 
 

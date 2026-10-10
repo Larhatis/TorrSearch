@@ -69,9 +69,49 @@ async def test_sends_caps_query_with_apikey():
     with respx.mock:
         route = respx.get("https://t/api").mock(return_value=httpx.Response(200, content=CAPS_OK))
         await ix.test()
-    url = str(route.calls.last.request.url)
-    assert "t=caps" in url
-    assert "apikey=KEY" in url
+    assert len(route.calls) == 2
+    first_url = str(route.calls[0].request.url)
+    assert "t=caps" in first_url
+    assert "apikey=KEY" in first_url
+    second_url = str(route.calls[1].request.url)
+    assert "t=search" in second_url
+    assert "apikey=KEY" in second_url
+
+
+async def test_reports_rejected_key_when_caps_ok_but_search_401():
+    ix = TorznabIndexer(_cfg())
+    with respx.mock:
+        respx.get("https://t/api").side_effect = [
+            httpx.Response(200, content=CAPS_OK),
+            httpx.Response(401, content=b'<error code="100" description="Invalid API Key" />'),
+        ]
+        ok, msg = await ix.test()
+    assert ok is False
+    assert "Invalid API Key" in msg or "refus" in msg.lower()
+
+
+async def test_reports_rejected_key_when_search_returns_error_xml():
+    ix = TorznabIndexer(_cfg())
+    with respx.mock:
+        respx.get("https://t/api").side_effect = [
+            httpx.Response(200, content=CAPS_OK),
+            httpx.Response(200, content=b'<error code="100" description="Invalid API Key" />'),
+        ]
+        ok, msg = await ix.test()
+    assert ok is False
+    assert "Invalid API Key" in msg
+
+
+async def test_reports_rate_limit_on_429():
+    ix = TorznabIndexer(_cfg())
+    with respx.mock:
+        respx.get("https://t/api").side_effect = [
+            httpx.Response(200, content=CAPS_OK),
+            httpx.Response(429),
+        ]
+        ok, msg = await ix.test()
+    assert ok is False
+    assert "429" in msg
 
 
 async def test_reports_unreachable_server_plainly():
