@@ -5,6 +5,7 @@ import re
 from pydantic import BaseModel, Field
 
 from torsearch.models import SearchResult
+from torsearch.search.relevance import compute_relevance
 
 _QUALITY_PATTERNS = [
     ("2160p", re.compile(r"\b(2160p|4k|uhd)\b", re.IGNORECASE)),
@@ -13,7 +14,7 @@ _QUALITY_PATTERNS = [
     ("480p", re.compile(r"\b(480p|sd)\b", re.IGNORECASE)),
 ]
 
-VALID_SORTS = {"title", "size", "seeders", "leechers", "date"}
+VALID_SORTS = {"relevance", "seeders", "size", "date", "title", "leechers"}
 VALID_DIRECTIONS = {"asc", "desc"}
 
 
@@ -39,8 +40,9 @@ class ResultFilters(BaseModel):
     max_size: int | None = None
     qualities: list[str] = Field(default_factory=list)
     exclude: list[str] = Field(default_factory=list)
-    sort: str = "seeders"
+    sort: str = "relevance"
     direction: str = "desc"
+    query: str = ""
 
 
 _SORT_KEYS = {
@@ -69,7 +71,22 @@ def apply(results: list[SearchResult], filters: ResultFilters) -> list[SearchRes
             continue
         kept.append(r)
 
-    sort = filters.sort if filters.sort in VALID_SORTS else "seeders"
+    sort = filters.sort if filters.sort in VALID_SORTS else "relevance"
     direction = filters.direction if filters.direction in VALID_DIRECTIONS else "desc"
-    kept.sort(key=_SORT_KEYS[sort], reverse=(direction == "desc"))
+    rev = (direction == "desc")
+
+    if sort == "relevance":
+        q = filters.query.strip()
+        if q:
+            kept.sort(key=lambda r: (compute_relevance(r, q), r.seeders), reverse=rev)
+        else:
+            kept.sort(key=lambda r: r.seeders, reverse=rev)
+    elif sort == "seeders":
+        q = filters.query.strip()
+        if q:
+            kept.sort(key=lambda r: (r.seeders, compute_relevance(r, q)), reverse=rev)
+        else:
+            kept.sort(key=lambda r: r.seeders, reverse=rev)
+    else:
+        kept.sort(key=_SORT_KEYS[sort], reverse=rev)
     return kept

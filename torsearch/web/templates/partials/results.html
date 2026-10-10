@@ -142,7 +142,7 @@
   <span class="flex items-center gap-2">
     <select name="sort" hx-get="/search" hx-include="#search-form" hx-target="#results"
             class="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-300">
-      {% for val, lbl in [('seeders', 'Seeders'), ('size', 'Taille'), ('date', 'Date'), ('title', 'Nom')] %}
+      {% for val, lbl in [('relevance', 'Pertinence'), ('seeders', 'Seeders'), ('size', 'Taille'), ('date', 'Date'), ('title', 'Nom')] %}
       <option value="{{ val }}" {% if sort == val %}selected{% endif %}>{{ lbl }}</option>
       {% endfor %}
     </select>

@@ -74,7 +74,7 @@ async def search(
     max_size_gb: str = "",
     quality: list[str] = Query(default=[]),
     exclude: str = "",
-    sort: str = "seeders",
+    sort: str = "relevance",
     dir: str = "desc",
 ):
     ctx: AppContext = request.app.state.ctx
@@ -84,7 +84,7 @@ async def search(
         category = Category.ALL
     raw = await ctx.search_service.search(q, category) if q.strip() else []
 
-    effective_sort = sort if sort in VALID_SORTS else "seeders"
+    effective_sort = sort if sort in VALID_SORTS else "relevance"
     effective_dir = dir if dir in VALID_DIRECTIONS else "desc"
     filters = ResultFilters(
         min_seeders=max(to_int(min_seeders), 0),
@@ -94,6 +94,7 @@ async def search(
         exclude=split_words(exclude),
         sort=effective_sort,
         direction=effective_dir,
+        query=q,
     )
     results = apply(raw, filters)
     sources = [ix.name for ix in ctx.config.indexers if ix.enabled]

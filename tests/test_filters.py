@@ -82,3 +82,9 @@ def test_invalid_sort_and_direction_fall_back():
     res = [_r("a", seeders=1), _r("b", seeders=9)]
     out = apply(res, ResultFilters(sort="bogus", direction="weird"))
     assert [r.title for r in out] == ["b", "a"]
+
+
+def test_sort_relevance_with_query():
+    res = [_r("Avatar.The.Last.Airbender", seeders=100), _r("Avatar.2009.1080p", seeders=1)]
+    out = apply(res, ResultFilters(sort="relevance", query="Avatar 2009"))
+    assert [r.title for r in out] == ["Avatar.2009.1080p", "Avatar.The.Last.Airbender"]

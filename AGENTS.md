@@ -21,10 +21,14 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.19)
+## 2. État actuel (v0.3.20)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Classement intelligent par pertinence et entrelacement multi-trackers (v0.3.20) :
+  - Tri par pertinence (« Pertinence ») actif par défaut lors d'une recherche, combinant correspondance exacte ou partielle du titre, correspondance de l'année (ex. 2024), saison/épisode (ex. S01), synonymes numériques (ex. 2 / Part Two / II), langue (MULTI/VFF > VF > VOSTFR) et pénalisation sévère des sources dégradées (CAM/TS/TC/SCR).
+  - Entrelacement automatique des résultats de tous les trackers : évite d'afficher en bloc tous les torrents du premier tracker puis ceux du second (particulièrement quand les seeders valent 0 ou sont égaux).
+  - Préservation des options de tri classiques dans l'UI (Seeders, Taille, Date, Nom).
 - Remplacement complet de « Bibliothèque » par le tableau unifié « Surveillance » :
   - Suppression de tout onglet ou référence à « Bibliothèque » dans la navigation (desktop & bottom bar mobile tactile).
   - Redirection automatique et fluide de `/library` vers `/surveillance`.

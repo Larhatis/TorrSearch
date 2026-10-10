@@ -5,6 +5,7 @@ import logging
 
 from torsearch.indexers.base import Indexer
 from torsearch.models import Category, SearchResult
+from torsearch.search.relevance import compute_relevance
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,10 @@ class SearchService:
         results_lists = await asyncio.gather(*(self._search_one(ix, query, category) for ix in active))
         merged = [r for lst in results_lists for r in lst]
         deduped = self._dedupe(merged)
-        deduped.sort(key=lambda r: r.seeders, reverse=True)
+        if query.strip():
+            deduped.sort(key=lambda r: (compute_relevance(r, query), r.seeders), reverse=True)
+        else:
+            deduped.sort(key=lambda r: r.seeders, reverse=True)
         return deduped
 
     async def _search_one(

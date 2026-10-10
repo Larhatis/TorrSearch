@@ -141,7 +141,18 @@ def test_search_renders_sort_control():
     client, _ = _make([_result("Anything")])
     resp = client.get("/search", params={"q": "x"})
     assert "hx-vals" in resp.text
+    assert "Pertinence" in resp.text
     assert "Seeders" in resp.text
+
+
+def test_search_default_sort_is_relevance():
+    client, _ = _make([
+        _result("Dune.Spinoff.Extra", seeders=100),
+        _result("Dune.2021.1080p", seeders=1),
+    ])
+    resp = client.get("/search", params={"q": "Dune"})
+    assert resp.status_code == 200
+    assert resp.text.index("Dune.2021.1080p") < resp.text.index("Dune.Spinoff.Extra")
 
 
 def test_index_shows_onboarding_when_no_trackers():
