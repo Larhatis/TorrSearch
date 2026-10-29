@@ -119,3 +119,30 @@ def test_select_series_releases_smallest_pack_and_language():
     chosen_result, covered = picks[0]
     assert chosen_result.title == single_ep.title
     assert covered == {"S01E03"}
+
+
+def _ep_result(title, size):
+    return _make_result(title, size=size, infohash=f"hash-{title}", category=Category.TV)
+
+
+def test_select_series_releases_prefers_pack_by_cost_per_episode():
+    missing = {f"S01E0{i}" for i in range(1, 7)}
+    singles = [_ep_result(f"MobLand.S01E0{i}.MULTi.2160p.WEB-FW", 3_000_000_000) for i in range(1, 7)]
+    pack = _ep_result("MobLand.S01.MULTi.2160p.WEB-BATGirl", 8_000_000_000)
+
+    picks = select_series_releases(singles + [pack], target_title="MobLand",
+                                   missing_episodes=missing, qualities=["2160p"])
+    assert [(r.title, covered) for r, covered in picks] == [(pack.title, missing)]
+
+
+def test_select_series_releases_drops_singles_made_redundant_by_a_pack():
+    # Singles exist only for E01, E02, E04 (better language), the pack is needed for the rest.
+    missing = {f"S01E0{i}" for i in range(1, 7)}
+    singles = [_ep_result(f"MobLand.S01E0{i}.MULTi.2160p.WEB-FW", 3_000_000_000) for i in (1, 2, 4)]
+    pack = _ep_result("MobLand.S01.2160p.WEB.x265-BATGirl", 8_000_000_000)
+
+    picks = select_series_releases(
+        singles + [pack], target_title="MobLand", missing_episodes=missing, qualities=["2160p"],
+    )
+    assert [r.title for r, _ in picks] == [pack.title]
+    assert picks[0][1] == missing
