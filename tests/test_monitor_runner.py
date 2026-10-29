@@ -757,3 +757,36 @@ async def test_monitor_runner_lock_serializes_concurrent_calls(tmp_path):
     finally:
         monkeypatch.undo()
 
+
+
+async def test_run_soon_during_a_cycle_is_not_lost():
+    import asyncio
+
+    from torsearch.monitor.runner import MonitorRunner
+
+    class Ctx:
+        config = Config(monitor=MonitorConfig(enabled=True, interval_minutes=60))
+
+    runner = MonitorRunner(Ctx(), history=None)
+    calls: list[bool] = []
+    first_started = asyncio.Event()
+    release_first = asyncio.Event()
+
+    async def fake_run_once(force=False):
+        calls.append(force)
+        if len(calls) == 1:
+            first_started.set()
+            await release_first.wait()
+        return []
+
+    runner.run_once = fake_run_once  # type: ignore[method-assign]
+    await runner.start()
+    await asyncio.wait_for(first_started.wait(), 1)
+    runner.run_soon(force=True)  # clicked while the first cycle runs
+    release_first.set()
+    for _ in range(50):
+        if len(calls) >= 2:
+            break
+        await asyncio.sleep(0.01)
+    await runner.stop()
+    assert calls[:2] == [False, True]

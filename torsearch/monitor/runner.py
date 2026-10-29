@@ -907,6 +907,7 @@ class MonitorRunner:
         self._completed_seen: set[int] = set()
         self._task: asyncio.Task | None = None
         self._wake_event = asyncio.Event()
+        self._force_next = False
         self._lock = asyncio.Lock()
         self.last_run_at: datetime | None = None
         self.last_run_count: int = 0
@@ -914,6 +915,20 @@ class MonitorRunner:
     def wake(self) -> None:
         """Wake the monitor loop immediately (e.g. settings changed or manual run)."""
         self._wake_event.set()
+
+    @property
+    def busy(self) -> bool:
+        """Whether a surveillance cycle is running right now."""
+        return self._lock.locked()
+
+    def run_soon(self, force: bool = False) -> None:
+        """Ask the background loop for a cycle now (after the current one, if any).
+
+        The "Verifier maintenant" button uses it instead of awaiting ``run_once``: a full
+        forced cycle can take minutes, and the page must answer at once.
+        """
+        self._force_next = self._force_next or force
+        self.wake()
 
     async def run_once(self, force: bool = False) -> list[MonitorRecord]:
         """Execute all surveillance checks once and return any newly grabbed records.
@@ -988,11 +1003,13 @@ class MonitorRunner:
 
     async def _loop(self) -> None:
         while True:
+            # Cleared before the cycle: a wake() arriving during it triggers the next one.
+            self._wake_event.clear()
+            force, self._force_next = self._force_next, False
             try:
-                await self.run_once()
+                await self.run_once(force=force)
             except Exception:
                 logger.exception("Monitor cycle failed")
-            self._wake_event.clear()
             interval = max(self._ctx.config.monitor.interval_minutes, 1) * 60
             try:
                 await asyncio.wait_for(self._wake_event.wait(), timeout=interval)

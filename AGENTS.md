@@ -21,10 +21,14 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.5.0)
+## 2. État actuel (v0.5.1)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- v0.5.1 : « Vérifier maintenant » ne bloque plus la page — la route appelle
+  `MonitorRunner.run_soon(force=True)` et répond tout de suite (la boucle de fond fait le
+  cycle, l'historique se rafraîchit seul) ; `_loop` efface l'événement de réveil **avant**
+  le cycle, sinon un réveil reçu pendant un cycle était perdu. Bouton `hx-disabled-elt`.
 - Chantier 6 — rangement et garde-fous (v0.5.0) :
   - Chaque film va dans `Titre (Année) [tmdbid-N]/` sous le dossier Films
     (`episodes.build_movie_download_dir`, « : » → « - »), reconnu tel quel par Jellyfin.
@@ -126,7 +130,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **656 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **657 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

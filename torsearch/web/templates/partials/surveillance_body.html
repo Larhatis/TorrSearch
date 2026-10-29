@@ -45,7 +45,8 @@
 
       <div class="flex items-center gap-2 flex-wrap shrink-0">
         <button hx-post="/surveillance/run-now" hx-target="#surveillance-body" hx-swap="outerHTML"
-                class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-emerald-950/50 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                hx-disabled-elt="this" hx-sync="this:drop"
+                class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-wait px-3.5 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-emerald-950/50 transition-all hover:scale-[1.02] active:scale-[0.98]">
           <i class="ti ti-player-play"></i>
           <span>Verifier maintenant</span>
         </button>
