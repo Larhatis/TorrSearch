@@ -21,10 +21,18 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.4.2)
+## 2. État actuel (v0.5.0)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Chantier 6 — rangement et garde-fous (v0.5.0) :
+  - Chaque film va dans `Titre (Année) [tmdbid-N]/` sous le dossier Films
+    (`episodes.build_movie_download_dir`, « : » → « - »), reconnu tel quel par Jellyfin.
+  - Téléchargement manuel (`/download`) : `library/linking.py` range la release comme la
+    surveillance (dossier film ou `Série/Saison XX`) et, si elle correspond à une œuvre
+    surveillée, la marque acquise + entrée d'historique (source « manuel »).
+  - Plafonds de taille du profil : `max_movie_gb` (20) et `max_episode_gb` (5), 0 = sans
+    limite ; un pack de saison est jugé au poids moyen par épisode (`decision._episode_count`).
 - Correctifs v0.4.1 (constatés en production) :
   - `transmission-rpc` 7 expose `added_date` (pas `date_added`) : la date d'ajout était
     toujours vide, donc la purge des torrents « bloqués » supprimait (données comprises) et
@@ -114,7 +122,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **642 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **651 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
