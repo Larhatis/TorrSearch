@@ -21,10 +21,25 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.6.0)
+## 2. État actuel (v0.7.0)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Chantier 8 — ménage (v0.7.0), page `/downloads/cleanup` (admin, lien « Menage » sur
+  Activité ; `library/cleanup.py`, `web/cleanup_routes.py`) :
+  - Doublons dans Transmission : même film (titre **et** année) ou épisodes qui se recouvrent
+    (pack de saison inclus). Copie gardée proposée : terminée, meilleure langue, meilleure
+    résolution, plus gros fichier ; un pack plutôt que ses épisodes. Suppression **avec les
+    fichiers**, après confirmation ; le serveur refuse de vider un groupe.
+  - Torrents en erreur regroupés par message (masqué par `redact()`) : « Arrêter » ou
+    « Retirer » de Transmission en gardant les fichiers.
+  - Prudence (revue) : sélection par `info_hash` (les ids Transmission changent au
+    redémarrage), seules les copies terminées sans erreur justifient une suppression, jamais
+    de regroupement pour parties de saison/intégrales/trilogies/bonus/versions longues ni
+    entre années différentes (séries comprises), copies de même nom jamais supprimables
+    (fichiers partagés), et `removal_is_safe` vérifie côté serveur que tout reste couvert.
+    Les avertissements tracker (`error_code == 1`) ne sont pas listés comme erreurs.
+  - `4KLight` reconnu comme 2160p par le parseur.
 - Chantier 7 — qualité des choix (v0.6.0) :
   - Profil : `accept_vostfr` (vrai par défaut) et `exclude_words` (mots/expressions entiers,
     ex. « stv ») → `decision.ReleaseRules`, appliqué aux films, séries et remplacements.
@@ -138,7 +153,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **668 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **685 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

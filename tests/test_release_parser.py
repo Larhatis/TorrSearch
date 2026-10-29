@@ -74,3 +74,9 @@ def test_parse_preserves_special_title_words():
     rel = parse_release("Mr.Robot.S01E01.FRENCH.1080p.WEB-DL")
     assert rel.clean_title == "Mr Robot"
     assert rel.episodes == {"S01E01"}
+
+
+def test_4klight_is_2160p():
+    from torsearch.parser.release import parse_release
+
+    assert parse_release("The.Dog.Stars.2026.MULTi.VF2.4KLight.DV.HDR10+.WEBRip-BATGirl").resolution == "2160p"

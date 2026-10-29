@@ -320,3 +320,10 @@ async def test_list_torrents_reads_added_date_of_transmission_rpc_7():
     rpc.torrents = [_fake_torrent(id=1, name="A", added_date=added)]
     infos = await _client_with(rpc).list_torrents()
     assert infos[0].date_added == added
+
+
+async def test_list_torrents_reads_error_code():
+    rpc = FakeRpcFull()
+    rpc.torrents = [_fake_torrent(id=1, name="A", error=2, error_string="invalid passkey")]
+    infos = await _client_with(rpc).list_torrents()
+    assert infos[0].error_code == 2

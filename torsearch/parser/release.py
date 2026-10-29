@@ -14,7 +14,7 @@ _SEASON_EP_MARKER_RE = re.compile(
 )
 
 _RESOLUTION_PATTERNS = [
-    ("2160p", re.compile(r"\b(2160p|4k|uhd)\b", re.IGNORECASE)),
+    ("2160p", re.compile(r"\b(2160p|4k|4klight|uhd)\b", re.IGNORECASE)),
     ("1080p", re.compile(r"\b(1080p|1080i)\b", re.IGNORECASE)),
     ("720p", re.compile(r"\b720p\b", re.IGNORECASE)),
     ("480p", re.compile(r"\b(480p|576p|sd)\b", re.IGNORECASE)),
