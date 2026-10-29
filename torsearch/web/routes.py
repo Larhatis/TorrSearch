@@ -9,6 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from torsearch import __version__
 from torsearch.context import AppContext
+from torsearch.library.linking import plan_manual_grab, record_manual_grab
 from torsearch.models import Category
 from torsearch.redact import redact
 from torsearch.search.filters import VALID_DIRECTIONS, VALID_SORTS, ResultFilters, apply
@@ -168,27 +169,18 @@ async def download(
     except ValueError:
         cat = Category.OTHER
 
-    from torsearch.library.episodes import build_tv_download_dir
-    from torsearch.parser.release import parse_release
-
-    rel = parse_release(title) if title else None
-    is_tv = cat == Category.TV or (rel is not None and bool(rel.episodes))
-    if is_tv and rel is not None and rel.clean_title:
-        base_tv_dir = ctx.config.paths.for_category(Category.TV)
-        download_dir = build_tv_download_dir(
-            base_dir=base_tv_dir,
-            series_title=rel.clean_title,
-            episodes=rel.episodes,
-            release_title=title,
-        )
-    else:
-        download_dir = ctx.config.paths.for_category(cat)
-
+    library = getattr(request.app.state, "library", None)
+    series_library = getattr(request.app.state, "series_library", None)
+    grab = plan_manual_grab(title, cat, ctx.config.paths, library, series_library)
     try:
-        torrent_id = await ctx.transmission.add(download_url, download_dir)
+        torrent_id = await ctx.transmission.add(download_url, grab.download_dir)
         message, ok = f"Ajoute a Transmission (#{torrent_id})", True
     except Exception as exc:
         message, ok = f"Erreur Transmission : {redact(str(exc))}", False
+    if ok and grab.watched_title:
+        record_manual_grab(grab, download_url, library, series_library,
+                           getattr(request.app.state, "history", None))
+        message += f" · marque acquis dans la surveillance ({grab.watched_title})"
     return templates.TemplateResponse(request, "partials/toast.html", {"ok": ok, "message": message})
 
 
