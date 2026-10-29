@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Form, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, Response
 from pydantic import ValidationError
 
@@ -396,10 +397,13 @@ async def settings_backup(request: Request):
     db = getattr(request.app.state, "db", None)
     if db is None:
         return Response("Sauvegarde indisponible.", status_code=404)
-    with tempfile.TemporaryDirectory() as tmp:
-        target = Path(tmp) / "backup.db"
-        db.backup_to(target)
-        content = target.read_bytes()
+    def _snapshot() -> bytes:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "backup.db"
+            db.backup_to(target)
+            return target.read_bytes()
+
+    content = await run_in_threadpool(_snapshot)  # never block the event loop (monitor)
     filename = f"torsearch-{datetime.now():%Y%m%d-%H%M}.db"
     return Response(
         content,

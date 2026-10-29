@@ -7,6 +7,8 @@ from datetime import date, timedelta
 
 logger = logging.getLogger(__name__)
 
+_TMDB_CONCURRENCY = 4
+
 
 @dataclass(frozen=True)
 class CalendarEntry:
@@ -83,8 +85,14 @@ async def build_calendar(
     if tmdb is None or not getattr(tmdb, "enabled", False):
         return []
     start, end = today - timedelta(days=past_days), today + timedelta(days=future_days)
-    jobs = [_series_entries(tmdb, s, today, start, end) for s in series_list]
-    jobs += [_movie_entry(tmdb, m, today, start, end) for m in movies]
+    limit = asyncio.Semaphore(_TMDB_CONCURRENCY)  # stay under TMDB's rate limit
+
+    async def bounded(job):
+        async with limit:
+            return await job
+
+    jobs = [bounded(_series_entries(tmdb, s, today, start, end)) for s in series_list]
+    jobs += [bounded(_movie_entry(tmdb, m, today, start, end)) for m in movies]
     by_day: dict[date, list[CalendarEntry]] = {}
     for entries in await asyncio.gather(*jobs):
         for entry in entries:

@@ -34,10 +34,13 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
     les œuvres dont la recherche ciblée n'est pas due sont comparées au flux.
   - Planification (`monitor/schedule.py`, collection `search_schedule`) : film 6 h puis 24 h,
     série 1 h / 6 h / 24 h selon l'âge de l'épisode manquant (`TmdbClient.air_dates`),
-    recherche libre 6 h. Flux vide ⇒ tout est dû (trackers sans RSS). « Vérifier
+    recherche libre 6 h. Chaque passage enregistre une **signature d'état** (statut, épisodes
+    acquis, requête) : Regrab, ré-ajout ou démarquage rendent l'œuvre due tout de suite.
+    Flux vide ⇒ tout est dû ; un tracker absent du flux (pas de RSS) garde une recherche
+    ciblée à chaque cycle (`rss_less_trackers`, `search(..., only=...)`). « Vérifier
     maintenant » = `run_once(force=True)`.
-  - PROPER/REPACK (même résolution, même groupe, ≤ 14 j) et upgrades d'épisodes
-    (`decision.replacement_reason`, `select_series_replacements`).
+  - PROPER/REPACK (même résolution, même groupe, ≤ 14 j) et upgrades d'épisodes pris il y a
+    ≤ 30 j, meilleur candidat d'abord (`decision.replacement_reason`, `select_series_replacements`).
   - Calendrier `/calendar` (`library/calendar.py`, `TmdbClient.release_date`).
   - Demandes « Disponible » (`RequestStatus.AVAILABLE`) + notification, via `owned()` Jellyfin.
   - Réglages en onglets (`data-settings-tab` / `data-settings-panel`, ancre d'URL), page
@@ -98,7 +101,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **625 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **633 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
