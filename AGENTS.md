@@ -21,10 +21,18 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.5.1)
+## 2. État actuel (v0.6.0)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Chantier 7 — qualité des choix (v0.6.0) :
+  - Profil : `accept_vostfr` (vrai par défaut) et `exclude_words` (mots/expressions entiers,
+    ex. « stv ») → `decision.ReleaseRules`, appliqué aux films, séries et remplacements.
+  - Packs multi-saisons lus par `parse_episodes` (`S01-S05`, `S01 a S28`, `Saison 1 a 6`,
+    `S01.S02`) : couverture et poids par épisode corrects.
+  - Panneau d'état : ligne « Dossiers » (`health.folder_covered`, `JellyfinClient.library_folders`)
+    qui signale un dossier de téléchargement hors des bibliothèques Jellyfin ; les chemins sont
+    comparés par la fin (montages différents selon le conteneur).
 - v0.5.1 : « Vérifier maintenant » ne bloque plus la page — la route appelle
   `MonitorRunner.run_soon(force=True)` et répond tout de suite (la boucle de fond fait le
   cycle, l'historique se rafraîchit seul) ; `_loop` efface l'événement de réveil **avant**
@@ -130,7 +138,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **657 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **666 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
