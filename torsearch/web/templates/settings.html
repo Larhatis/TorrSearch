@@ -1,35 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="mb-6 flex items-center gap-2 text-xl font-bold text-white">
+<h1 class="mb-4 flex items-center gap-2 text-xl font-bold text-white">
   <i class="ti ti-settings text-slate-500"></i> Reglages
 </h1>
 
-<div class="space-y-5">
+<div class="mb-5 flex gap-1 overflow-x-auto no-scrollbar border-b border-slate-800 pb-2" role="tablist">
+{% for key, icon, label in settings_tabs %}
+  <button type="button" role="tab" data-settings-tab="{{ key }}"
+          class="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm {% if loop.first %}bg-emerald-600 text-white{% else %}bg-slate-800/80 text-slate-300 hover:text-white{% endif %}">
+    <i class="ti {{ icon }}"></i> {{ label }}
+  </button>
+{% endfor %}
+</div>
 
+<div data-settings-panel="connexions" class="space-y-5">
 <section id="status-panel" class="rounded-xl border border-slate-700 bg-slate-800/40 p-5"
          hx-get="/settings/status" hx-trigger="load, settings-saved from:body">
   <p class="text-xs text-slate-500"><i class="ti ti-loader"></i> Verification des connexions...</p>
 </section>
-
-{% if auth_enabled %}
-<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
-  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
-    <i class="ti ti-users text-slate-500"></i>
-    <h2 class="text-sm font-semibold text-white">Utilisateurs</h2>
-  </div>
-  <form hx-post="/settings/users" hx-target="#user-list" hx-swap="outerHTML" class="mb-4 flex flex-wrap items-end gap-2">
-    <input name="username" placeholder="Identifiant" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
-    <input name="password" type="password" placeholder="Mot de passe" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
-    <select name="role" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1 text-sm">
-      <option value="guest">Invite (demande seule)</option>
-      <option value="member">Membre (ajout direct)</option>
-      <option value="admin">Admin</option>
-    </select>
-    <button class="w-full sm:w-auto rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white">Ajouter</button>
-  </form>
-  {% include "partials/user_list.html" %}
-</section>
-{% endif %}
 
 <section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
   <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
@@ -51,74 +39,8 @@
       <input type="checkbox" name="https" {% if config.transmission.https %}checked{% endif %}> https</label>
     <label class="text-xs text-slate-400">Timeout (s)<br>
       <input name="timeout_seconds" value="{{ config.search.timeout_seconds }}" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-    <button class="w-full sm:w-auto rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
-  </form>
-</section>
-
-<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
-  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
-    <i class="ti ti-rss text-slate-500"></i>
-    <h2 class="text-sm font-semibold text-white">Trackers</h2>
-  </div>
-  <form hx-post="/settings/indexers" hx-target="#indexer-list" hx-swap="outerHTML"
-        class="flex flex-wrap items-end gap-2 mb-4">
-    <label class="text-xs text-slate-400 w-full sm:w-auto">Nom<br>
-      <input name="name" placeholder="ex: tracker1" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-    <label class="text-xs text-slate-400 w-full sm:w-auto">URL Torznab<br>
-      <input name="url" placeholder="https://tracker.example/api/" class="w-full sm:w-72 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-    <label class="text-xs text-slate-400 w-full sm:w-auto">Cle API Torznab<br>
-      <input name="api_key" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-    <label class="text-xs text-slate-400">Auth<br>
-      <select name="auth" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
-        <option value="query">query</option><option value="bearer">bearer</option>
-      </select></label>
-    <button class="w-full sm:w-auto rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white">Ajouter</button>
-  </form>
-  <p class="mb-4 text-xs text-slate-500">URL : l'adresse complete de l'API Torznab du tracker (voir sa doc, ex. https://tracker.example/api/).
-    Cle : la cle API de ton profil sur le tracker, pas la passkey.</p>
-  {% include "partials/indexer_list.html" %}
-</section>
-
-<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
-  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
-    <i class="ti ti-bell text-slate-500"></i>
-    <h2 class="text-sm font-semibold text-white">Notifications</h2>
-  </div>
-  <form hx-post="/settings/notifications" hx-target="#notification-list" hx-swap="outerHTML"
-        class="flex flex-wrap items-end gap-2 mb-4">
-    <input name="name" placeholder="Nom" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
-    <select name="type" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
-      <option value="discord">Discord</option>
-      <option value="ntfy">ntfy</option>
-      <option value="telegram">Telegram</option>
-      <option value="webhook">Webhook</option>
-    </select>
-    <input name="url" placeholder="URL (Discord / ntfy / webhook)" class="w-full sm:w-72 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1">
-    <input name="token" placeholder="Token (Telegram)" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
-    <input name="chat_id" placeholder="Chat id (Telegram)" class="w-full sm:w-28 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1">
-    <button class="w-full sm:w-auto rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white">Ajouter</button>
-  </form>
-  {% include "partials/notification_list.html" %}
-</section>
-
-<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
-  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
-    <i class="ti ti-movie text-slate-500"></i>
-    <h2 class="text-sm font-semibold text-white">Surveillance (profil de qualite)</h2>
-  </div>
-  <form hx-post="/settings/library" hx-target="#toast" class="flex flex-wrap items-end gap-4">
-    <fieldset class="text-xs text-slate-400">
-      <legend>Qualites recherchees</legend>
-      <div class="mt-1 flex flex-wrap gap-2">
-        {% for qv in ["2160p", "1080p", "720p", "480p"] %}
-        <label class="flex items-center gap-1"><input type="checkbox" name="quality" value="{{ qv }}" {% if qv in config.library.qualities %}checked{% endif %}> {{ qv }}</label>
-        {% endfor %}
-      </div>
-    </fieldset>
-    <label class="text-xs text-slate-400">Seeders min<br>
-      <input name="min_seeders" value="{{ config.library.min_seeders }}" class="mt-1 w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
-    <label class="flex items-center gap-1.5 text-xs text-slate-400" title="Re-telecharge un film en meilleure qualite quand une release superieure du profil apparait">
-      <input type="checkbox" name="upgrades" {% if config.library.upgrades %}checked{% endif %}> Upgrades de qualite (films)</label>
+    <label class="text-xs text-slate-400" title="Delai minimal entre deux requetes vers un meme tracker (evite les bannissements)">Delai tracker (s)<br>
+      <input name="min_interval_seconds" value="{{ config.search.min_interval_seconds }}" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <button class="w-full sm:w-auto rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
 </section>
@@ -153,6 +75,56 @@
     <button class="w-full sm:w-auto rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
 </section>
+</div>
+
+<div data-settings-panel="trackers" class="space-y-5 hidden">
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
+  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+    <i class="ti ti-rss text-slate-500"></i>
+    <h2 class="text-sm font-semibold text-white">Trackers</h2>
+  </div>
+  <form hx-post="/settings/indexers" hx-target="#indexer-list" hx-swap="outerHTML"
+        class="flex flex-wrap items-end gap-2 mb-4">
+    <label class="text-xs text-slate-400 w-full sm:w-auto">Nom<br>
+      <input name="name" placeholder="ex: tracker1" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400 w-full sm:w-auto">URL Torznab<br>
+      <input name="url" placeholder="https://tracker.example/api/" class="w-full sm:w-72 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400 w-full sm:w-auto">Cle API Torznab<br>
+      <input name="api_key" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400">Auth<br>
+      <select name="auth" class="rounded bg-slate-800 border border-slate-700 px-2 py-1">
+        <option value="query">query</option><option value="bearer">bearer</option>
+      </select></label>
+    <button class="w-full sm:w-auto rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white">Ajouter</button>
+  </form>
+  <p class="mb-4 text-xs text-slate-500">URL : l'adresse complete de l'API Torznab du tracker (voir sa doc, ex. https://tracker.example/api/).
+    Cle : la cle API de ton profil sur le tracker, pas la passkey.</p>
+  {% include "partials/indexer_list.html" %}
+</section>
+</div>
+
+<div data-settings-panel="surveillance" class="space-y-5 hidden">
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
+  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+    <i class="ti ti-movie text-slate-500"></i>
+    <h2 class="text-sm font-semibold text-white">Surveillance (profil de qualite)</h2>
+  </div>
+  <form hx-post="/settings/library" hx-target="#toast" class="flex flex-wrap items-end gap-4">
+    <fieldset class="text-xs text-slate-400">
+      <legend>Qualites recherchees</legend>
+      <div class="mt-1 flex flex-wrap gap-2">
+        {% for qv in ["2160p", "1080p", "720p", "480p"] %}
+        <label class="flex items-center gap-1"><input type="checkbox" name="quality" value="{{ qv }}" {% if qv in config.library.qualities %}checked{% endif %}> {{ qv }}</label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <label class="text-xs text-slate-400">Seeders min<br>
+      <input name="min_seeders" value="{{ config.library.min_seeders }}" class="mt-1 w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="flex items-center gap-1.5 text-xs text-slate-400" title="Re-telecharge un film, ou un episode recupere depuis moins de 30 jours, en meilleure qualite quand une release superieure du profil apparait (l'ancien fichier n'est pas supprime)">
+      <input type="checkbox" name="upgrades" {% if config.library.upgrades %}checked{% endif %}> Upgrades de qualite (films et episodes)</label>
+    <button class="w-full sm:w-auto rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+  </form>
+</section>
 
 <section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
   <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
@@ -168,6 +140,56 @@
     <button class="w-full sm:w-auto rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
 </section>
-
 </div>
+
+<div data-settings-panel="notifications" class="space-y-5 hidden">
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
+  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+    <i class="ti ti-bell text-slate-500"></i>
+    <h2 class="text-sm font-semibold text-white">Notifications</h2>
+  </div>
+  <form hx-post="/settings/notifications" hx-target="#notification-list" hx-swap="outerHTML"
+        class="flex flex-wrap items-end gap-2 mb-4">
+    <input name="name" placeholder="Nom" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <select name="type" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
+      <option value="discord">Discord</option>
+      <option value="ntfy">ntfy</option>
+      <option value="telegram">Telegram</option>
+      <option value="webhook">Webhook</option>
+    </select>
+    <input name="url" placeholder="URL (Discord / ntfy / webhook)" class="w-full sm:w-72 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <input name="token" placeholder="Token (Telegram)" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <input name="chat_id" placeholder="Chat id (Telegram)" class="w-full sm:w-28 max-w-full rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <button class="w-full sm:w-auto rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white">Ajouter</button>
+  </form>
+  {% include "partials/notification_list.html" %}
+</section>
+</div>
+
+{% if auth_enabled %}
+<div data-settings-panel="comptes" class="space-y-5 hidden">
+<section class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
+  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+    <i class="ti ti-users text-slate-500"></i>
+    <h2 class="text-sm font-semibold text-white">Utilisateurs</h2>
+  </div>
+  <form hx-post="/settings/users" hx-target="#user-list" hx-swap="outerHTML" class="mb-4 flex flex-wrap items-end gap-2">
+    <input name="username" placeholder="Identifiant" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <input name="password" type="password" placeholder="Mot de passe" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1">
+    <select name="role" class="w-full sm:w-auto rounded bg-slate-800 border border-slate-700 px-2 py-1 text-sm">
+      <option value="guest">Invite (demande seule)</option>
+      <option value="member">Membre (ajout direct)</option>
+      <option value="admin">Admin</option>
+    </select>
+    <button class="w-full sm:w-auto rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white">Ajouter</button>
+  </form>
+  {% include "partials/user_list.html" %}
+</section>
+</div>
+
+{% endif %}
+<div data-settings-panel="maintenance" class="space-y-5 hidden">
+{% include "partials/settings_maintenance.html" %}
+</div>
+
 {% endblock %}

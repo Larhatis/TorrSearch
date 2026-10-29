@@ -397,3 +397,31 @@ def test_tracker_key_field_is_labelled_torznab_api_key(tmp_path):
     assert html.count("Cle API Torznab<br>") == 2  # add form + existing tracker row
     assert "Passkey<br>" not in html
     assert "pas la passkey" in html  # help text: Torznab wants the API key
+
+
+def test_general_update_sets_tracker_min_interval(tmp_path):
+    client, ctx, _ = _client(tmp_path)
+    client.post("/settings/general", data={
+        "host": "h", "port": "9091", "timeout_seconds": "10", "min_interval_seconds": "5",
+    })
+    assert ctx.config.search.min_interval_seconds == 5
+    assert ctx.search_service._throttles is not None
+
+
+def test_context_keeps_throttles_across_rebuilds(tmp_path):
+    cfg = Config(indexers=[IndexerConfig(name="t1", url="https://t1.example/api", api_key="k")])
+    _, ctx, _ = _client(tmp_path, cfg)
+    first = ctx._throttles["t1"]
+    first.block(60)
+    ctx.update_settings(ctx.config)
+    assert ctx._throttles["t1"] is first
+    assert first.is_blocked()
+
+
+def test_settings_page_has_tabs_without_accounts_when_auth_disabled(tmp_path):
+    client, _, _ = _client(tmp_path)
+    html = client.get("/settings").text
+    for key in ("connexions", "trackers", "surveillance", "notifications", "maintenance"):
+        assert f'data-settings-tab="{key}"' in html
+        assert f'data-settings-panel="{key}"' in html
+    assert 'data-settings-tab="comptes"' not in html

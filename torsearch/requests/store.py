@@ -15,6 +15,7 @@ class RequestStatus(str, Enum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+    AVAILABLE = "available"
 
 
 class MediaRequest(BaseModel):
@@ -29,6 +30,7 @@ class MediaRequest(BaseModel):
     requested_at: datetime
     decided_at: datetime | None = None
     decided_by: str | None = None
+    available_at: datetime | None = None
 
 
 class RequestStore:
@@ -90,6 +92,16 @@ class RequestStore:
             return None
         updated = current.model_copy(update={
             "status": status, "decided_at": datetime.now(UTC), "decided_by": decided_by,
+        })
+        self._c.upsert(request_id, updated.model_dump(mode="json"))
+        return updated
+
+    def mark_available(self, request_id: str) -> MediaRequest | None:
+        current = self.get(request_id)
+        if current is None:
+            return None
+        updated = current.model_copy(update={
+            "status": RequestStatus.AVAILABLE, "available_at": datetime.now(UTC),
         })
         self._c.upsert(request_id, updated.model_dump(mode="json"))
         return updated

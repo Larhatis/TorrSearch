@@ -21,10 +21,33 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.3.21)
+## 2. État actuel (v0.4.0)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Chantier 5 — surveillance sobre, calendrier et exploitation (v0.4.0, spec
+  `docs/superpowers/specs/2026-10-29-chantier5-surveillance-sobre-et-confort-design.md`) :
+  - Limite de fréquence par tracker (`indexers/throttle.py`) : une requête à la fois, délai
+    minimal `search.min_interval_seconds` (2 s), pause après HTTP 429 (`RateLimited`). Les
+    throttles vivent dans `AppContext` et survivent aux changements de réglages.
+  - Synchro RSS : `SearchService.recent()` lit le flux de chaque tracker une fois par cycle ;
+    les œuvres dont la recherche ciblée n'est pas due sont comparées au flux.
+  - Planification (`monitor/schedule.py`, collection `search_schedule`) : film 6 h puis 24 h,
+    série 1 h / 6 h / 24 h selon l'âge de l'épisode manquant (`TmdbClient.air_dates`),
+    recherche libre 6 h. Chaque passage enregistre une **signature d'état** (statut, épisodes
+    acquis, requête) : Regrab, ré-ajout ou démarquage rendent l'œuvre due tout de suite.
+    Flux vide ⇒ tout est dû ; un tracker absent du flux (pas de RSS) garde une recherche
+    ciblée à chaque cycle (`rss_less_trackers`, `search(..., only=...)`). « Vérifier
+    maintenant » = `run_once(force=True)`.
+  - PROPER/REPACK (même résolution, même groupe, ≤ 14 j) et upgrades d'épisodes pris il y a
+    ≤ 30 j, meilleur candidat d'abord (`decision.replacement_reason`, `select_series_replacements`).
+  - Calendrier `/calendar` (`library/calendar.py`, `TmdbClient.release_date`).
+  - Demandes « Disponible » (`RequestStatus.AVAILABLE`) + notification, via `owned()` Jellyfin.
+  - Réglages en onglets (`data-settings-tab` / `data-settings-panel`, ancre d'URL), page
+    `/account` (changement de mot de passe, empreinte de session renouvelée).
+  - Sauvegarde `/settings/backup` (`Database.backup_to`), journal `/settings/journal`
+    (`logbuffer.MemoryLogHandler`, 500 lignes INFO+, `redact()`), `/healthz` public +
+    `HEALTHCHECK` Docker, `.session_secret` rangé à côté de la base (`/data`).
 - Diagnostic et validation stricte de l'authentification Torznab (v0.3.21) :
   - Détection précoce des clés API invalides, expirées ou erronées : validation systématique par une requête authentifiée (`t=search&limit=1`) dans le test de connexion, évitant le faux positif « OK » sur les trackers (comme C411) qui répondent 200 à `t=caps` de manière publique sans authentification.
   - Message clair et explicite dans l'interface Réglages et la page d'état : `Clé API refusée (Invalid API Key) : vérifiez votre clé API dans votre profil`.
@@ -78,7 +101,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **548 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **633 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
@@ -98,7 +121,7 @@ admin) : pratique en dev. Les données vont dans `data/torsearch.db` (SQLite, gi
 
 ## 4. Architecture
 
-Python 3.12+, **FastAPI + Jinja2 + HTMX**, Tailwind (CDN pour l'instant), **SQLite**.
+Python 3.12+, **FastAPI + Jinja2 + HTMX**, Tailwind (servi localement), **SQLite**.
 
 | Module | Rôle |
 |---|---|
@@ -107,14 +130,18 @@ Python 3.12+, **FastAPI + Jinja2 + HTMX**, Tailwind (CDN pour l'instant), **SQLi
 | `config.py` | Modèles pydantic **gelés** de la config (trackers, Transmission, profil, chemins…). |
 | `db/database.py` | Mini document-store sur SQLite (WAL) : `collection(name)` → `get/upsert/delete/all`. |
 | `settings/` | `store.py` (config persistée en base, amorcée une fois depuis un YAML) ; `mutations.py` (fonctions pures qui renvoient une nouvelle `Config`, valident les noms). |
-| `indexers/torznab.py` | Client Torznab : recherche, `test()` (`t=caps`), suivi **sûr** des redirections. |
+| `indexers/torznab.py` | Client Torznab : recherche, `test()` (`t=caps`), suivi **sûr** des redirections, `RateLimited` sur HTTP 429. |
+| `indexers/throttle.py` | `TrackerThrottle` : une requête à la fois par tracker, délai minimal, pause. |
 | `parser/release.py` | Parseur de nom de release (titre, année, SxxEyy, résolution, source, flag `is_banned_source`, langue, codec). |
 | `search/` | `service.py` (recherche parallèle, dédoublonnage) ; `matcher.py` (vérification stricte du titre/année, rejet des suites et faux-positifs) ; `decision.py` (ranking langues/qualité, sélection optimale, couverture gloutonne des saisons) ; `filters.py` (filtres basiques). |
 | `transmission/client.py` | Façade **async** sur `transmission-rpc` (bloquant) : pool de threads dédié, délais 10 s / 60 s pour l'ajout. |
 | `metadata/tmdb.py` | Client TMDB (httpx) avec support `original_title`. |
 | `jellyfin/client.py` | Client Jellyfin (httpx) avec cache mémoire des items (30s) et détection de présence (`find_matching()`). |
 | `library/` | Films, séries, analyse `SxxEyy` (`episodes.py`), liste noire persistante (`blacklist.py`). |
-| `monitor/runner.py` | Boucle de surveillance : auto-grab avec double titre (VF+VO), moteur de décision, rejet liste noire. |
+| `monitor/runner.py` | Boucle de surveillance : flux RSS, auto-grab avec double titre (VF+VO), moteur de décision, PROPER/REPACK, liste noire, demandes disponibles. |
+| `monitor/schedule.py` | `SearchSchedule` : quand relancer une recherche ciblée (par film / série / recherche libre). |
+| `library/calendar.py` | Construction du calendrier « A venir » (épisodes TMDB + dates de sortie des films). |
+| `logbuffer.py` | Journal en mémoire (page Réglages → Maintenance → Journal). |
 | `health.py` | Panneau d'état : `check_all()` lance tous les `test()` en parallèle. |
 | `redact.py` | Masque les secrets dans les messages d'erreur affichés. |
 | `users/`, `requests/` | Comptes (PBKDF2) et demandes. |
@@ -165,8 +192,10 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
 - La config YAML d'amorçage (`TORSEARCH_CONFIG`) n'est lue qu'**au premier démarrage** ;
   ensuite la vérité est en base.
 - En Docker, **`TORSEARCH_DB=/data/torsearch.db` est indispensable** (sinon la base reste
-  dans le conteneur). Sans `TORSEARCH_SECRET_KEY`, la clé de session est générée dans le
-  conteneur (hors volume) → déconnexion à chaque recréation (à corriger, voir §8).
+  dans le conteneur). Sans `TORSEARCH_SECRET_KEY`, la clé de session est générée à côté de
+  la base (`dirname(TORSEARCH_DB)`), donc dans le volume `/data`.
+- Les **faux services de recherche** des tests n'ont pas forcément `recent()` : le moteur
+  le teste avec `hasattr` et retombe alors sur la recherche ciblée à chaque cycle.
 - `transmission-rpc` est synchrone et fait un appel réseau dès la création du client.
 - Les noms (trackers, recherches, canaux) servent d'identifiants dans les URL : caractères
   `/ \ ? # %`, `.`/`..` et espaces en bordure refusés.
@@ -199,9 +228,10 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
 - Assets servis localement (Zéro CDN : Tailwind, Tabler Icons, HTMX) : terminé en v0.3.7.
 - Pages détail film et série avec synopsis, statut Jellyfin et recherche 1-clic : terminé en v0.3.7.
 - Interface tactile entièrement responsive mobile (Bottom bar, cartes adaptatives, menus tactiles) : terminé en v0.3.8.
-- Prochaines étapes : menu simplifié, favicon local, Réglages en onglets.
+- Réglages en onglets : terminé en v0.4.0.
+- Prochaines étapes : menu simplifié, favicon local.
 
-**Petits chantiers** : clé de session dans le volume `/data` ; changement de mot de passe
-dans l'UI ; notifier le demandeur ; masquer les secrets dans les logs ; liens de
-téléchargement sans clé de tracker côté membres (identifiants de résultat côté serveur) ;
-limiter la fréquence des requêtes aux trackers ; sauvegarde/export de la base.
+**Petits chantiers** : masquer les secrets dans les logs de la console (le journal de l'UI
+les masque déjà) ; liens de téléchargement sans clé de tracker côté membres (identifiants
+de résultat côté serveur) ; restauration d'une sauvegarde depuis l'UI ; notification
+personnelle du demandeur (canal par utilisateur).

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC
 from email.utils import parsedate_to_datetime
 
 import defusedxml.ElementTree as ET
 import httpx
 
 from torsearch.config import AuthMode, IndexerConfig
-from torsearch.indexers.base import Indexer
+from torsearch.indexers.base import DEFAULT_RETRY_AFTER, Indexer, RateLimited
 from torsearch.models import Category, SearchResult
 from torsearch.redact import redact
 
@@ -27,6 +28,11 @@ _MAX_REDIRECTS = 5
 
 class RedirectRefused(Exception):
     """A tracker redirect we will not follow (another host, https -> http, or a loop)."""
+
+
+def _retry_after(response: httpx.Response) -> float:
+    value = response.headers.get("retry-after", "").strip()
+    return float(value) if value.isdigit() else DEFAULT_RETRY_AFTER
 
 
 def _next_url(current: str, location: str) -> str:
@@ -72,7 +78,8 @@ def parse_response(xml_bytes: bytes, source: str) -> list[SearchResult]:
         return []
     results: list[SearchResult] = []
     for item in root.iter("item"):
-        attrs = {a.get("name"): a.get("value") for a in item.findall(f"{TORZNAB_NS}attr")}
+        attr_els = item.findall(f"{TORZNAB_NS}attr")
+        attrs = {a.get("name"): a.get("value") for a in attr_els}
 
         title_el = item.find("title")
         title = title_el.text if title_el is not None and title_el.text else ""
@@ -103,8 +110,13 @@ def parse_response(xml_bytes: bytes, source: str) -> list[SearchResult]:
         else:
             leechers = 0
 
-        cat_value = attrs.get("category")
-        category = category_from_id(int(cat_value)) if cat_value and cat_value.isdigit() else Category.OTHER
+        # Jackett/Prowlarr add a custom category (100000+) after the standard one: keep the first standard id.
+        cat_ids = [
+            int(v) for a in attr_els
+            if a.get("name") == "category" and (v := a.get("value") or "").isdigit()
+        ]
+        standard = [c for c in cat_ids if c < 100000]
+        category = category_from_id(standard[0]) if standard else Category.OTHER
 
         info_url = None
         comments_el = item.find("comments")
@@ -119,6 +131,8 @@ def parse_response(xml_bytes: bytes, source: str) -> list[SearchResult]:
         if pub_el is not None and pub_el.text:
             try:
                 publish_date = parsedate_to_datetime(pub_el.text)
+                if publish_date.tzinfo is None:  # "-0000" or no zone: comparable with the others
+                    publish_date = publish_date.replace(tzinfo=UTC)
             except (TypeError, ValueError):
                 publish_date = None
 
@@ -204,8 +218,12 @@ class TorznabIndexer(Indexer):
         client = self._client or httpx.AsyncClient(timeout=self._timeout)
         try:
             response = await self._get(client, params, headers)
+            if response.status_code == 429:
+                raise RateLimited(_retry_after(response))
             response.raise_for_status()
             return parse_response(response.content, self.name)
+        except RateLimited:
+            raise
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in (401, 403):
                 logger.warning(

@@ -47,8 +47,11 @@ class Notifier:
             for channel in active:
                 try:
                     await self._send_one(client, channel, title, body)
+                except httpx.HTTPStatusError as exc:
+                    # The exception text embeds the webhook URL (a secret): status only.
+                    logger.warning("Notification to '%s' failed: HTTP %d", channel.name, exc.response.status_code)
                 except Exception as exc:
-                    logger.warning("Notification to '%s' failed: %s", channel.name, exc)
+                    logger.warning("Notification to '%s' failed: %s", channel.name, redact(str(exc)))
         finally:
             await client.aclose()
 

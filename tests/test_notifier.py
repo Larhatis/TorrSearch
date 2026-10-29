@@ -103,3 +103,21 @@ async def test_test_failure_never_echoes_the_bot_token():
     assert ok is False
     assert "400" in message
     assert "SECRET" not in message
+
+
+async def test_failed_webhook_log_never_contains_url(caplog):
+    import logging
+
+    import httpx
+    import respx
+
+    from torsearch.config import NotificationChannel
+    from torsearch.notifications.notifier import Notifier
+
+    url = "https://discord.com/api/webhooks/1/TOKEN-SECRET"
+    with respx.mock:
+        respx.post(url).mock(return_value=httpx.Response(404))
+        with caplog.at_level(logging.WARNING):
+            await Notifier().notify_message([NotificationChannel(name="d", type="discord", url=url)], "t", "b")
+    assert "TOKEN-SECRET" not in caplog.text
+    assert "HTTP 404" in caplog.text

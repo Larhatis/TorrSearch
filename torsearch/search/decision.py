@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any
 
 from torsearch.library.episodes import covered_episodes
@@ -224,4 +226,98 @@ def select_series_releases(
             if not target_missing:
                 break
 
+    return picks
+
+
+REPACK_WINDOW = timedelta(days=14)
+# Episode upgrades only follow recent grabs: enabling the option must not re-download a
+# whole back catalogue (old files are not deleted).
+UPGRADE_WINDOW = timedelta(days=30)
+_REPACK_EDITIONS = ("proper", "repack")
+_GROUP_RE = re.compile(r"-([A-Za-z0-9]+)(?:\.(?:mkv|mp4|avi))?$")
+
+
+def release_group(title: str) -> str | None:
+    """Release group tag at the end of a title (``...-GRP``), if any."""
+    m = _GROUP_RE.search(title.strip())
+    return m.group(1) if m else None
+
+
+def replacement_reason(
+    candidate: ParsedRelease,
+    previous_title: str,
+    previous_at: datetime,
+    now: datetime,
+    qualities: list[str] | None,
+    upgrades: bool,
+) -> str | None:
+    """Why ``candidate`` should replace an already grabbed release, or None.
+
+    ``"repack"``: a PROPER/REPACK of a recent grab, same resolution and (when both are
+    tagged) same group. ``"upgrade"``: upgrades enabled, a grab of the last 30 days, and a
+    strictly better quality of the profile without a worse language.
+    """
+    previous = parse_release(previous_title)
+    if (
+        candidate.edition in _REPACK_EDITIONS
+        and previous.edition not in _REPACK_EDITIONS
+        and candidate.resolution == previous.resolution
+        and now - previous_at <= REPACK_WINDOW
+    ):
+        cand_group, prev_group = release_group(candidate.raw_title), release_group(previous_title)
+        if not (cand_group and prev_group and cand_group.lower() != prev_group.lower()):
+            return "repack"
+    if upgrades and qualities and candidate.resolution in qualities and now - previous_at <= UPGRADE_WINDOW:
+        prev_rank = qualities.index(previous.resolution) if previous.resolution in qualities else 999
+        if (
+            qualities.index(candidate.resolution) < prev_rank
+            and _get_lang_tier(candidate.language) <= _get_lang_tier(previous.language)
+        ):
+            return "upgrade"
+    return None
+
+
+def select_series_replacements(
+    results: list[SearchResult],
+    target_title: str,
+    target_original_title: str | None,
+    previous: dict[str, tuple[str, datetime]],
+    taken: set[str],
+    now: datetime,
+    qualities: list[str] | None = None,
+    min_seeders: int = 1,
+    blacklist: Any = None,
+    upgrades: bool = False,
+) -> list[tuple[SearchResult, set[str]]]:
+    """Releases replacing already grabbed episodes (``previous``: episode -> (title, at)).
+
+    Only releases covering episodes all grabbed before are considered; ``taken`` holds the
+    lowercased titles/keys already grabbed so a replacement is never taken twice.
+    """
+    candidates: list[tuple[SearchResult, ReleaseEvaluation]] = []
+    for r in results:
+        key = (r.infohash or r.download_url or "").lower()
+        if r.title.lower() in taken or key in taken:
+            continue
+        ev = evaluate_release(
+            r, target_title=target_title, target_original_title=target_original_title,
+            is_series=True, qualities=qualities, min_seeders=min_seeders, blacklist=blacklist,
+        )
+        if ev.acceptable and ev.parsed is not None:
+            candidates.append((r, ev))
+    # Best first, so a 2160p is not preceded by an intermediate 1080p download.
+    candidates.sort(key=lambda c: (c[1].lang_tier, c[1].quality_rank, -c[0].seeders))
+
+    picks: list[tuple[SearchResult, set[str]]] = []
+    covered_all: set[str] = set()
+    for r, ev in candidates:
+        assert ev.parsed is not None
+        eps = {e for e in ev.parsed.episodes if "E" in e}
+        if not eps or eps & covered_all or not eps <= previous.keys():
+            continue
+        if all(
+            replacement_reason(ev.parsed, *previous[e], now, qualities, upgrades) for e in eps
+        ):
+            picks.append((r, eps))
+            covered_all |= eps
     return picks

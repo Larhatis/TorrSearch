@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import logging
 import os
+import tempfile
+from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import HTMLResponse, Response
 from pydantic import ValidationError
 
 from torsearch.config import (
@@ -60,12 +65,25 @@ def _saved(response):
     return response
 
 
+_TABS = [
+    ("connexions", "ti-plug-connected", "Connexions"),
+    ("trackers", "ti-rss", "Trackers"),
+    ("surveillance", "ti-eye", "Surveillance"),
+    ("notifications", "ti-bell", "Notifications"),
+    ("comptes", "ti-users", "Comptes"),
+    ("maintenance", "ti-tool", "Maintenance"),
+]
+
+
 @settings_router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     ctx: AppContext = request.app.state.ctx
     users = getattr(request.app.state, "users", None)
+    auth = getattr(request.app.state, "auth", None)
+    auth_enabled = bool(auth and getattr(auth, "enabled", False))
     return templates.TemplateResponse(
         request, "settings.html", {
+            "settings_tabs": [t for t in _TABS if t[0] != "comptes" or auth_enabled],
             "config": ctx.config, "indexers": ctx.config.indexers,
             "channels": ctx.config.notifications, "categories": list(Category),
             "users": users.list() if users else [],
@@ -133,6 +151,7 @@ async def update_general(
     password: str = Form(""),
     https: str | None = Form(None),
     timeout_seconds: str = Form(...),
+    min_interval_seconds: str = Form(""),
 ):
     ctx: AppContext = request.app.state.ctx
     current = ctx.config.transmission
@@ -149,7 +168,10 @@ async def update_general(
                 return _toast(request, False,
                               "Ressaisis le mot de passe Transmission pour changer d'hote, de port ou de protocole.")
             transmission = transmission.model_copy(update={"password": current.password})
-        search = SearchConfig(timeout_seconds=timeout_seconds)
+        search = SearchConfig(
+            timeout_seconds=timeout_seconds,
+            min_interval_seconds=min_interval_seconds.strip() or ctx.config.search.min_interval_seconds,
+        )
         ctx.update_settings(set_general(ctx.config, transmission, search))
         return _saved(_toast(request, True, "Reglages enregistres."))
     except (ValidationError, SettingsError) as exc:
@@ -368,3 +390,36 @@ async def test_notification(request: Request, name: str):
         return _toast(request, False, "Canal introuvable.")
     ok, message = await Notifier().test(channel)
     return _toast(request, ok, f"{name} : {message}")
+
+
+@settings_router.get("/settings/backup")
+async def settings_backup(request: Request):
+    db = getattr(request.app.state, "db", None)
+    if db is None:
+        return Response("Sauvegarde indisponible.", status_code=404)
+    def _snapshot() -> bytes:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "backup.db"
+            db.backup_to(target)
+            return target.read_bytes()
+
+    content = await run_in_threadpool(_snapshot)  # never block the event loop (monitor)
+    filename = f"torsearch-{datetime.now():%Y%m%d-%H%M}.db"
+    return Response(
+        content,
+        media_type="application/vnd.sqlite3",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+_LOG_LEVELS = {"info": logging.INFO, "warning": logging.WARNING, "error": logging.ERROR}
+
+
+@settings_router.get("/settings/journal", response_class=HTMLResponse)
+async def settings_journal(request: Request, level: str = "info"):
+    handler = getattr(request.app.state, "log_handler", None)
+    level = level if level in _LOG_LEVELS else "info"
+    entries = handler.entries(_LOG_LEVELS[level]) if handler is not None else []
+    return templates.TemplateResponse(
+        request, "journal.html", {"entries": entries, "level": level, "enabled": handler is not None},
+    )

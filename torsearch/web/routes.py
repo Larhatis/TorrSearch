@@ -3,10 +3,11 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, Depends, FastAPI, Form, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
+from torsearch import __version__
 from torsearch.context import AppContext
 from torsearch.models import Category
 from torsearch.redact import redact
@@ -20,6 +21,7 @@ from torsearch.web.auth import (
 )
 from torsearch.web.auth_routes import auth_router
 from torsearch.web.authz import require_admin, require_member
+from torsearch.web.calendar_routes import calendar_router
 from torsearch.web.discover_routes import discover_router
 from torsearch.web.downloads_routes import downloads_router
 from torsearch.web.forms import GB, split_words, to_int, to_size_bytes
@@ -32,6 +34,12 @@ from torsearch.web.surveillance_routes import surveillance_router
 from torsearch.web.templating import STATIC_DIR, templates
 
 router = APIRouter()
+
+
+@router.get("/healthz")
+async def healthz():
+    """Liveness probe for Docker's HEALTHCHECK (public, no data)."""
+    return JSONResponse({"status": "ok", "version": __version__})
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -186,7 +194,7 @@ async def download(
 
 def create_app(
     ctx: AppContext, history=None, monitor=None, auth: AuthSettings | None = None, library=None,
-    series_library=None, users=None, requests_store=None, blacklist=None,
+    series_library=None, users=None, requests_store=None, blacklist=None, db=None, log_handler=None,
 ) -> FastAPI:
     if auth is None:
         auth = AuthSettings(enabled=False)
@@ -211,6 +219,8 @@ def create_app(
     app.state.users = users
     app.state.requests = requests_store
     app.state.blacklist = blacklist
+    app.state.db = db
+    app.state.log_handler = log_handler
     app.state.login_throttle = LoginThrottle()
     app.add_middleware(CrossSiteGuardMiddleware)  # always on, even without auth
     app.add_middleware(SecurityHeadersMiddleware)
@@ -233,5 +243,6 @@ def create_app(
     app.include_router(movie_router)
     app.include_router(series_router)
     app.include_router(requests_router)
+    app.include_router(calendar_router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app

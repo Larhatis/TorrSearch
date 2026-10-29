@@ -8,6 +8,7 @@ _PATTERNS = [
     (re.compile(r"(://)[^/\s@]+@"), r"\1***@"),
     (re.compile(r"([?&](?:apikey|api_key|passkey|token|key)=)[^&\s'\"]+", re.IGNORECASE), r"\1***"),
     (re.compile(r"(/bot)[^/\s'\"]+"), r"\1***"),
+    (re.compile(r"(/webhooks/)[^\s'\"]+"), r"\1***"),
 ]
 
 

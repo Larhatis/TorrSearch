@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-6 flex items-center gap-2 text-xl font-bold text-white">
+  <i class="ti ti-user text-slate-500"></i> Mon compte
+</h1>
+
+<section class="max-w-md rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
+  <p class="mb-4 text-sm text-slate-300">Connecte en tant que <span class="font-semibold text-white">{{ username }}</span> ({{ role }}).</p>
+  {% if error %}<p class="mb-3 rounded bg-red-500/15 px-3 py-2 text-xs text-red-300">{{ error }}</p>{% endif %}
+  {% if notice %}<p class="mb-3 rounded bg-emerald-500/15 px-3 py-2 text-xs text-emerald-300">{{ notice }}</p>{% endif %}
+  {% if managed %}
+  <form method="post" action="/account/password" class="flex flex-col gap-3">
+    <h2 class="text-sm font-semibold text-white">Changer de mot de passe</h2>
+    <label class="text-xs text-slate-400">Mot de passe actuel
+      <input name="current_password" type="password" autocomplete="current-password" required class="mt-1 w-full rounded bg-slate-800 border border-slate-700 px-2 py-1.5"></label>
+    <label class="text-xs text-slate-400">Nouveau mot de passe (8 caracteres min.)
+      <input name="new_password" type="password" autocomplete="new-password" minlength="8" required class="mt-1 w-full rounded bg-slate-800 border border-slate-700 px-2 py-1.5"></label>
+    <label class="text-xs text-slate-400">Confirmation
+      <input name="confirm_password" type="password" autocomplete="new-password" minlength="8" required class="mt-1 w-full rounded bg-slate-800 border border-slate-700 px-2 py-1.5"></label>
+    <button class="rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
+  </form>
+  {% else %}
+  <p class="text-xs text-slate-400">Ce compte est defini par les variables d'environnement (TORSEARCH_USERNAME / TORSEARCH_PASSWORD) : change le mot de passe dans ta configuration Docker.</p>
+  {% endif %}
+</section>
+{% endblock %}

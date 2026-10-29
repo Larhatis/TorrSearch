@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+  <h1 class="flex items-center gap-2 text-xl font-bold text-white">
+    <i class="ti ti-list-details text-slate-500"></i> Journal
+  </h1>
+  <a href="/settings#maintenance" class="text-xs text-slate-400 hover:text-emerald-400"><i class="ti ti-arrow-left"></i> Retour aux reglages</a>
+</div>
+
+<div class="mb-4 flex flex-wrap items-center gap-2 text-sm">
+  {% for key, label in [("info", "Tout"), ("warning", "Avertissements"), ("error", "Erreurs")] %}
+  <a href="/settings/journal?level={{ key }}" class="rounded-lg px-3 py-1.5 {% if level == key %}bg-emerald-600 text-white{% else %}bg-slate-800/80 text-slate-300 hover:text-white{% endif %}">{{ label }}</a>
+  {% endfor %}
+  <a href="/settings/journal?level={{ level }}" class="ml-auto flex items-center gap-1 text-xs text-slate-400 hover:text-emerald-400"><i class="ti ti-refresh"></i> Actualiser</a>
+</div>
+
+{% if not entries %}
+<p class="rounded-xl border border-slate-700 bg-slate-800/40 p-5 text-sm text-slate-400">Aucun evenement depuis le demarrage de l'application.</p>
+{% else %}
+<ol class="divide-y divide-slate-800 rounded-xl border border-slate-700 bg-slate-800/40 font-mono text-xs">
+  {% for e in entries %}
+  <li class="flex flex-col gap-0.5 px-3 py-2 sm:flex-row sm:gap-3">
+    <span class="shrink-0 text-slate-500">{{ e.at.strftime("%d/%m %H:%M:%S") }}</span>
+    <span class="shrink-0 w-16 font-semibold {% if e.levelno >= 40 %}text-red-400{% elif e.levelno >= 30 %}text-amber-300{% else %}text-slate-400{% endif %}">{{ e.level }}</span>
+    <span class="min-w-0 break-words text-slate-200">{{ e.message }} <span class="text-slate-600">· {{ e.name }}</span></span>
+  </li>
+  {% endfor %}
+</ol>
+{% endif %}
+{% endblock %}

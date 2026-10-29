@@ -14,10 +14,11 @@
       <span class="text-sm font-medium text-white">{{ r.title }}{% if r.year %} <span class="text-slate-500">({{ r.year }})</span>{% endif %}</span>
     </div>
     <span class="self-end sm:self-auto rounded px-2 py-0.5 text-[11px] font-semibold
-      {% if r.status.value == 'approved' %}bg-green-500/15 text-green-300
+      {% if r.status.value == 'available' %}bg-emerald-500/15 text-emerald-300
+      {% elif r.status.value == 'approved' %}bg-green-500/15 text-green-300
       {% elif r.status.value == 'rejected' %}bg-red-500/15 text-red-300
       {% else %}bg-amber-500/15 text-amber-300{% endif %}">
-      {% if r.status.value == 'approved' %}Approuvee{% elif r.status.value == 'rejected' %}Refusee{% else %}En attente{% endif %}
+      {% if r.status.value == 'available' %}<i class="ti ti-player-play"></i> Disponible{% elif r.status.value == 'approved' %}Approuvee (en cours){% elif r.status.value == 'rejected' %}Refusee{% else %}En attente{% endif %}
     </span>
   </div>
   {% endfor %}

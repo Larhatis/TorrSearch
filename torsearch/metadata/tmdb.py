@@ -15,6 +15,37 @@ _SEARCH_URL = "https://api.themoviedb.org/3/search/multi"
 _TRENDING_URL = "https://api.themoviedb.org/3/trending/all/week"
 _TV_URL = "https://api.themoviedb.org/3/tv"
 _CONFIG_URL = "https://api.themoviedb.org/3/configuration"
+_MOVIE_URL = "https://api.themoviedb.org/3/movie"
+_DIGITAL, _THEATRICAL_LIMITED, _THEATRICAL = 4, 2, 3
+
+
+def pick_release_date(payload: dict) -> tuple[str, str] | None:
+    """Best release date from a TMDB ``/movie/{id}/release_dates`` payload."""
+    by_country: dict[str, list[tuple[int, str]]] = {}
+    for country in payload.get("results", []):
+        code = country.get("iso_3166_1") or ""
+        for rd in country.get("release_dates", []):
+            when = (rd.get("release_date") or "")[:10]
+            if when and isinstance(rd.get("type"), int):
+                by_country.setdefault(code, []).append((rd["type"], when))
+
+    def earliest(types: tuple[int, ...], country: str | None = None) -> str | None:
+        dates = [
+            when for code, items in by_country.items() if country is None or code == country
+            for kind, when in items if kind in types
+        ]
+        return min(dates) if dates else None
+
+    for types, country, label in (
+        ((_DIGITAL,), "FR", "numerique"),
+        ((_DIGITAL,), None, "numerique"),
+        ((_THEATRICAL, _THEATRICAL_LIMITED), "FR", "cinema"),
+        ((_THEATRICAL, _THEATRICAL_LIMITED), None, "cinema"),
+    ):
+        when = earliest(types, country)
+        if when:
+            return when, label
+    return None
 
 
 def parse_multi(payload: dict, default_type: str | None = None) -> list[MediaResult]:
@@ -58,6 +89,7 @@ class TmdbClient:
         self._clock = clock
         self._episode_cache: dict[int, tuple[float, set[str]]] = {}
         self._seasons_cache: dict[int, tuple[float, list[SeasonInfo]]] = {}
+        self._release_cache: dict[int, tuple[float, tuple[str, str] | None]] = {}
 
     @property
     def enabled(self) -> bool:
@@ -169,12 +201,14 @@ class TmdbClient:
         cached = self._seasons_cache.get(tv_id)
         if cached is not None and cached[0] > self._clock():
             return cached[1]
-        result = await self._fetch_seasons(tv_id)
-        if result:
+        result, complete = await self._fetch_seasons(tv_id)
+        # A season that failed to load must not hide its episodes for hours (surveillance).
+        if result and complete:
             self._seasons_cache[tv_id] = (self._clock() + self._episode_cache_seconds, result)
         return result
 
-    async def _fetch_seasons(self, tv_id: int) -> list[SeasonInfo]:
+    async def _fetch_seasons(self, tv_id: int) -> tuple[list[SeasonInfo], bool]:
+        """Seasons with their episodes, and whether every season loaded."""
         owns_client = self._client is None
         client = self._client or httpx.AsyncClient(timeout=self._timeout)
         params = {"api_key": self._api_key, "language": "fr-FR"}
@@ -187,7 +221,7 @@ class TmdbClient:
             ]
             season_data.sort(key=lambda s: s.get("season_number", 0))
 
-            async def _fetch_season_episodes(number: int) -> list[EpisodeInfo]:
+            async def _fetch_season_episodes(number: int) -> list[EpisodeInfo] | None:
                 try:
                     resp = await client.get(f"{_TV_URL}/{tv_id}/season/{number}", params=params)
                     resp.raise_for_status()
@@ -210,15 +244,16 @@ class TmdbClient:
                     return episodes
                 except Exception as exc:
                     logger.warning("TMDB season %s/%s failed: %s", tv_id, number, exc)
-                    return []
+                    return None
 
             fetched_seasons = await asyncio.gather(
                 *[_fetch_season_episodes(s["season_number"]) for s in season_data]
             )
 
             result: list[SeasonInfo] = []
-            for s, eps in zip(season_data, fetched_seasons, strict=False):
+            for s, fetched in zip(season_data, fetched_seasons, strict=False):
                 s_num = int(s["season_number"])
+                eps = fetched or []
                 result.append(
                     SeasonInfo(
                         season_number=s_num,
@@ -229,10 +264,10 @@ class TmdbClient:
                         episodes=eps,
                     )
                 )
-            return result
+            return result, all(f is not None for f in fetched_seasons)
         except Exception as exc:  # resilience
             logger.warning("TMDB seasons failed: %s", exc)
-            return []
+            return [], False
         finally:
             if owns_client:
                 await client.aclose()
@@ -259,3 +294,43 @@ class TmdbClient:
         if keys:
             self._episode_cache[tv_id] = (self._clock() + self._episode_cache_seconds, keys)
         return keys
+
+    async def release_date(self, movie_id: int) -> tuple[str, str] | None:
+        """When a movie becomes watchable: ``(YYYY-MM-DD, kind)``, kind ``numerique`` or ``cinema``.
+
+        Digital release in France first, then any digital release, then the French (or
+        earliest) theatrical release. Cached 12 h, failures included (calendar only).
+        """
+        if not self.enabled:
+            return None
+        cached = self._release_cache.get(movie_id)
+        if cached is not None and cached[0] > self._clock():
+            return cached[1]
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        result: tuple[str, str] | None = None
+        try:
+            response = await client.get(
+                f"{_MOVIE_URL}/{movie_id}/release_dates", params={"api_key": self._api_key}
+            )
+            response.raise_for_status()
+            result = pick_release_date(response.json())
+        except Exception as exc:  # resilience
+            logger.warning("TMDB release dates for %s failed: %s", movie_id, exc)
+        finally:
+            if owns_client:
+                await client.aclose()
+        self._release_cache[movie_id] = (self._clock() + 12 * 3600, result)
+        return result
+
+    async def air_dates(self, tv_id: int) -> dict[str, str]:
+        """Aired episodes with their air date (``{"S01E02": "2026-01-15"}``)."""
+        if not self.enabled:
+            return {}
+        today = date.today().isoformat()
+        return {
+            ep.code: ep.air_date
+            for s in await self.seasons(tv_id)
+            for ep in s.episodes
+            if ep.air_date and ep.air_date <= today
+        }

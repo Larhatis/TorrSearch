@@ -267,3 +267,56 @@ async def test_test_reports_unreachable_server_plainly():
         respx.get("https://api.themoviedb.org/3/configuration").mock(side_effect=httpx.ConnectError("[Errno 8] dns"))
         ok, message = await TmdbClient(MetadataConfig(tmdb_api_key="k")).test()
     assert ok is False and "injoignable" in message.lower() and "Errno" not in message
+
+
+def test_pick_release_date_prefers_french_digital():
+    from torsearch.metadata.tmdb import pick_release_date
+
+    payload = {"results": [
+        {"iso_3166_1": "US", "release_dates": [
+            {"type": 3, "release_date": "2026-03-01T00:00:00.000Z"},
+            {"type": 4, "release_date": "2026-04-01T00:00:00.000Z"},
+        ]},
+        {"iso_3166_1": "FR", "release_dates": [
+            {"type": 3, "release_date": "2026-03-05T00:00:00.000Z"},
+            {"type": 4, "release_date": "2026-05-10T00:00:00.000Z"},
+        ]},
+    ]}
+    assert pick_release_date(payload) == ("2026-05-10", "numerique")
+
+
+def test_pick_release_date_falls_back_to_theatrical():
+    from torsearch.metadata.tmdb import pick_release_date
+
+    payload = {"results": [{"iso_3166_1": "US", "release_dates": [
+        {"type": 3, "release_date": "2026-03-01T00:00:00.000Z"},
+    ]}]}
+    assert pick_release_date(payload) == ("2026-03-01", "cinema")
+    assert pick_release_date({"results": []}) is None
+
+
+async def test_release_date_is_cached():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"))
+    payload = {"results": [{"iso_3166_1": "FR", "release_dates": [
+        {"type": 4, "release_date": "2026-05-10T00:00:00.000Z"},
+    ]}]}
+    with respx.mock:
+        route = respx.get("https://api.themoviedb.org/3/movie/42/release_dates").mock(
+            return_value=httpx.Response(200, json=payload)
+        )
+        assert await client.release_date(42) == ("2026-05-10", "numerique")
+        assert await client.release_date(42) == ("2026-05-10", "numerique")
+    assert route.call_count == 1
+
+
+async def test_partial_seasons_are_not_cached():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"))
+    detail = {"seasons": [{"season_number": 1}, {"season_number": 2}]}
+    season1 = {"episodes": [{"season_number": 1, "episode_number": 1, "air_date": "2020-01-01"}]}
+    with respx.mock:
+        respx.get("https://api.themoviedb.org/3/tv/9").mock(return_value=httpx.Response(200, json=detail))
+        respx.get("https://api.themoviedb.org/3/tv/9/season/1").mock(return_value=httpx.Response(200, json=season1))
+        s2 = respx.get("https://api.themoviedb.org/3/tv/9/season/2").mock(return_value=httpx.Response(500))
+        await client.seasons(9)
+        await client.seasons(9)
+    assert s2.call_count == 2  # failed season retried, not cached

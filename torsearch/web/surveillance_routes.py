@@ -107,7 +107,7 @@ async def run_now(request: Request):
     runner = getattr(request.app.state, "monitor", None)
     if runner is not None:
         try:
-            records = await runner.run_once()
+            records = await runner.run_once(force=True)
             count = len(records)
             if count > 0:
                 notice = f"Verification effectuee : {count} nouveau(x) torrent(s) envoye(s) a Transmission."

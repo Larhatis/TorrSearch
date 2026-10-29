@@ -41,6 +41,7 @@
       {% if is_member %}<a href="/" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path == '/' %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path == '/' %} aria-current="page"{% endif %}><i class="ti ti-search"></i><span class="hidden lg:inline">Recherche</span></a>{% endif %}
       <a href="/discover" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path.startswith('/discover') %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path.startswith('/discover') %} aria-current="page"{% endif %}><i class="ti ti-compass"></i><span class="hidden lg:inline">Decouvrir</span></a>
       {% if is_admin %}<a href="/surveillance" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path.startswith('/surveillance') %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path.startswith('/surveillance') %} aria-current="page"{% endif %}><i class="ti ti-eye"></i><span class="hidden lg:inline">Surveillance</span></a>{% endif %}
+      {% if is_member %}<a href="/calendar" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path.startswith('/calendar') %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path.startswith('/calendar') %} aria-current="page"{% endif %}><i class="ti ti-calendar"></i><span class="hidden lg:inline">A venir</span></a>{% endif %}
       {% if is_member %}<a href="/downloads" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path.startswith('/downloads') or path.startswith('/activity') %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path.startswith('/downloads') or path.startswith('/activity') %} aria-current="page"{% endif %}><i class="ti ti-activity"></i><span class="hidden lg:inline">Activite</span></a>{% endif %}
       {% if is_admin %}<a href="/settings" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path.startswith('/settings') %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path.startswith('/settings') %} aria-current="page"{% endif %}><i class="ti ti-settings"></i><span class="hidden lg:inline">Reglages</span></a>{% endif %}
       {% if is_admin %}<a href="/requests" class="flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1.5 {% if path == '/requests' %}text-emerald-400 font-semibold{% else %}text-slate-300 hover:text-emerald-400{% endif %}"{% if path == '/requests' %} aria-current="page"{% endif %}><i class="ti ti-inbox"></i><span class="hidden lg:inline">Demandes</span>{% if pending_requests %}<span class="ml-1 rounded-full bg-emerald-500 px-1.5 text-[10px] font-semibold text-slate-900">{{ pending_requests }}</span>{% endif %}</a>{% endif %}
@@ -56,6 +57,7 @@
       </a>
       {% endif %}
       {% if auth_enabled %}
+      <a href="/account" class="hidden md:flex items-center gap-1.5 text-sm {% if path == '/account' %}text-emerald-400{% else %}text-slate-400 hover:text-emerald-400{% endif %}" title="Mon compte"><i class="ti ti-user"></i></a>
       <form method="post" action="/logout" class="shrink-0 hidden md:block">
         <button type="submit" class="flex items-center gap-1.5 text-sm text-slate-400 hover:text-emerald-400"><i class="ti ti-logout"></i><span>Deconnexion</span></button>
       </form>
@@ -93,6 +95,9 @@
         <span class="text-[10px] mt-0.5">Menu</span>
       </summary>
       <div class="absolute bottom-full mb-3 right-0 w-52 rounded-xl border border-slate-700 bg-slate-900/98 backdrop-blur p-2 shadow-2xl flex flex-col gap-1 text-xs">
+        {% if is_member %}
+        <a href="/calendar" class="flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-slate-800 text-slate-200"><i class="ti ti-calendar text-base text-slate-400"></i> A venir</a>
+        {% endif %}
         {% if is_admin %}
         <a href="/settings" class="flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-slate-800 text-slate-200"><i class="ti ti-settings text-base text-slate-400"></i> Reglages</a>
         <a href="/requests" class="flex items-center justify-between p-2.5 rounded-lg hover:bg-slate-800 text-slate-200">
@@ -103,6 +108,7 @@
         <a href="/requests/mine" class="flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-slate-800 text-slate-200"><i class="ti ti-send text-base text-slate-400"></i> Mes demandes</a>
         {% endif %}
         {% if auth_enabled %}
+        <a href="/account" class="flex items-center gap-2.5 p-2.5 rounded-lg hover:bg-slate-800 text-slate-200"><i class="ti ti-user text-base text-slate-400"></i> Mon compte</a>
         <form method="post" action="/logout" class="border-t border-slate-800 pt-1 mt-1">
           <button type="submit" class="flex w-full items-center gap-2.5 p-2.5 rounded-lg hover:bg-slate-800 text-red-400 text-left font-medium"><i class="ti ti-logout text-base"></i> Deconnexion</button>
         </form>

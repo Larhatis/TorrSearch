@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-2 flex items-center gap-2 text-xl font-bold text-white">
+  <i class="ti ti-calendar text-slate-500"></i> A venir
+</h1>
+<p class="mb-6 text-xs text-slate-500">Episodes des series suivies et sorties des films surveilles, de la semaine passee aux deux prochains mois.</p>
+
+{% if not tmdb_enabled %}
+<div class="rounded-xl border border-slate-700 bg-slate-800/40 p-5 text-sm text-slate-400">
+  Le calendrier utilise TMDB : renseigne une cle API dans les <a href="/settings#connexions" class="text-emerald-400 hover:underline">Reglages</a>.
+</div>
+{% elif not days %}
+<div class="rounded-xl border border-slate-700 bg-slate-800/40 p-5 text-sm text-slate-400">
+  Rien de prevu : ajoute des series ou des films a la surveillance depuis <a href="/discover" class="text-emerald-400 hover:underline">Decouvrir</a>.
+</div>
+{% else %}
+<div class="space-y-5">
+  {% for day, label, entries in days %}
+  <section>
+    <h2 class="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide {% if day == today %}text-emerald-400{% elif day < today %}text-slate-500{% else %}text-slate-300{% endif %}">
+      {{ label }}
+      <span class="h-px flex-1 bg-slate-800"></span>
+    </h2>
+    <ul class="space-y-2">
+      {% for e in entries %}
+      <li>
+        <a href="{{ e.link }}" class="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-800/40 p-2 hover:border-slate-600">
+          <div class="flex h-14 w-10 shrink-0 items-center justify-center overflow-hidden rounded bg-slate-800 text-slate-600">
+            {% if e.poster_url %}<img src="{{ e.poster_url }}" alt="" loading="lazy" data-poster class="h-full w-full object-cover">{% endif %}
+            <i class="ti {% if e.kind == 'movie' %}ti-movie{% else %}ti-device-tv{% endif %}"></i>
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm font-semibold text-white">{{ e.title }}</p>
+            <p class="truncate text-xs text-slate-400">{{ e.detail }}</p>
+          </div>
+          {% if e.status == 'acquired' %}
+          <span class="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300"><i class="ti ti-check"></i> Acquis</span>
+          {% elif e.status == 'missing' %}
+          <span class="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300"><i class="ti ti-search"></i> Recherche</span>
+          {% else %}
+          <span class="shrink-0 rounded-full bg-slate-700/60 px-2 py-0.5 text-[10px] font-semibold text-slate-300"><i class="ti ti-clock"></i> A venir</span>
+          {% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
