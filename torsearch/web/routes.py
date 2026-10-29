@@ -20,6 +20,7 @@ from torsearch.web.auth import (
 )
 from torsearch.web.auth_routes import auth_router
 from torsearch.web.authz import require_admin, require_member
+from torsearch.web.calendar_routes import calendar_router
 from torsearch.web.discover_routes import discover_router
 from torsearch.web.downloads_routes import downloads_router
 from torsearch.web.forms import GB, split_words, to_int, to_size_bytes
@@ -233,5 +234,6 @@ def create_app(
     app.include_router(movie_router)
     app.include_router(series_router)
     app.include_router(requests_router)
+    app.include_router(calendar_router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app
