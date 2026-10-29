@@ -442,3 +442,14 @@ def test_library_size_cap_rejects_infinity(tmp_path):
     resp = client.post("/settings/library", data={"quality": ["1080p"], "min_seeders": "1", "max_movie_gb": "inf"})
     assert "Erreur" in resp.text
     assert ctx.config.library.max_movie_size is None
+
+
+def test_library_update_sets_language_rules(tmp_path):
+    client, ctx, _ = _client(tmp_path)
+    assert ctx.config.library.accept_vostfr is True and ctx.config.library.exclude_words == []
+    client.post("/settings/library", data={"quality": ["1080p"], "min_seeders": "1",
+                                           "exclude_words": "STV, hc sub"})
+    assert ctx.config.library.accept_vostfr is False  # checkbox absent
+    assert ctx.config.library.exclude_words == ["stv", "hc sub"]
+    html = client.get("/settings").text
+    assert 'name="accept_vostfr"' in html and 'name="exclude_words"' in html

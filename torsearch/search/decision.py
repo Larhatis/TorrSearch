@@ -9,7 +9,7 @@ from torsearch.library.episodes import covered_episodes
 from torsearch.models import SearchResult
 from torsearch.parser.release import ParsedRelease, parse_release
 from torsearch.search.filters import quality_rank
-from torsearch.search.matcher import match_media_title
+from torsearch.search.matcher import match_media_title, normalize_title
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,30 @@ class ReleaseEvaluation:
     parsed: ParsedRelease | None = None
     lang_tier: int = 999
     quality_rank: int = 999
+
+
+@dataclass(frozen=True)
+class ReleaseRules:
+    """User preferences applied on top of the quality profile."""
+
+    accept_vostfr: bool = True
+    exclude_words: tuple[str, ...] = ()
+
+    @classmethod
+    def from_profile(cls, profile: Any) -> ReleaseRules:
+        return cls(
+            accept_vostfr=getattr(profile, "accept_vostfr", True),
+            exclude_words=tuple(getattr(profile, "exclude_words", ()) or ()),
+        )
+
+    def excluded_word(self, title: str) -> str | None:
+        """The first excluded word/phrase present as whole words in ``title``."""
+        padded = f" {normalize_title(title)} "
+        for word in self.exclude_words:
+            norm = normalize_title(word)
+            if norm and f" {norm} " in padded:
+                return word
+        return None
 
 
 def _get_lang_tier(language: str) -> int:
@@ -43,6 +67,7 @@ def evaluate_release(
     min_seeders: int = 1,
     blacklist: Any = None,
     max_size: int | None = None,
+    rules: ReleaseRules | None = None,
 ) -> ReleaseEvaluation:
     """Evaluate whether a search result is acceptable for auto-grab and rank it."""
     if result.seeders < min_seeders:
@@ -54,7 +79,15 @@ def evaluate_release(
     if blacklist is not None and blacklist.is_blacklisted(result.infohash, result.title):
         return ReleaseEvaluation(acceptable=False, rejection_reason="blacklisted")
 
+    if rules is not None:
+        word = rules.excluded_word(result.title)
+        if word:
+            return ReleaseEvaluation(acceptable=False, rejection_reason=f"excluded_word:{word}")
+
     parsed = parse_release(result.title)
+
+    if rules is not None and not rules.accept_vostfr and parsed.language == "vostfr":
+        return ReleaseEvaluation(acceptable=False, rejection_reason="vostfr_refused", parsed=parsed)
 
     if parsed.is_banned_source:
         return ReleaseEvaluation(
@@ -118,6 +151,7 @@ def select_best_movie_release(
     blacklist: Any = None,
     current_quality: str | None = None,
     max_size: int | None = None,
+    rules: ReleaseRules | None = None,
 ) -> SearchResult | None:
     """Pick the single best movie release according to preferences and quality rankings."""
     candidates: list[tuple[SearchResult, ReleaseEvaluation]] = []
@@ -133,6 +167,7 @@ def select_best_movie_release(
             min_seeders=min_seeders,
             blacklist=blacklist,
             max_size=max_size,
+            rules=rules,
         )
         if not ev.acceptable:
             continue
@@ -172,6 +207,7 @@ def select_series_releases(
     min_seeders: int = 1,
     blacklist: Any = None,
     max_episode_size: int | None = None,
+    rules: ReleaseRules | None = None,
 ) -> list[tuple[SearchResult, set[str]]]:
     """Select the best combination of torrents covering missing episodes.
 
@@ -193,6 +229,7 @@ def select_series_releases(
             qualities=qualities,
             min_seeders=min_seeders,
             blacklist=blacklist,
+            rules=rules,
         )
         if ev.acceptable and ev.parsed and ev.parsed.episodes:
             known = set(missing_episodes or ()) | set(have_episodes or ())
@@ -349,6 +386,7 @@ def select_series_replacements(
     blacklist: Any = None,
     upgrades: bool = False,
     max_episode_size: int | None = None,
+    rules: ReleaseRules | None = None,
 ) -> list[tuple[SearchResult, set[str]]]:
     """Releases replacing already grabbed episodes (``previous``: episode -> (title, at)).
 
@@ -363,6 +401,7 @@ def select_series_replacements(
         ev = evaluate_release(
             r, target_title=target_title, target_original_title=target_original_title,
             is_series=True, qualities=qualities, min_seeders=min_seeders, blacklist=blacklist,
+            rules=rules,
         )
         if ev.acceptable and ev.parsed is not None:
             candidates.append((r, ev))
