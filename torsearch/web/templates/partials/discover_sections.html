@@ -1,0 +1,14 @@
+{% from "partials/media_cards.html" import card_grid with context %}
+{% if notice %}<p class="mb-4 text-xs text-slate-400">{{ notice }}</p>{% endif %}
+{% for title, icon, items in sections %}
+<section class="mb-8">
+  <div class="mb-3 flex items-center gap-2">
+    <i class="ti {{ icon }} text-lg text-emerald-400"></i>
+    <h2 class="min-w-0 text-base font-semibold text-slate-100">{{ title }}</h2>
+    <span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">{{ items | length }}</span>
+  </div>
+  {{ card_grid(items) }}
+</section>
+{% else %}
+<p class="text-slate-400">{{ empty or "Aucun resultat." }}</p>
+{% endfor %}

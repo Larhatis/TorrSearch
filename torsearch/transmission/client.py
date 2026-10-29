@@ -105,6 +105,55 @@ class TorrentInfo(BaseModel):
         return self.status
 
 
+def _field(t, name: str, default=None):
+    """A torrent attribute, or ``default`` when Transmission did not send it.
+
+    transmission-rpc raises ``KeyError`` (not ``AttributeError``) for a missing field, so a
+    plain ``getattr(t, name, default)`` would break the whole listing.
+    """
+    try:
+        value = getattr(t, name)
+    except (AttributeError, KeyError):
+        return default
+    return default if value is None else value
+
+
+def _to_info(t) -> TorrentInfo:
+    eta_val = _field(t, "eta")
+    eta_sec: int | None = None
+    if hasattr(eta_val, "total_seconds"):
+        eta_sec = int(eta_val.total_seconds())
+    elif isinstance(eta_val, (int, float)) and eta_val >= 0:
+        eta_sec = int(eta_val)
+
+    # transmission-rpc 7 names it ``added_date`` (``date_added`` in older versions).
+    date_raw = _field(t, "added_date") or _field(t, "date_added")
+    date_val: datetime | None = None
+    if isinstance(date_raw, datetime):
+        date_val = date_raw if date_raw.tzinfo else date_raw.replace(tzinfo=UTC)
+    elif isinstance(date_raw, (int, float)) and date_raw > 0:
+        date_val = datetime.fromtimestamp(date_raw, tz=UTC)
+
+    return TorrentInfo(
+        id=t.id,
+        name=_field(t, "name", ""),
+        percent=float(_field(t, "progress", 0.0)),
+        status=str(_field(t, "status", "")),
+        down_rate=int(_field(t, "rate_download", 0)),
+        up_rate=int(_field(t, "rate_upload", 0)),
+        size=int(_field(t, "total_size", 0)),
+        eta=eta_sec,
+        peers_connected=int(_field(t, "peers_connected", 0)),
+        peers_sending=int(_field(t, "peers_sending_to_us", 0)),
+        error_string=str(_field(t, "error_string", "")),
+        error_code=int(_field(t, "error", 0)),
+        # ``hash_string``: ``hashString`` is deprecated in transmission-rpc 7.
+        info_hash=str(_field(t, "hash_string", "") or _field(t, "hashString", "")),
+        date_added=date_val,
+        download_dir=str(_field(t, "download_dir", "")),
+    )
+
+
 class TransmissionClient:
     """Async facade over the blocking ``transmission_rpc`` client.
 
@@ -152,43 +201,7 @@ class TransmissionClient:
 
     async def list_torrents(self) -> list[TorrentInfo]:
         torrents = await self._run(lambda c: c.get_torrents())
-        out: list[TorrentInfo] = []
-        for t in torrents:
-            eta_val = getattr(t, "eta", None)
-            eta_sec: int | None = None
-            if eta_val is not None and hasattr(eta_val, "total_seconds"):
-                eta_sec = int(eta_val.total_seconds())
-            elif isinstance(eta_val, (int, float)):
-                eta_sec = int(eta_val)
-
-            # transmission-rpc 7 names it ``added_date`` (``date_added`` in older versions).
-            date_raw = getattr(t, "added_date", None) or getattr(t, "date_added", None)
-            date_val: datetime | None = None
-            if isinstance(date_raw, datetime):
-                date_val = date_raw if date_raw.tzinfo else date_raw.replace(tzinfo=UTC)
-            elif isinstance(date_raw, (int, float)) and date_raw > 0:
-                date_val = datetime.fromtimestamp(date_raw, tz=UTC)
-
-            out.append(
-                TorrentInfo(
-                    id=t.id,
-                    name=t.name,
-                    percent=float(getattr(t, "progress", 0.0)),
-                    status=str(t.status),
-                    down_rate=int(getattr(t, "rate_download", 0)),
-                    up_rate=int(getattr(t, "rate_upload", 0)),
-                    size=int(getattr(t, "total_size", 0)),
-                    eta=eta_sec,
-                    peers_connected=int(getattr(t, "peers_connected", 0)),
-                    peers_sending=int(getattr(t, "peers_sending_to_us", 0)),
-                    error_string=str(getattr(t, "error_string", "") or ""),
-                    error_code=int(getattr(t, "error", 0) or 0),
-                    info_hash=str(getattr(t, "hashString", "") or ""),
-                    date_added=date_val,
-                    download_dir=str(getattr(t, "download_dir", "") or ""),
-                )
-            )
-        return out
+        return [_to_info(t) for t in torrents]
 
     async def pause(self, torrent_id: int) -> None:
         await self._run(lambda c: c.stop_torrent(torrent_id))

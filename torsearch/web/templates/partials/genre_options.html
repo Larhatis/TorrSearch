@@ -1,0 +1,4 @@
+<select id="genre-select" name="genre" autocomplete="off" class="min-w-0 rounded bg-slate-800 border border-slate-700 px-2 py-1.5 text-xs sm:text-sm text-slate-200">
+  <option value="">Tous les genres</option>
+  {% for gid, name in genres %}<option value="{{ gid }}">{{ name }}</option>{% endfor %}
+</select>

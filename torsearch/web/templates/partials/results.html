@@ -180,13 +180,14 @@
       </div>
       <div class="flex items-center gap-1.5">
         <form hx-post="/download" hx-target="#toast" class="inline">
-          <input type="hidden" name="download_url" value="{{ r.download_url }}">
-          <input type="hidden" name="category" value="{{ r.category.value }}">
-          <input type="hidden" name="title" value="{{ r.title }}">
+          {# Opaque id only: the tracker URL carries the passkey and never reaches the browser. #}
+          <input type="hidden" name="result_id" value="{{ result_ids[loop.index0] }}">
           <button class="flex items-center gap-1 rounded bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-emerald-400"><i class="ti ti-plus"></i>Envoyer</button>
         </form>
+        {% if is_admin %}
         <button type="button" class="rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-400 hover:text-emerald-400"
                 aria-label="Copier le lien" data-copy="{{ r.download_url }}"><i class="ti ti-copy"></i></button>
+        {% endif %}
       </div>
     </div>
   </div>
