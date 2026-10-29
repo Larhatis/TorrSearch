@@ -214,3 +214,58 @@ async def test_series_skips_marked_seasons(tmp_path):
     assert len(records) == 1
     assert records[0].title == "Lost.S02E01.FRENCH.1080p"
 
+
+
+class FakeTransmissionWithList(FakeTransmission):
+    def __init__(self, names):
+        super().__init__()
+        self._names = names
+
+    async def list_torrents(self):
+        from torsearch.transmission.client import TorrentInfo
+
+        return [
+            TorrentInfo(id=i, name=n, percent=40.0, status="downloading", down_rate=1, up_rate=0, size=1)
+            for i, n in enumerate(self._names)
+        ]
+
+
+class FakeJellyfinEmpty:
+    enabled = True
+
+    async def owned(self):
+        return {}
+
+
+@pytest.mark.asyncio
+async def test_grabbed_movie_still_in_transmission_is_not_rehunted(tmp_path: Path):
+    db = Database(tmp_path / "test.db")
+    lib = MovieLibrary(db)
+    bl = Blacklist(db)
+    lib.add(WantedMovie(tmdb_id=1, title="Spider-Man : Brand New Day", original_title="Spider-Man: Brand New Day",
+                        year="2026", added_at=datetime.now(UTC) - timedelta(days=20)))
+    lib.mark_grabbed(1, "Spider.Man.Brand.New.Day.2026.MULTI.2160p.WEB-GRP", datetime.now(UTC) - timedelta(days=3))
+    search = FakeSearchService({"Spider-Man : Brand New Day 2026": [_res("Spider.Man.Brand.New.Day.2026.MULTi.2160p.WEB-X")]})
+    tx = FakeTransmissionWithList(["Spider-Man.Brand.New.Day.2026.MULTi.2160p.WEB-DL.H265-GRP.mkv"])
+    cfg = Config(monitor=MonitorConfig(enabled=True), library=LibraryConfig(qualities=["2160p"]))
+
+    records = await run_movie_cycle(cfg, lib, search, tx, MonitorHistory(db), jellyfin=FakeJellyfinEmpty(), blacklist=bl)
+    assert records == []
+    assert tx.added == []
+    assert bl.list() == []
+    assert lib.get(1).status == "grabbed"
+
+
+@pytest.mark.asyncio
+async def test_grabbed_movie_absent_everywhere_is_rehunted(tmp_path: Path):
+    db = Database(tmp_path / "test.db")
+    lib = MovieLibrary(db)
+    lib.add(WantedMovie(tmdb_id=1, title="Avatar", year="2009", added_at=datetime.now(UTC) - timedelta(days=20)))
+    lib.mark_grabbed(1, "Avatar.2009.MULTI.1080p.WEB-GRP", datetime.now(UTC) - timedelta(days=3))
+    search = FakeSearchService({"Avatar 2009": [_res("Avatar.2009.MULTi.1080p.BluRay-X")]})
+    tx = FakeTransmissionWithList(["Other.Movie.2020.1080p.mkv"])
+    cfg = Config(monitor=MonitorConfig(enabled=True), library=LibraryConfig(qualities=["1080p"]))
+
+    records = await run_movie_cycle(cfg, lib, search, tx, MonitorHistory(db), jellyfin=FakeJellyfinEmpty(),
+                                    blacklist=Blacklist(db))
+    assert [r.title for r in records] == ["Avatar.2009.MULTi.1080p.BluRay-X"]

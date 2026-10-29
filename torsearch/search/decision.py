@@ -168,8 +168,10 @@ def select_series_releases(
 ) -> list[tuple[SearchResult, set[str]]]:
     """Select the best combination of torrents covering missing episodes.
 
-    Prioritizes language tier, then smallest covering pack to avoid downloading
-    huge season packs when a single episode satisfies the gap, then seeders.
+    Greedy by language tier, quality, then size per newly covered episode (a season
+    pack beats six singles when it is cheaper per episode, a single beats a huge pack
+    for one gap), then seeders. A pick whose episodes end up all covered by the other
+    picks is dropped, so an episode is never downloaded twice.
     """
     if missing_episodes is not None and not missing_episodes:
         return []
@@ -208,12 +210,12 @@ def select_series_releases(
         if not candidates:
             break
 
-        # Sort: lang_tier (asc), quality_rank (asc), size (asc), seeders (desc)
+        # Sort: lang_tier (asc), quality_rank (asc), size per episode (asc), seeders (desc)
         candidates.sort(
             key=lambda item: (
                 item[1].lang_tier,
                 item[1].quality_rank,
-                item[0].size,
+                item[0].size / len(item[2]),
                 -item[0].seeders,
             )
         )
@@ -226,7 +228,40 @@ def select_series_releases(
             if not target_missing:
                 break
 
-    return picks
+    return _drop_redundant(picks, evaluations, missing_episodes, have_episodes)
+
+
+def _drop_redundant(
+    picks: list[tuple[SearchResult, set[str]]],
+    evaluations: list[tuple[SearchResult, ReleaseEvaluation]],
+    missing_episodes: set[str] | None,
+    have_episodes: set[str] | None,
+) -> list[tuple[SearchResult, set[str]]]:
+    """Remove picks fully covered by the others; each kept pick claims all it covers."""
+    parsed = {id(r): ev.parsed for r, ev in evaluations}
+    have = set(have_episodes or ())
+
+    def full(r: SearchResult) -> set[str]:
+        p = parsed.get(id(r))
+        eps = p.episodes if p is not None else set()
+        if missing_episodes is not None:
+            return covered_episodes(eps, set(missing_episodes))
+        return {ep for ep in eps if "E" in ep} - have
+
+    coverage = {id(r): full(r) | covered for r, covered in picks}
+    kept = list(picks)
+    # Smallest first: singles go before the pack that contains them.
+    for r, _ in sorted(picks, key=lambda p: p[0].size):
+        others = set().union(*(coverage[id(o)] for o, _ in kept if o is not r))
+        if coverage[id(r)] <= others:
+            kept = [p for p in kept if p[0] is not r]
+    claimed: set[str] = set()
+    out: list[tuple[SearchResult, set[str]]] = []
+    for r, _ in kept:
+        mine = coverage[id(r)] - claimed
+        claimed |= mine
+        out.append((r, mine))
+    return out
 
 
 REPACK_WINDOW = timedelta(days=14)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
@@ -44,11 +45,24 @@ class MemoryLogHandler(logging.Handler):
         self._entries.clear()
 
 
+class RedactFilter(logging.Filter):
+    """Masks credentials in console log lines (``docker logs``)."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = redact(record.getMessage())
+        record.args = None
+        return True
+
+
 _handler: MemoryLogHandler | None = None
 
 
 def install() -> MemoryLogHandler:
-    """Attach the in-memory handler to the ``torsearch`` loggers (idempotent)."""
+    """Attach the in-memory handler and a console handler to the ``torsearch`` loggers.
+
+    Idempotent. The console handler keeps app events visible in ``docker logs`` (the
+    in-memory handler alone would silence Python's last-resort output).
+    """
     global _handler
     if _handler is None:
         _handler = MemoryLogHandler()
@@ -56,4 +70,9 @@ def install() -> MemoryLogHandler:
         if app_logger.level == logging.NOTSET or app_logger.level > logging.INFO:
             app_logger.setLevel(logging.INFO)
         app_logger.addHandler(_handler)
+        console = logging.StreamHandler(sys.stderr)
+        console.setLevel(logging.INFO)
+        console.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        console.addFilter(RedactFilter())
+        app_logger.addHandler(console)  # uvicorn leaves the root logger without handlers
     return _handler

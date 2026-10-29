@@ -185,18 +185,21 @@ async def handle_stalled_torrents(
     for t in torrents:
         if t.percent >= 100.0:
             continue
-        is_error = bool(t.error_string)
+        # Never judge a torrent whose age is unknown, nor one younger than the grace
+        # period: a fresh torrent is at 0 % without peers while it fetches metadata, and
+        # tracker errors are often transient. Purging deletes data and blacklists.
+        if t.date_added is None:
+            continue
+        at = t.date_added if t.date_added.tzinfo else t.date_added.replace(tzinfo=UTC)
+        if current_time - at < stalled_window:
+            continue
+        is_error = bool(t.error_string) and t.down_rate == 0
         is_dead = (
             t.percent == 0.0
             and t.down_rate == 0
             and t.peers_sending == 0
             and "stop" not in t.status.lower()
         )
-        if is_dead and t.date_added is not None:
-            at = t.date_added if t.date_added.tzinfo else t.date_added.replace(tzinfo=UTC)
-            if current_time - at < stalled_window:
-                is_dead = False
-
         if not is_error and not is_dead:
             continue
 
@@ -434,6 +437,18 @@ async def _grab_movie(config, movie, pick, transmission, library, history, notif
             logger.warning("Movie notif '%s' failed: %s", movie.title, exc)
 
 
+def _torrent_matches_movie(name: str, movie) -> bool:
+    from torsearch.parser.release import parse_release
+    from torsearch.search.matcher import match_media_title
+
+    if parse_episodes(name):
+        return False
+    return match_media_title(
+        parse_release(name), target_title=movie.title,
+        target_original_title=movie.original_title, target_year=movie.year,
+    )
+
+
 def _movie_repack(movie, feed: list[SearchResult], profile, blacklist, now: datetime) -> SearchResult | None:
     """A PROPER/REPACK of the release grabbed for ``movie``, found in the RSS feed."""
     if movie.status != "grabbed" or not movie.grabbed_title or movie.grabbed_at is None:
@@ -472,8 +487,26 @@ async def run_movie_cycle(config, library, search_service, transmission, history
             logger.warning("Jellyfin owned() failed: %s", exc)
     now = datetime.now(UTC)
     window = timedelta(hours=config.monitor.regrab_hours)
+    torrent_names: list[str] | None = None  # fetched lazily, once per cycle
+    listing_failed = False
     for movie in library.list():
         needs = _movie_needs_grab(movie, jellyfin, owned_map, now, window)
+        if needs and movie.status == "grabbed" and hasattr(transmission, "list_torrents"):
+            # Absent from Jellyfin is not proof of failure: a big download can outlast the
+            # window, or the file may sit outside Jellyfin's libraries. Still in Transmission
+            # (downloading or done) => not failed, never re-download it.
+            if torrent_names is None:
+                try:
+                    torrent_names = [t.name for t in await transmission.list_torrents()]
+                except Exception as exc:
+                    logger.warning("Movie cycle: listing torrents failed: %s", exc)
+                    torrent_names = []
+                    listing_failed = True
+            if listing_failed:
+                needs = False  # cannot tell: wait for the next cycle rather than risk a duplicate
+            elif any(_torrent_matches_movie(n, movie) for n in torrent_names):
+                logger.info("Film %s : deja dans Transmission, pas de nouvelle recherche", movie.title)
+                needs = False
         if not needs and feed:
             repack = _movie_repack(movie, feed, profile, blacklist, now)
             if repack is not None:

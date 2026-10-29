@@ -21,10 +21,20 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.4.0)
+## 2. État actuel (v0.4.1)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Correctifs v0.4.1 (constatés en production) :
+  - `transmission-rpc` 7 expose `added_date` (pas `date_added`) : la date d'ajout était
+    toujours vide, donc la purge des torrents « bloqués » supprimait (données comprises) et
+    mettait en liste noire des torrents tout juste ajoutés. Désormais un torrent d'âge inconnu
+    ou plus jeune que `stalled_hours` n'est jamais purgé, erreurs comprises.
+  - Film « absent de Jellyfin » après `regrab_hours` : relancé seulement s'il n'est plus dans
+    Transmission (gros téléchargement en cours, fichier hors bibliothèque Jellyfin).
+  - Couverture des saisons au coût par épisode + retrait des releases redondantes (plus de
+    pack + épisodes isolés pour les mêmes épisodes).
+  - Logs de l'app de nouveau dans `docker logs` (handler console avec `redact()`).
 - Chantier 5 — surveillance sobre, calendrier et exploitation (v0.4.0, spec
   `docs/superpowers/specs/2026-10-29-chantier5-surveillance-sobre-et-confort-design.md`) :
   - Limite de fréquence par tracker (`indexers/throttle.py`) : une requête à la fois, délai
@@ -101,7 +111,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **633 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **641 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

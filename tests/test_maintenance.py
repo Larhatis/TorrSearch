@@ -86,3 +86,12 @@ def test_session_secret_stored_next_to_database(tmp_path, monkeypatch):
     )
     assert (volume / ".session_secret").exists()
     assert not (tmp_path / "data" / ".session_secret").exists()
+
+
+def test_console_filter_masks_secrets():
+    from torsearch.logbuffer import RedactFilter
+
+    record = logging.LogRecord("torsearch.x", logging.WARNING, __file__, 1,
+                               "GET %s failed", ("https://t/api?apikey=SECRET",), None)
+    assert RedactFilter().filter(record)
+    assert "SECRET" not in record.getMessage()
