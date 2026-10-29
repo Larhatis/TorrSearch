@@ -738,6 +738,40 @@ async def _grab_series_release(config, series, r: SearchResult, covered: set[str
     return True
 
 
+async def run_request_availability(requests_store, jellyfin, notifier, config) -> list:
+    """Approved requests now present in Jellyfin become "available"; the channels are told."""
+    if requests_store is None or jellyfin is None or not getattr(jellyfin, "enabled", False):
+        return []
+    from torsearch.requests.store import RequestStatus
+
+    approved = [r for r in requests_store.list() if r.status == RequestStatus.APPROVED]
+    if not approved:
+        return []
+    try:
+        owned = await jellyfin.owned()
+    except Exception as exc:
+        logger.warning("Jellyfin owned() for requests failed: %s", exc)
+        return []
+    done = []
+    for r in approved:
+        if f"{r.media_type}:{r.tmdb_id}" not in owned:
+            continue
+        updated = requests_store.mark_available(r.id)
+        if updated is None:
+            continue
+        done.append(updated)
+        logger.info("Demande disponible dans Jellyfin : %s (demande de %s)", r.title, r.username)
+        if notifier is not None:
+            try:
+                await notifier.notify_message(
+                    config.notifications, "TorrSearch - demandes",
+                    f"Disponible : {r.title} (demande de {r.username})",
+                )
+            except Exception as exc:
+                logger.warning("Request notification for '%s' failed: %s", r.title, exc)
+    return done
+
+
 async def fetch_feed(config, search_service, library=None, series_library=None) -> list[SearchResult] | None:
     """Latest releases of every tracker, fetched once per cycle (None = nothing to watch)."""
     if not config.monitor.enabled or not hasattr(search_service, "recent"):
@@ -760,7 +794,7 @@ async def fetch_feed(config, search_service, library=None, series_library=None) 
 
 class MonitorRunner:
     def __init__(self, ctx, history, notifier=None, library=None, series_library=None, blacklist=None,
-                 schedule: SearchSchedule | None = None):
+                 schedule: SearchSchedule | None = None, requests_store=None):
         self._ctx = ctx
         self._history = history
         self._notifier = notifier or Notifier()
@@ -768,6 +802,7 @@ class MonitorRunner:
         self._series_library = series_library
         self._blacklist = blacklist
         self._schedule = schedule if schedule is not None else SearchSchedule()
+        self._requests = requests_store
         self._completed_seen: set[int] = set()
         self._task: asyncio.Task | None = None
         self._wake_event = asyncio.Event()
@@ -824,6 +859,9 @@ class MonitorRunner:
             self._completed_seen = await run_jellyfin_refresh(
                 self._ctx.transmission, getattr(self._ctx, "jellyfin", None),
                 self._completed_seen,
+            )
+            await run_request_availability(
+                self._requests, getattr(self._ctx, "jellyfin", None), self._notifier, self._ctx.config,
             )
             self.last_run_at = datetime.now(UTC)
             self.last_run_count = len(records)

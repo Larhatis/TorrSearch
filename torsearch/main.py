@@ -60,10 +60,6 @@ def build_app(
     library = MovieLibrary(db.collection("movies"), migrate_from=library_path)
     series_library = SeriesLibrary(db.collection("series"), migrate_from=series_path)
     blacklist = Blacklist(db.collection("blacklist"))
-    monitor = MonitorRunner(
-        ctx, history, library=library, series_library=series_library, blacklist=blacklist,
-        schedule=SearchSchedule(db.collection("search_schedule")),
-    )
     auth = AuthSettings.from_env()
     users = UserStore(db.collection("users"), migrate_from=users_path)
     if auth.enabled:
@@ -71,6 +67,10 @@ def build_app(
         if users.is_empty():
             users.bootstrap_admin(auth.username, auth.password)
     requests_store = RequestStore(db.collection("requests"), migrate_from=requests_path)
+    monitor = MonitorRunner(
+        ctx, history, library=library, series_library=series_library, blacklist=blacklist,
+        schedule=SearchSchedule(db.collection("search_schedule")), requests_store=requests_store,
+    )
     return create_app(
         ctx, history=history, monitor=monitor, auth=auth,
         library=library, series_library=series_library, users=users,
