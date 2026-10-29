@@ -21,10 +21,15 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.7.0)
+## 2. État actuel (v0.7.1)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- v0.7.1 — affichage téléphone : `html, body { overflow-x: clip }` + `overflow-wrap: anywhere`
+  sur `main` (un nom de release ne peut plus élargir la page ni repousser la barre du bas hors
+  écran), historique et canaux de notification sur plusieurs lignes, menus déroulants opaques
+  (les opacités Tailwind hors palier de 5, ex. `/98`, ne génèrent aucun CSS — testé), bandeau
+  Surveillance en `z-30`, marges `safe-area-inset-bottom` pour l'iPhone.
 - Chantier 8 — ménage (v0.7.0), page `/downloads/cleanup` (admin, lien « Menage » sur
   Activité ; `library/cleanup.py`, `web/cleanup_routes.py`) :
   - Doublons dans Transmission : même film (titre **et** année) ou épisodes qui se recouvrent
@@ -153,7 +158,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **685 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **687 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
