@@ -32,11 +32,14 @@ se configure entièrement au clic et s'intègre à ton serveur Jellyfin.
 | Découverte | **TMDB** : tendances au chargement et recherche par vrai titre (affiches), puis les torrents en un clic. |
 | Bibliothèque | **Films & Séries** (Radarr-lite + Sonarr-lite) : marque un titre « voulu », l'app récupère automatiquement le film ou chaque nouvel épisode dès qu'une release conforme au profil de qualité apparaît. |
 | Jellyfin | Marque ce que tu possèdes déjà (« Dans Jellyfin ») et ouvre la lecture d'un clic ; Jellyfin reste ton serveur média. |
-| Surveillance | Recherches sauvegardées qui tournent en tâche de fond et grabbent (ou signalent) les nouveautés. |
-| Multi-utilisateur | Comptes **admin / membre / invité** avec mots de passe hachés, et une **file de demandes** validée par l'admin. |
+| Surveillance | Recherches sauvegardées qui tournent en tâche de fond et grabbent (ou signalent) les nouveautés. Le flux **RSS** de chaque tracker est lu une fois par cycle ; les recherches ciblées ne sont relancées que lorsqu'elles sont utiles (plus souvent juste après la diffusion d'un épisode). Les **PROPER/REPACK** et, en option, les meilleures qualités remplacent automatiquement une release récente. |
+| Trackers ménagés | Une seule requête à la fois par tracker, délai minimal réglable entre deux requêtes, pause automatique en cas de limite atteinte (HTTP 429). |
+| Calendrier | Page **A venir** : épisodes des séries suivies et sorties (numérique / cinéma) des films surveillés, jour par jour. |
+| Multi-utilisateur | Comptes **admin / membre / invité** avec mots de passe hachés (changeables dans **Mon compte**), et une **file de demandes** validée par l'admin ; une demande passe « Disponible » (avec notification) dès que Jellyfin a l'œuvre. |
 | Notifications | Discord, ntfy, Telegram ou webhook sur les grabs et les trouvailles. |
 | Téléchargements | Envoi à Transmission en un clic et page de suivi en direct (pause / reprise / suppression). |
-| Configuration | Tout depuis l'interface (page **Réglages**) : trackers, Transmission, profil de qualité, Jellyfin, dossiers, comptes. |
+| Configuration | Tout depuis l'interface (page **Réglages**, en onglets) : trackers, Transmission, profil de qualité, Jellyfin, dossiers, comptes. |
+| Maintenance | Sauvegarde de la base en un clic, **journal** des événements (secrets masqués), route `/healthz` utilisée par le `HEALTHCHECK` Docker. |
 
 ## Démarrage rapide (Docker)
 
@@ -111,7 +114,12 @@ suit l'état de ses propres demandes dans **Mes demandes**.
 Toutes les données (configuration, comptes, bibliothèques, demandes, historique) sont
 persistées dans une base **SQLite** `data/torsearch.db` (volume, jamais versionné). Les
 anciens fichiers `data/*.json` éventuels sont importés automatiquement au premier
-démarrage, puis conservés en sauvegarde.
+démarrage, puis conservés en sauvegarde. La clé de session (`.session_secret`) est rangée
+à côté de la base : avec `TORSEARCH_DB=/data/torsearch.db`, elle survit aux recréations du
+conteneur.
+
+**Sauvegarde** : Réglages → Maintenance → « Télécharger la sauvegarde ». Pour restaurer,
+conteneur arrêté, remplace `torsearch.db` dans le volume par la copie.
 
 ## Développement
 

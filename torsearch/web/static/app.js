@@ -87,6 +87,7 @@
       btn.classList.toggle('bg-slate-800/80', !active);
       btn.classList.toggle('text-slate-300', !active);
       btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      if (active && btn.scrollIntoView) btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
   }
 
@@ -98,9 +99,11 @@
     showSettingsTab(key);
   });
 
-  document.addEventListener('DOMContentLoaded', function () {
+  function showTabFromHash() {
     showSettingsTab(location.hash.replace('#', ''));
-  });
+  }
+  document.addEventListener('DOMContentLoaded', showTabFromHash);
+  window.addEventListener('hashchange', showTabFromHash);
 
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') closeModal();
