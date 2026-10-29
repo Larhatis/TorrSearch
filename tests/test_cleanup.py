@@ -4,9 +4,9 @@ from torsearch.library.cleanup import error_groups, find_duplicates, removal_is_
 from torsearch.transmission.client import TorrentInfo
 
 
-def _t(id, name, size=1_000_000_000, percent=100.0, error="", code=0, h=None):
+def _t(id, name, size=1_000_000_000, percent=100.0, error="", code=0, h=None, d="/downloads"):
     return TorrentInfo(id=id, name=name, percent=percent, status="seeding", down_rate=0, up_rate=0,
-                       size=size, error_string=error, error_code=code, info_hash=h or f"h{id}")
+                       size=size, error_string=error, error_code=code, info_hash=h or f"h{id}", download_dir=d)
 
 
 def _ids(group):
@@ -107,3 +107,17 @@ def test_error_groups_skip_tracker_warnings_and_mask_secrets():
         ("invalid passkey", [1, 2]),
         ("Tracker gave error: https://t.example/announce?passkey=***", [3]),
     ]
+
+
+def test_tracker_error_does_not_make_a_complete_pack_unusable():
+    torrents = [_t(1, "Heated.Rivalry.S01.MULTi.1080p.WEB-TyHD", error="invalid passkey", code=2),
+                _t(2, "Heated.Rivalry.S01E01.MULTi.1080p.WEB-TyHD.mkv")]
+    assert [c.torrent.id for c in _groups(torrents)[0].removable] == [2]
+
+
+def test_episode_stored_inside_the_kept_pack_folder_is_never_proposed():
+    torrents = [_t(1, "Show.S01.MULTi.1080p-X", d="/tv"),
+                _t(2, "Show.S01E01.MULTi.1080p-X.mkv", d="/tv/Show.S01.MULTi.1080p-X")]
+    group = _groups(torrents)[0]
+    assert group.removable == []
+    assert removal_is_safe(group, {"h2"}) is not None

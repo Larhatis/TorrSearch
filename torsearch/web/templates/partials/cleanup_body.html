@@ -30,7 +30,7 @@
                 <span class="block break-all text-slate-200">{{ c.torrent.name }}</span>
                 <span class="text-slate-500">{{ c.resolution }} · {{ c.language }} · {{ c.torrent.size_formatted }} · {{ c.torrent.percent | round(0) | int }} %
                   {%- if c.torrent.error_string %} · <span class="text-amber-300">en erreur</span>{% endif %}
-                  {%- if c.shares_files %} · <span class="text-amber-300">meme nom qu'une autre copie : fichiers partages, non supprimable ici</span>
+                  {%- if c.shares_files %} · <span class="text-amber-300">fichiers partages avec une autre copie : non supprimable ici</span>
                   {%- elif not c.remove %} · <span class="text-emerald-400">gardee</span>{% endif %}</span>
               </span>
             </label>

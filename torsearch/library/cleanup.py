@@ -33,8 +33,21 @@ class Copy:
 
     @property
     def usable(self) -> bool:
-        """Complete and without error: the only copies allowed to justify a removal."""
-        return self.torrent.percent >= 100.0 and not self.torrent.error_string
+        """Complete with its files intact: the only copies allowed to justify a removal.
+
+        A tracker error ("invalid passkey", code 2) leaves the local files fine; a local
+        error (code 3, e.g. data not found) does not.
+        """
+        return self.torrent.percent >= 100.0 and self.torrent.error_code != 3
+
+    @property
+    def path(self) -> str:
+        """Where the torrent's data lives (file or top folder), lowercased for comparisons."""
+        return f"{self.torrent.download_dir.rstrip('/')}/{self.torrent.name.strip()}".lower()
+
+    def shares_path_with(self, other: Copy) -> bool:
+        a, b = self.path, other.path
+        return a == b or a.startswith(b + "/") or b.startswith(a + "/")
 
     @property
     def resolution(self) -> str:
@@ -134,21 +147,25 @@ def _build_group(members: list[Copy]) -> DuplicateGroup:
     members.sort(key=lambda c: (not c.usable, -sum(1 for u in units(c.parsed) if len(u) == 3),
                                 _quality_key(c)))
     kept: set[str] = set()
-    kept_names: set[str] = set()
+    kept_copies: list[Copy] = []
     for c in members:
-        name = c.torrent.name.strip().lower()
         covered = all(_covered(u, kept) for u in units(c.parsed))
-        if covered and name in kept_names:
+        if covered and any(_same_files(c, k) for k in kept_copies):
             c.shares_files = True  # never proposed: deleting would wipe the kept copy's files
         elif covered:
             c.remove = True
         elif c.usable:
             kept |= units(c.parsed)
-            kept_names.add(name)
+            kept_copies.append(c)
     best = members[0].parsed
     scope = (", ".join(sorted({u for c in members for u in units(c.parsed)}))
              if best.episodes else str(best.year))
     return DuplicateGroup(title=best.clean_title, scope=scope, items=members)
+
+
+def _same_files(a: Copy, b: Copy) -> bool:
+    """Same name, or one copy's data inside the other's folder: deleting one hits both."""
+    return a.torrent.name.strip().lower() == b.torrent.name.strip().lower() or a.shares_path_with(b)
 
 
 def removal_is_safe(group: DuplicateGroup, removed_hashes: set[str]) -> str | None:
@@ -164,9 +181,9 @@ def removal_is_safe(group: DuplicateGroup, removed_hashes: set[str]) -> str | No
     after: set[str] = {u for c in remaining if c.usable for u in units(c.parsed)}
     if not all(_covered(u, after) for u in before):
         return "des episodes ne seraient plus couverts par aucune copie terminee"
-    names = {c.torrent.name.strip().lower() for c in remaining}
-    if any(c.torrent.name.strip().lower() in names for c in group.items if c.torrent.info_hash in removed_hashes):
-        return "une copie porte le meme nom qu'une copie gardee (fichiers partages)"
+    removed = [c for c in group.items if c.torrent.info_hash in removed_hashes]
+    if any(_same_files(r, k) for r in removed for k in remaining):
+        return "une copie partage ses fichiers avec une copie gardee"
     return None
 
 

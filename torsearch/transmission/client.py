@@ -38,6 +38,7 @@ class TorrentInfo(BaseModel):
     error_code: int = 0  # Transmission: 1 tracker warning, 2 tracker error, 3 local error
     info_hash: str = ""
     date_added: datetime | None = None
+    download_dir: str = ""
 
     @property
     def size_formatted(self) -> str:
@@ -184,6 +185,7 @@ class TransmissionClient:
                     error_code=int(getattr(t, "error", 0) or 0),
                     info_hash=str(getattr(t, "hashString", "") or ""),
                     date_added=date_val,
+                    download_dir=str(getattr(t, "download_dir", "") or ""),
                 )
             )
         return out
