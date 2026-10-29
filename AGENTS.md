@@ -33,6 +33,12 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
     fichiers**, après confirmation ; le serveur refuse de vider un groupe.
   - Torrents en erreur regroupés par message (masqué par `redact()`) : « Arrêter » ou
     « Retirer » de Transmission en gardant les fichiers.
+  - Prudence (revue) : sélection par `info_hash` (les ids Transmission changent au
+    redémarrage), seules les copies terminées sans erreur justifient une suppression, jamais
+    de regroupement pour parties de saison/intégrales/trilogies/bonus/versions longues ni
+    entre années différentes (séries comprises), copies de même nom jamais supprimables
+    (fichiers partagés), et `removal_is_safe` vérifie côté serveur que tout reste couvert.
+    Les avertissements tracker (`error_code == 1`) ne sont pas listés comme erreurs.
   - `4KLight` reconnu comme 2160p par le parseur.
 - Chantier 7 — qualité des choix (v0.6.0) :
   - Profil : `accept_vostfr` (vrai par défaut) et `exclude_words` (mots/expressions entiers,
@@ -147,7 +153,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **679 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **683 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

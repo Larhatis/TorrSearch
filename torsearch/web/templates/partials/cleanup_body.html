@@ -12,7 +12,8 @@
     <p class="text-sm text-slate-400">Aucun doublon dans Transmission.</p>
     {% else %}
     <p class="mb-4 text-xs text-slate-400">Les copies cochees sont supprimees de Transmission <strong class="text-slate-200">avec leurs fichiers</strong>.
-      Cochage propose : on garde la meilleure copie (terminee, meilleure langue, meilleure resolution, plus gros fichier) et un pack de saison plutot que ses episodes.</p>
+      Cochage propose : on garde la meilleure copie terminee (meilleure langue, meilleure resolution, plus gros fichier) et un pack de saison plutot que ses episodes.
+      Par prudence, les parties de saison, integrales, trilogies, bonus et versions longues ne sont jamais regroupees.</p>
     <div class="space-y-4">
       {% for g in groups %}
       <form hx-post="/downloads/cleanup/duplicates" hx-target="#cleanup-body" hx-swap="outerHTML"
@@ -23,10 +24,14 @@
           {% for c in g.items %}
           <li>
             <label class="flex items-start gap-2 text-xs">
-              <input type="checkbox" name="remove" value="{{ c.torrent.id }}" {% if c.remove %}checked{% endif %} class="mt-0.5">
+              <input type="checkbox" name="remove" value="{{ c.torrent.info_hash }}" {% if c.remove %}checked{% endif %}
+                     {% if not c.torrent.info_hash or c.shares_files %}disabled{% endif %} class="mt-0.5">
               <span class="min-w-0 flex-1">
                 <span class="block break-all text-slate-200">{{ c.torrent.name }}</span>
-                <span class="text-slate-500">{{ c.resolution }} · {{ c.language }} · {{ c.torrent.size_formatted }} · {{ c.torrent.percent | round(0) | int }} %{% if not c.remove %} · <span class="text-emerald-400">gardee</span>{% endif %}</span>
+                <span class="text-slate-500">{{ c.resolution }} · {{ c.language }} · {{ c.torrent.size_formatted }} · {{ c.torrent.percent | round(0) | int }} %
+                  {%- if c.torrent.error_string %} · <span class="text-amber-300">en erreur</span>{% endif %}
+                  {%- if c.shares_files %} · <span class="text-amber-300">meme nom qu'une autre copie : fichiers partages, non supprimable ici</span>
+                  {%- elif not c.remove %} · <span class="text-emerald-400">gardee</span>{% endif %}</span>
               </span>
             </label>
           </li>
@@ -58,13 +63,13 @@
         </details>
         <div class="mt-3 flex flex-wrap gap-2">
           <form hx-post="/downloads/cleanup/errors" hx-target="#cleanup-body" hx-swap="outerHTML">
-            {% for t in items %}<input type="hidden" name="ids" value="{{ t.id }}">{% endfor %}
+            {% for t in items %}{% if t.info_hash %}<input type="hidden" name="hashes" value="{{ t.info_hash }}">{% endif %}{% endfor %}
             <input type="hidden" name="action" value="stop">
             <button class="rounded border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-emerald-500/60"><i class="ti ti-player-pause"></i> Arreter</button>
           </form>
           <form hx-post="/downloads/cleanup/errors" hx-target="#cleanup-body" hx-swap="outerHTML"
                 hx-confirm="Retirer ces {{ items | length }} torrent(s) de Transmission ? Les fichiers restent sur le disque.">
-            {% for t in items %}<input type="hidden" name="ids" value="{{ t.id }}">{% endfor %}
+            {% for t in items %}{% if t.info_hash %}<input type="hidden" name="hashes" value="{{ t.info_hash }}">{% endif %}{% endfor %}
             <input type="hidden" name="action" value="remove">
             <button class="rounded border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-red-500/60"><i class="ti ti-unlink"></i> Retirer (fichiers conserves)</button>
           </form>

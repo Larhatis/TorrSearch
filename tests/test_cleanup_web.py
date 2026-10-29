@@ -13,7 +13,7 @@ from torsearch.web.routes import create_app
 
 def _t(id, name, size=1, error=""):
     return TorrentInfo(id=id, name=name, percent=100.0, status="seeding", down_rate=0, up_rate=0,
-                       size=size, error_string=error)
+                       size=size, error_string=error, error_code=2 if error else 0, info_hash=f"h{id}")
 
 
 class FakeTransmission:
@@ -55,18 +55,18 @@ def test_page_lists_duplicates_with_proposed_removal():
     client, _ = _client(DOG + [_t(1, "A", error="invalid passkey")])
     html = client.get("/downloads/cleanup").text
     assert "The Dog Stars" in html
-    assert 'name="remove" value="453" checked' in html
-    assert 'value="460" checked' not in html  # the best copy is kept
+    assert 'name="remove" value="h453" checked' in html
+    assert 'value="h460" checked' not in html  # the best copy is kept
     assert "invalid passkey" in html
     assert 'href="/downloads/cleanup"' in client.get("/downloads").text
 
 
 def test_removing_duplicates_deletes_files_but_never_the_last_copy():
     client, tx = _client(list(DOG))
-    resp = client.post("/downloads/cleanup/duplicates", data={"remove": ["453", "460"]})
+    resp = client.post("/downloads/cleanup/duplicates", data={"remove": ["h453", "h460"]})
     assert "garde au moins une copie" in resp.text
     assert tx.removed == []
-    resp = client.post("/downloads/cleanup/duplicates", data={"remove": ["453", "999"]})
+    resp = client.post("/downloads/cleanup/duplicates", data={"remove": ["h453", "h999"]})
     assert tx.removed == [(453, True)]  # unknown ids are ignored
     assert "1 copie(s) supprimee(s)" in resp.text
 
@@ -74,9 +74,9 @@ def test_removing_duplicates_deletes_files_but_never_the_last_copy():
 def test_error_actions_keep_files_and_only_touch_errored_torrents():
     torrents = [_t(1, "A", error="invalid passkey"), _t(2, "B", error="invalid passkey"), _t(3, "C")]
     client, tx = _client(torrents)
-    client.post("/downloads/cleanup/errors", data={"ids": ["1", "3"], "action": "stop"})
+    client.post("/downloads/cleanup/errors", data={"hashes": ["h1", "h3"], "action": "stop"})
     assert tx.paused == [1]
-    client.post("/downloads/cleanup/errors", data={"ids": ["1", "2"], "action": "remove"})
+    client.post("/downloads/cleanup/errors", data={"hashes": ["h1", "h2"], "action": "remove"})
     assert tx.removed == [(1, False), (2, False)]
 
 
@@ -86,5 +86,5 @@ def test_cleanup_is_admin_only(tmp_path):
     client, tx = _client(list(DOG), auth=AuthSettings(enabled=True, secret_key="k"), users=store)
     client.post("/login", data={"username": "bob", "password": "password1", "next": "/"})
     assert client.get("/downloads/cleanup").status_code == 403
-    assert client.post("/downloads/cleanup/duplicates", data={"remove": ["453"]}).status_code == 403
+    assert client.post("/downloads/cleanup/duplicates", data={"remove": ["h453"]}).status_code == 403
     assert tx.removed == []
