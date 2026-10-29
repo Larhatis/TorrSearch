@@ -15,6 +15,14 @@ _SEASON_RE = re.compile(
 )
 
 
+_SEASON_RANGE_RE = re.compile(
+    r"\bs(\d{1,2})[ ._]*(?:-|a|à|to)[ ._]*s?(\d{1,2})(?![\dp])"
+    r"|\b(?:saisons?|seasons?)[ ._-]*(\d{1,2})[ ._]*(?:-|a|à|to)[ ._]*(\d{1,2})(?![\dp])",
+    re.IGNORECASE,
+)
+_MAX_SEASON_SPAN = 40
+
+
 def parse_episodes(title: str) -> set[str]:
     keys: set[str] = set()
     for m in _SEASON_EP_RE.finditer(title):
@@ -28,10 +36,17 @@ def parse_episodes(title: str) -> set[str]:
                 keys.add(f"S{season:02d}E{ep:02d}")
     if keys:
         return keys
-    sm = _SEASON_RE.search(title)
-    if sm:
-        season = int(next(g for g in sm.groups() if g))
-        return {f"S{season:02d}"}
+    # Multi-season packs: "S01-S05", "S01-09", "S01 a S28", "Saison 1 a 6".
+    rm = _SEASON_RANGE_RE.search(title)
+    if rm:
+        start = int(rm.group(1) or rm.group(3))
+        end = int(rm.group(2) or rm.group(4))
+        if start <= end <= start + _MAX_SEASON_SPAN:
+            return {f"S{n:02d}" for n in range(start, end + 1)}
+    # Season packs, possibly listed one by one: "S01", "S01.S02.S03".
+    seasons = {int(next(g for g in m.groups() if g)) for m in _SEASON_RE.finditer(title)}
+    if seasons:
+        return {f"S{n:02d}" for n in seasons}
     return set()
 
 

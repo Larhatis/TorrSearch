@@ -201,3 +201,12 @@ def test_excluded_words_match_whole_words_only():
                             target_year=2013, rules=rules).acceptable
     assert not evaluate_release(_make_result("Rush.2013.HC.SUB.1080p.WEB-X", infohash="b"), "Rush",
                                 target_year=2013, rules=rules).acceptable
+
+
+def test_multi_season_pack_is_judged_per_episode_over_all_its_seasons():
+    missing = {f"S{s:02d}E{e:02d}" for s in range(1, 6) for e in range(1, 11)}
+    pack = _ep_result("Breaking.Bad.S01-S05.MULTi.1080p.BluRay-X", 150_000_000_000)  # 3 Go / episode
+    picks = select_series_releases([pack], target_title="Breaking Bad", missing_episodes=missing,
+                                   qualities=["1080p"], max_episode_size=5_000_000_000)
+    assert [r.title for r, _ in picks] == [pack.title]
+    assert picks[0][1] == missing
