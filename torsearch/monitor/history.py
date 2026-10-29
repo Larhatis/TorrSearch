@@ -75,6 +75,15 @@ class MonitorHistory:
         if self._max_records:
             self._c.trim(self._max_records)
 
+    def remove_where(self, predicate) -> int:
+        """Delete the records matching ``predicate``; returns how many were removed."""
+        removed = 0
+        for doc_id, data in self._c.items():
+            if predicate(MonitorRecord.model_validate(data)):
+                self._c.delete(doc_id)
+                removed += 1
+        return removed
+
     def clear(self) -> None:
         if hasattr(self._c, "clear"):
             self._c.clear()

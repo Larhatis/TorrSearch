@@ -167,8 +167,13 @@ async def handle_stalled_torrents(
     notifier=None,
     config=None,
     now: datetime | None = None,
+    history=None,
 ) -> list[str]:
-    """Detect and purge stalled or errored torrents, blacklist them, and reset library status."""
+    """Detect and purge stalled or errored torrents, blacklist them, and reset library status.
+
+    The purged grab is also removed from the monitor history: otherwise it would still
+    count as "downloading" during the ``regrab_hours`` cooldown and delay the next try.
+    """
     if transmission is None:
         return []
     try:
@@ -230,14 +235,21 @@ async def handle_stalled_torrents(
             from torsearch.search.matcher import match_media_title
 
             parsed_keys = parse_episodes(t.name)
+            seasons = {k for k in parsed_keys if len(k) == 3}  # season pack tags ("S01")
             for s in series_library.list():
                 rel = parse_release(t.name)
                 if match_media_title(rel, target_title=s.title, target_original_title=s.original_title, is_series=True):
-                    keys_to_unmark = [k for k in parsed_keys if k in s.grabbed]
+                    keys_to_unmark = [
+                        k for k in s.grabbed if k in parsed_keys or k[:3] in seasons
+                    ]
                     if keys_to_unmark:
                         series_library.unmark_grabbed(s.tmdb_id, keys_to_unmark)
 
-        # 5. Notify if configured
+        # 5. Forget the grab in the history (no cooldown for a dead download)
+        if history is not None and hasattr(history, "remove_where"):
+            history.remove_where(lambda r, t=t: r.kind == "grabbed" and _same_release(r, t))
+
+        # 6. Notify if configured
         if notifier is not None and config is not None and hasattr(config, "notifications"):
             record = MonitorRecord(
                 search="Torrent purge",
@@ -256,6 +268,23 @@ async def handle_stalled_torrents(
 
     return handled
 
+
+
+def _same_release(record: MonitorRecord, torrent) -> bool:
+    """Whether a history record is the grab of ``torrent`` (tracker title and torrent name differ)."""
+    from torsearch.parser.release import parse_release
+    from torsearch.search.matcher import normalize_title
+
+    if record.infohash and torrent.info_hash:
+        return record.infohash.lower() == torrent.info_hash.lower()
+    if record.title.strip().lower() == torrent.name.strip().lower():
+        return True
+    rec, tor = parse_release(record.title), parse_release(torrent.name)
+    if not rec.clean_title or normalize_title(rec.clean_title) != normalize_title(tor.clean_title):
+        return False
+    if rec.episodes or tor.episodes:
+        return rec.episodes == tor.episodes
+    return rec.year == tor.year
 
 
 async def run_jellyfin_refresh(transmission, jellyfin, completed_seen: set[int]) -> set[int]:
@@ -891,6 +920,7 @@ class MonitorRunner:
                 blacklist=self._blacklist,
                 notifier=self._notifier,
                 config=self._ctx.config,
+                history=self._history,
             )
             feed = await fetch_feed(
                 self._ctx.config, self._ctx.search_service, self._library, self._series_library,

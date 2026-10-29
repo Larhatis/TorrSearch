@@ -61,6 +61,15 @@ class Collection:
             ).fetchall()
         return [json.loads(r[0]) for r in rows]
 
+    def items(self) -> list[tuple[str, dict]]:
+        """``(id, data)`` pairs, in insertion order."""
+        with self._db._connect() as con:
+            rows = con.execute(
+                "SELECT id, data FROM documents WHERE collection=? ORDER BY rowid",
+                (self._name,),
+            ).fetchall()
+        return [(r[0], json.loads(r[1])) for r in rows]
+
     def get(self, id: str) -> dict | None:
         with self._db._connect() as con:
             row = con.execute(

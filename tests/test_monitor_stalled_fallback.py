@@ -169,3 +169,35 @@ async def test_fresh_torrent_in_error_is_not_purged(tmp_path):
                                             config=Config(monitor=MonitorConfig(stalled_hours=2)), now=now)
     assert handled == []
     assert tr.removed == []
+
+
+async def test_purge_forgets_the_grab_so_the_gap_is_hunted_again(tmp_path):
+    from torsearch.db.database import Database
+    from torsearch.monitor.history import MonitorHistory, MonitorRecord
+
+    now = datetime(2026, 10, 29, 12, 0, tzinfo=UTC)
+    db = Database(tmp_path / "db.sqlite")
+    history = MonitorHistory(db)
+    # Tracker title and torrent name differ; the pack is matched by title + episodes.
+    history.add(MonitorRecord(search="MobLand", title="MobLand.S01.MULTi.VFF.2160p.WEBRip.x265-BATGirl",
+                              source="t", download_url="magnet:a", kind="grabbed", at=now - timedelta(hours=3)))
+    history.add(MonitorRecord(search="MobLand", title="MobLand.S02E05.MULTi.2160p.WEB-GRP", source="t",
+                              infohash="keep", download_url="magnet:b", kind="grabbed", at=now - timedelta(hours=3)))
+    history.add(MonitorRecord(search="Lost", title="Lost.S01E01.1080p-X", source="t", infohash="dead",
+                              download_url="magnet:c", kind="grabbed", at=now - timedelta(hours=3)))
+    series = SeriesLibrary(db)
+    series.add(WantedSeries(tmdb_id=1, title="MobLand", added_at=now,
+                            grabbed=["S01E01", "S01E02", "S01E10", "S02E05"]))
+    torrents = [
+        _fresh(id=1, name="MobLand.S01.4KLight.DV.HDR10Plus.x265", info_hash="other",
+               date_added=now - timedelta(hours=3)),
+        _fresh(id=2, name="Lost.S01E01.1080p-X.mkv", info_hash="DEAD", date_added=now - timedelta(hours=3)),
+    ]
+
+    handled = await handle_stalled_torrents(
+        FakeTransmission(torrents), series_library=series, blacklist=Blacklist(db), history=history,
+        config=Config(monitor=MonitorConfig(stalled_hours=2)), now=now,
+    )
+    assert len(handled) == 2
+    assert [r.title for r in history.records()] == ["MobLand.S02E05.MULTi.2160p.WEB-GRP"]
+    assert series.get(1).grabbed == ["S02E05"]  # the whole season pack is unmarked
