@@ -46,3 +46,23 @@ def test_category_from_id_mapping():
     assert category_from_id(5070) == Category.ANIME
     assert category_from_id(5040) == Category.TV
     assert category_from_id(8000) == Category.OTHER
+
+
+def test_naive_pubdate_becomes_utc_and_first_standard_category_wins():
+    from datetime import UTC
+
+    from torsearch.indexers.torznab import parse_response
+    from torsearch.models import Category
+
+    xml = b"""<?xml version="1.0"?>
+<rss xmlns:torznab="http://torznab.com/schemas/2015/feed"><channel>
+<item><title>Show.S01E01.1080p</title><pubDate>Wed, 29 Oct 2026 10:00:00 -0000</pubDate>
+<enclosure url="magnet:?a" length="1"/>
+<torznab:attr name="category" value="5000"/><torznab:attr name="category" value="105000"/></item>
+<item><title>Movie.2026.1080p</title><pubDate>Wed, 29 Oct 2026 11:00:00 +0100</pubDate>
+<enclosure url="magnet:?b" length="1"/><torznab:attr name="category" value="2000"/></item>
+</channel></rss>"""
+    first, second = parse_response(xml, "t")
+    assert first.publish_date.tzinfo == UTC
+    assert first.category == Category.TV
+    assert sorted([first.publish_date, second.publish_date])  # comparable, no TypeError

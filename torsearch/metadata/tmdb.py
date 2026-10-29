@@ -201,12 +201,14 @@ class TmdbClient:
         cached = self._seasons_cache.get(tv_id)
         if cached is not None and cached[0] > self._clock():
             return cached[1]
-        result = await self._fetch_seasons(tv_id)
-        if result:
+        result, complete = await self._fetch_seasons(tv_id)
+        # A season that failed to load must not hide its episodes for hours (surveillance).
+        if result and complete:
             self._seasons_cache[tv_id] = (self._clock() + self._episode_cache_seconds, result)
         return result
 
-    async def _fetch_seasons(self, tv_id: int) -> list[SeasonInfo]:
+    async def _fetch_seasons(self, tv_id: int) -> tuple[list[SeasonInfo], bool]:
+        """Seasons with their episodes, and whether every season loaded."""
         owns_client = self._client is None
         client = self._client or httpx.AsyncClient(timeout=self._timeout)
         params = {"api_key": self._api_key, "language": "fr-FR"}
@@ -219,7 +221,7 @@ class TmdbClient:
             ]
             season_data.sort(key=lambda s: s.get("season_number", 0))
 
-            async def _fetch_season_episodes(number: int) -> list[EpisodeInfo]:
+            async def _fetch_season_episodes(number: int) -> list[EpisodeInfo] | None:
                 try:
                     resp = await client.get(f"{_TV_URL}/{tv_id}/season/{number}", params=params)
                     resp.raise_for_status()
@@ -242,15 +244,16 @@ class TmdbClient:
                     return episodes
                 except Exception as exc:
                     logger.warning("TMDB season %s/%s failed: %s", tv_id, number, exc)
-                    return []
+                    return None
 
             fetched_seasons = await asyncio.gather(
                 *[_fetch_season_episodes(s["season_number"]) for s in season_data]
             )
 
             result: list[SeasonInfo] = []
-            for s, eps in zip(season_data, fetched_seasons, strict=False):
+            for s, fetched in zip(season_data, fetched_seasons, strict=False):
                 s_num = int(s["season_number"])
+                eps = fetched or []
                 result.append(
                     SeasonInfo(
                         season_number=s_num,
@@ -261,10 +264,10 @@ class TmdbClient:
                         episodes=eps,
                     )
                 )
-            return result
+            return result, all(f is not None for f in fetched_seasons)
         except Exception as exc:  # resilience
             logger.warning("TMDB seasons failed: %s", exc)
-            return []
+            return [], False
         finally:
             if owns_client:
                 await client.aclose()

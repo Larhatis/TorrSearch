@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC
 from email.utils import parsedate_to_datetime
 
 import defusedxml.ElementTree as ET
@@ -77,7 +78,8 @@ def parse_response(xml_bytes: bytes, source: str) -> list[SearchResult]:
         return []
     results: list[SearchResult] = []
     for item in root.iter("item"):
-        attrs = {a.get("name"): a.get("value") for a in item.findall(f"{TORZNAB_NS}attr")}
+        attr_els = item.findall(f"{TORZNAB_NS}attr")
+        attrs = {a.get("name"): a.get("value") for a in attr_els}
 
         title_el = item.find("title")
         title = title_el.text if title_el is not None and title_el.text else ""
@@ -108,8 +110,13 @@ def parse_response(xml_bytes: bytes, source: str) -> list[SearchResult]:
         else:
             leechers = 0
 
-        cat_value = attrs.get("category")
-        category = category_from_id(int(cat_value)) if cat_value and cat_value.isdigit() else Category.OTHER
+        # Jackett/Prowlarr add a custom category (100000+) after the standard one: keep the first standard id.
+        cat_ids = [
+            int(v) for a in attr_els
+            if a.get("name") == "category" and (v := a.get("value") or "").isdigit()
+        ]
+        standard = [c for c in cat_ids if c < 100000]
+        category = category_from_id(standard[0]) if standard else Category.OTHER
 
         info_url = None
         comments_el = item.find("comments")
@@ -124,6 +131,8 @@ def parse_response(xml_bytes: bytes, source: str) -> list[SearchResult]:
         if pub_el is not None and pub_el.text:
             try:
                 publish_date = parsedate_to_datetime(pub_el.text)
+                if publish_date.tzinfo is None:  # "-0000" or no zone: comparable with the others
+                    publish_date = publish_date.replace(tzinfo=UTC)
             except (TypeError, ValueError):
                 publish_date = None
 

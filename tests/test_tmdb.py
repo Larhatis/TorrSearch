@@ -307,3 +307,16 @@ async def test_release_date_is_cached():
         assert await client.release_date(42) == ("2026-05-10", "numerique")
         assert await client.release_date(42) == ("2026-05-10", "numerique")
     assert route.call_count == 1
+
+
+async def test_partial_seasons_are_not_cached():
+    client = TmdbClient(MetadataConfig(tmdb_api_key="K"))
+    detail = {"seasons": [{"season_number": 1}, {"season_number": 2}]}
+    season1 = {"episodes": [{"season_number": 1, "episode_number": 1, "air_date": "2020-01-01"}]}
+    with respx.mock:
+        respx.get("https://api.themoviedb.org/3/tv/9").mock(return_value=httpx.Response(200, json=detail))
+        respx.get("https://api.themoviedb.org/3/tv/9/season/1").mock(return_value=httpx.Response(200, json=season1))
+        s2 = respx.get("https://api.themoviedb.org/3/tv/9/season/2").mock(return_value=httpx.Response(500))
+        await client.seasons(9)
+        await client.seasons(9)
+    assert s2.call_count == 2  # failed season retried, not cached
