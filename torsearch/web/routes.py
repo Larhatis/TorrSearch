@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, Depends, FastAPI, Form, Query, Request
+from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
@@ -14,6 +14,7 @@ from torsearch.library.linking import plan_manual_grab, record_manual_grab
 from torsearch.models import Category
 from torsearch.redact import redact
 from torsearch.search.filters import VALID_DIRECTIONS, VALID_SORTS, ResultFilters, apply
+from torsearch.search.result_cache import ResultCache
 from torsearch.web.auth import (
     AuthMiddleware,
     AuthSettings,
@@ -22,7 +23,7 @@ from torsearch.web.auth import (
     SecurityHeadersMiddleware,
 )
 from torsearch.web.auth_routes import auth_router
-from torsearch.web.authz import require_admin, require_member
+from torsearch.web.authz import effective_role, require_admin, require_member
 from torsearch.web.calendar_routes import calendar_router
 from torsearch.web.cleanup_routes import cleanup_router
 from torsearch.web.discover_routes import discover_router
@@ -137,11 +138,13 @@ async def search(
     movie_ids = {m.tmdb_id for m in library.list()} if library else set()
     series_ids = {s.tmdb_id for s in series_library.list()} if series_library else set()
 
+    cache: ResultCache = request.app.state.result_cache
     return templates.TemplateResponse(
         request,
         "partials/results.html",
         {
             "results": results,
+            "result_ids": [cache.put(r) for r in results],
             "query": q,
             "cat": cat,
             "sort": effective_sort,
@@ -163,11 +166,24 @@ async def search(
 @router.post("/download", response_class=HTMLResponse, dependencies=[Depends(require_member)])
 async def download(
     request: Request,
-    download_url: str = Form(...),
+    result_id: str = Form(""),
+    download_url: str = Form(""),
     category: str = Form(""),
     title: str = Form(""),
 ):
     ctx: AppContext = request.app.state.ctx
+    if result_id:
+        # Members only ever hold this opaque id: the tracker URL (passkey) stays server-side.
+        cached = request.app.state.result_cache.get(result_id)
+        if cached is None:
+            return templates.TemplateResponse(request, "partials/toast.html", {
+                "ok": False, "message": "Resultat expire : relance la recherche."})
+        download_url, title, category = cached.download_url, cached.title, cached.category.value
+    elif not download_url:
+        return templates.TemplateResponse(request, "partials/toast.html", {
+            "ok": False, "message": "Aucun torrent indique."})
+    elif effective_role(request) != "admin":
+        raise HTTPException(status_code=403, detail="Acces refuse")
     try:
         cat = Category(category)
     except ValueError:
@@ -221,6 +237,7 @@ def create_app(
     app.state.db = db
     app.state.log_handler = log_handler
     app.state.login_throttle = LoginThrottle()
+    app.state.result_cache = ResultCache()
     app.add_middleware(CrossSiteGuardMiddleware)  # always on, even without auth
     app.add_middleware(SecurityHeadersMiddleware)
     if auth.enabled:

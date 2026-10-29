@@ -239,6 +239,9 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
    (`CrossSiteGuardMiddleware`, actif même sans auth).
 6. Redirections de tracker suivies **uniquement vers le même hôte**, jamais `https` → `http`.
 7. Appels Transmission **jamais** directement dans la boucle async (toujours via la façade).
+8. **Aucune URL de tracker côté navigateur pour les membres** : la recherche renvoie un
+   identifiant opaque (`search/result_cache.py`, 6 h) que `/download` résout côté serveur ;
+   une URL brute n'est acceptée que d'un admin (copie de lien comprise).
 
 ## 7. Pièges connus
 
