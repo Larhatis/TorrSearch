@@ -99,31 +99,33 @@ def test_run_now_warns_when_disabled(tmp_path):
     assert "Active" in resp.text and "la surveillance" in resp.text
 
 
-def test_run_now_triggers_when_enabled(tmp_path):
+def test_run_now_starts_a_forced_check_without_waiting(tmp_path):
     from torsearch.config import MonitorConfig
 
     class FakeRunner:
-        def __init__(self):
-            self.ran = False
+        def __init__(self, busy=False):
+            self.busy = busy
+            self.requested: list[bool] = []
 
-        async def run_once(self, force=False):
-            self.ran = True
-            self.forced = force
-            return []
+        def run_soon(self, force=False):
+            self.requested.append(force)
 
     store = SettingsStore(tmp_path / "settings.json")
     store.save(Config(monitor=MonitorConfig(enabled=True)))
     ctx = AppContext(store)
     history = MonitorHistory(tmp_path / "monitor.json")
-    runner = FakeRunner()
-    app = create_app(ctx, history=history, monitor=runner)
-    client = TestClient(app)
 
+    runner = FakeRunner()
+    client = TestClient(create_app(ctx, history=history, monitor=runner))
     resp = client.post("/surveillance/run-now")
     assert resp.status_code == 200
-    assert "Verification effectuee" in resp.text
-    assert runner.ran is True
-    assert runner.forced is True  # the button bypasses the search schedule
+    assert "Verification lancee" in resp.text
+    assert runner.requested == [True]  # forced, run in the background
+
+    busy = FakeRunner(busy=True)
+    client = TestClient(create_app(ctx, history=history, monitor=busy))
+    assert "deja en cours" in client.post("/surveillance/run-now").text
+    assert busy.requested == [True]
 
 
 def test_clear_history(tmp_path):

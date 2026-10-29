@@ -105,21 +105,16 @@ async def run_now(request: Request):
     if not ctx.config.monitor.enabled:
         return await _body(request, error="Active d'abord la surveillance globale (coche la case et enregistre).")
     runner = getattr(request.app.state, "monitor", None)
-    if runner is not None:
-        try:
-            records = await runner.run_once(force=True)
-            count = len(records)
-            if count > 0:
-                notice = f"Verification effectuee : {count} nouveau(x) torrent(s) envoye(s) a Transmission."
-            else:
-                notice = (
-                    "Verification effectuee : aucun nouvel element a recuperer "
-                    "(les torrents/episodes sont deja presents dans Transmission ou sur le disque)."
-                )
-        except Exception as exc:
-            return await _body(request, error=f"Erreur lors de la verification : {exc}")
+    if runner is None:
+        return await _body(request, notice="Module de surveillance non disponible.")
+    # Never await the cycle here (it can take minutes): the background loop runs it and
+    # the history below refreshes itself every 10 s.
+    if getattr(runner, "busy", False):
+        notice = ("Une verification est deja en cours : une passe complete suivra juste apres. "
+                  "Les resultats apparaitront dans l'historique.")
     else:
-        notice = "Module de surveillance non disponible."
+        notice = "Verification lancee : les resultats apparaitront dans l'historique d'ici quelques instants."
+    runner.run_soon(force=True)
     return await _body(request, notice=notice)
 
 
