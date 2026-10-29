@@ -131,6 +131,9 @@ def build_ics(days: list[tuple[date, list[CalendarEntry]]], now: datetime | None
     lines = [
         "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//TorrSearch//A venir//FR",
         "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:TorrSearch - A venir",
+        # RFC 5545 requires at least one component, even when nothing is scheduled.
+        "BEGIN:VTIMEZONE", "TZID:UTC", "BEGIN:STANDARD", "DTSTART:19700101T000000",
+        "TZOFFSETFROM:+0000", "TZOFFSETTO:+0000", "END:STANDARD", "END:VTIMEZONE",
     ]
     status_label = {"acquired": "Acquis", "missing": "En recherche", "upcoming": "A venir"}
     for day, entries in days:

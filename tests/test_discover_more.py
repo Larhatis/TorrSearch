@@ -69,8 +69,9 @@ def test_page_has_filters_and_shortcuts(tmp_path):
     client, _ = _client(tmp_path)
     html = client.get("/discover").text
     assert 'hx-get="/discover/upcoming"' in html and 'hx-get="/discover/for-you"' in html
-    assert '<option value="28">Action</option>' in html
+    assert 'hx-get="/discover/genre-options"' in html and 'hx-trigger="load"' in html
     assert 'name="year"' in html
+    assert '<option value="28">Action</option>' in client.get("/discover/genre-options").text
     assert "Drame tele" in client.get("/discover/genre-options", params={"type": "tv"}).text
 
 

@@ -5,7 +5,7 @@
 </h1>
 <p class="mb-6 text-xs text-slate-500">Episodes des series suivies et sorties des films surveilles, de la semaine passee aux deux prochains mois.</p>
 
-{% if tmdb_enabled %}
+{% if tmdb_enabled and feed_url %}
 <details class="mb-6 rounded-xl border border-slate-700 bg-slate-800/40 p-4 text-sm">
   <summary class="cursor-pointer select-none font-semibold text-white"><i class="ti ti-device-mobile text-slate-400"></i> Voir dans l'agenda du telephone</summary>
   <p class="mt-3 text-xs text-slate-400">Abonne ton agenda (iPhone, Android, Google Agenda, Outlook) a ce lien : les sorties s'y ajoutent et se mettent a jour toutes seules.

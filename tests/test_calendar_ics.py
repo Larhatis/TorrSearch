@@ -52,6 +52,7 @@ def _app(tmp_path, auth=False):
     if auth:
         users = UserStore(db.collection("users"))
         users.add("bob", "password1", Role.MEMBER)
+        users.add("root", "password1", Role.ADMIN)
         kw = {"auth": AuthSettings(enabled=True, secret_key="k"), "users": users}
     return TestClient(create_app(ctx, series_library=series, db=db, **kw))
 
@@ -61,6 +62,9 @@ def test_feed_requires_the_token_even_without_login(tmp_path):
     assert client.get("/calendar.ics", follow_redirects=False).status_code == 404
     assert client.get("/calendar.ics?token=wrong", follow_redirects=False).status_code == 404
     client.post("/login", data={"username": "bob", "password": "password1", "next": "/"})
+    assert "calendar.ics" not in client.get("/calendar").text  # members never see the link
+    client.post("/logout")
+    client.post("/login", data={"username": "root", "password": "password1", "next": "/"})
     page = client.get("/calendar").text
     token = re.search(r"calendar\.ics\?token=([A-Za-z0-9_-]+)", page).group(1)
     client.cookies.clear()  # the phone's calendar app has no session
@@ -80,3 +84,20 @@ def test_token_is_stable_and_can_be_regenerated(tmp_path):
     assert second != first
     assert client.get(f"/calendar.ics?token={first}").status_code == 404
     assert client.get(f"/calendar.ics?token={second}").status_code == 200
+
+
+def test_non_ascii_token_is_a_404_not_a_crash(tmp_path):
+    client = _app(tmp_path)
+    client.get("/calendar")  # creates the token
+    assert client.get("/calendar.ics", params={"token": "é"}).status_code == 404
+
+
+def test_link_uses_https_behind_a_tls_proxy(tmp_path):
+    client = _app(tmp_path)
+    page = client.get("/calendar", headers={"X-Forwarded-Proto": "https"}).text
+    assert re.search(r'data-copy="https://[^"]+/calendar\.ics\?token=', page)
+
+
+def test_empty_calendar_still_has_a_component():
+    ics = build_ics([])
+    assert "BEGIN:VTIMEZONE" in ics and ics.count("BEGIN:VEVENT") == 0

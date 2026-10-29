@@ -32,6 +32,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
     Cartes partagées dans `partials/media_cards.html`.
   - Abonnement iCal : `/calendar.ics?token=…` (route publique de l'auth, protégée par un jeton
     gardé en base, collection `app_secrets`, régénérable par l'admin) → `library.calendar.build_ics`.
+    Lien affiché à l'admin seulement, en `https://` si `X-Forwarded-Proto: https` (proxy TLS).
   - Clés des trackers masquées aux membres : voir règle §6.8.
   - Tests de contrat `tests/test_transmission_contract.py` sur de **vrais** `transmission_rpc.Torrent`
     (champ absent = `KeyError` géré par `_field`, `hash_string` au lieu de `hashString` obsolète).
@@ -168,7 +169,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **708 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **711 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

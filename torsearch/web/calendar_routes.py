@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from torsearch.library.calendar import build_calendar, build_ics
-from torsearch.web.authz import require_admin, require_member
+from torsearch.web.authz import effective_role, require_admin, require_member
 from torsearch.web.templating import templates
 
 calendar_router = APIRouter()
@@ -60,6 +60,16 @@ def _feed_token(request: Request, regenerate: bool = False) -> str:
     return token
 
 
+def _public_url(request: Request, url) -> str:
+    """The feed URL as the phone must reach it: behind an HTTPS reverse proxy uvicorn sees
+    plain http, which would send the token in clear at every calendar sync. Only this
+    displayed link trusts X-Forwarded-Proto (it is shown back to the admin who asked)."""
+    text = str(url)
+    if request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower() == "https":
+        text = "https://" + text.split("://", 1)[1]
+    return text
+
+
 async def _days(request: Request, today: date, past_days: int = 7, future_days: int = 60):
     ctx = request.app.state.ctx
     library = getattr(request.app.state, "library", None)
@@ -78,13 +88,18 @@ async def calendar_page(request: Request):
     today = date.today()
     tmdb = getattr(ctx, "tmdb", None)
     days = await _days(request, today)
-    feed_url = str(request.url_for("calendar_feed").include_query_params(token=_feed_token(request)))
+    feed_url = webcal_url = None
+    if effective_role(request) == "admin":
+        # Admin only: a link shown to members would outlive a demoted or deleted account.
+        feed_url = _public_url(request, request.url_for("calendar_feed").include_query_params(
+            token=_feed_token(request)))
+        webcal_url = "webcal://" + feed_url.split("://", 1)[1]
     return templates.TemplateResponse(request, "calendar.html", {
         "days": [(day, day_label(day, today), entries) for day, entries in days],
         "today": today,
         "tmdb_enabled": bool(tmdb and getattr(tmdb, "enabled", False)),
         "feed_url": feed_url,
-        "webcal_url": "webcal://" + feed_url.split("://", 1)[1],
+        "webcal_url": webcal_url,
     })
 
 
@@ -92,7 +107,7 @@ async def calendar_page(request: Request):
 async def calendar_feed(request: Request, token: str = ""):
     """Public route (listed in the auth middleware) protected by the feed token."""
     expected = _stored_token(request)  # never created by an anonymous request
-    if not token or not expected or not hmac.compare_digest(token, expected):
+    if not token or not expected or not hmac.compare_digest(token.encode(), expected.encode()):
         return Response("Introuvable", status_code=404)
     days = await _days(request, date.today(), past_days=30, future_days=120)
     return Response(

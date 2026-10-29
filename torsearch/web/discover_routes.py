@@ -41,11 +41,9 @@ async def _get_trending(tmdb, media_type: str) -> list[MediaResult]:
 @discover_router.get("/discover", response_class=HTMLResponse)
 async def discover_page(request: Request):
     ctx = request.app.state.ctx
-    genres = await ctx.tmdb.genres("movie") if ctx.tmdb.enabled and hasattr(ctx.tmdb, "genres") else []
     this_year = date.today().year
     return templates.TemplateResponse(request, "discover.html", {
         "has_tmdb": ctx.tmdb.enabled,
-        "genres": genres,
         "years": list(range(this_year + 1, 1949, -1)),
     })
 
