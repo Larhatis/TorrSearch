@@ -5,11 +5,20 @@
     <i class="ti ti-activity text-2xl text-emerald-400"></i>
     <h1 class="text-xl font-bold text-slate-100">Activite</h1>
   </div>
-  <button hx-post="/downloads/scan-jellyfin" hx-target="#toast"
-          class="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-emerald-500/50 hover:text-emerald-400 transition-colors">
-    <i class="ti ti-refresh"></i>
-    <span>Scan Jellyfin</span>
-  </button>
+  <div class="flex items-center gap-2">
+    {% if is_admin %}
+    <a href="/downloads/cleanup"
+       class="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-emerald-500/50 hover:text-emerald-400 transition-colors">
+      <i class="ti ti-eraser"></i>
+      <span>Menage</span>
+    </a>
+    {% endif %}
+    <button hx-post="/downloads/scan-jellyfin" hx-target="#toast"
+            class="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-emerald-500/50 hover:text-emerald-400 transition-colors">
+      <i class="ti ti-refresh"></i>
+      <span>Scan Jellyfin</span>
+    </button>
+  </div>
 </div>
 <div id="downloads-list" hx-get="/downloads/list" hx-trigger="load, every 3s" hx-swap="outerHTML"></div>
 {% endblock %}
