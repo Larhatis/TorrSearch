@@ -275,6 +275,21 @@ class JellyfinClient:
             if owns_client:
                 await client.aclose()
 
+    async def library_folders(self) -> list[tuple[str, str | None, list[str]]]:
+        """Libraries as ``(name, collection type, folder paths seen by Jellyfin)``."""
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        try:
+            response = await client.get(f"{self._url}/Library/VirtualFolders", headers=self._auth())
+            response.raise_for_status()
+            return [
+                (f.get("Name") or "?", f.get("CollectionType"), list(f.get("Locations") or []))
+                for f in response.json()
+            ]
+        finally:
+            if owns_client:
+                await client.aclose()
+
     async def test(self) -> tuple[bool, str]:
         """Connection check for the status panel: never raises, never echoes the key."""
         owns_client = self._client is None

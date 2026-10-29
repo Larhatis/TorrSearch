@@ -71,3 +71,44 @@ async def test_an_unexpected_exception_is_masked():
     ctx = _Ctx(Config(), _Service(error=boom), _Service(enabled=False), _Service(enabled=False))
     statuses = await check_all(ctx)
     assert statuses[0].state == "error" and "TR-SECRET" not in statuses[0].message
+
+
+def test_folder_covered_across_container_mounts():
+    from torsearch.health import folder_covered
+
+    libs = ["/media/disk1/Series", "/media/disk2", "/media/disk1/Films"]
+    assert folder_covered("/downloads/disk1/Films", libs)
+    assert folder_covered("/downloads/disk2", libs)
+    assert folder_covered("/downloads/disk1/Films/Nouveaux/", libs)  # inside a library
+    assert not folder_covered("/downloads/disk1", libs)  # root of the disk: outside "Films"
+    assert not folder_covered("/downloads/Films", libs)  # same last name, different disk
+
+
+class _Jelly(_Service):
+    def __init__(self, folders):
+        super().__init__()
+        self._folders = folders
+
+    async def library_folders(self):
+        return self._folders
+
+
+async def test_folders_check_flags_paths_outside_jellyfin():
+    from torsearch.config import PathsConfig
+
+    folders = [("Movies", None, ["/media/disk1/Films"]), ("Shows", "tvshows", ["/media/disk2"]),
+               ("Collections", "boxsets", ["/config/data/collections"])]
+    cfg = Config(paths=PathsConfig(by_category={"movies": "/downloads/disk1", "tv": "/downloads/disk2"}))
+    statuses = await check_all(_Ctx(cfg, _Service(), _Jelly(folders), _Service(enabled=False)))
+    check = next(s for s in statuses if s.name == "Dossiers")
+    assert check.state == "error"
+    assert "Films (/downloads/disk1)" in check.message
+
+    cfg = Config(paths=PathsConfig(by_category={"movies": "/downloads/disk1/Films", "tv": "/downloads/disk2"}))
+    statuses = await check_all(_Ctx(cfg, _Service(), _Jelly(folders), _Service(enabled=False)))
+    assert next(s for s in statuses if s.name == "Dossiers").state == "ok"
+
+
+async def test_folders_check_absent_without_jellyfin():
+    statuses = await check_all(_Ctx(Config(), _Service(), _Service(enabled=False), _Service(enabled=False)))
+    assert all(s.name != "Dossiers" for s in statuses)
