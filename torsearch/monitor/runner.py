@@ -185,18 +185,21 @@ async def handle_stalled_torrents(
     for t in torrents:
         if t.percent >= 100.0:
             continue
-        is_error = bool(t.error_string)
+        # Never judge a torrent whose age is unknown, nor one younger than the grace
+        # period: a fresh torrent is at 0 % without peers while it fetches metadata, and
+        # tracker errors are often transient. Purging deletes data and blacklists.
+        if t.date_added is None:
+            continue
+        at = t.date_added if t.date_added.tzinfo else t.date_added.replace(tzinfo=UTC)
+        if current_time - at < stalled_window:
+            continue
+        is_error = bool(t.error_string) and t.down_rate == 0
         is_dead = (
             t.percent == 0.0
             and t.down_rate == 0
             and t.peers_sending == 0
             and "stop" not in t.status.lower()
         )
-        if is_dead and t.date_added is not None:
-            at = t.date_added if t.date_added.tzinfo else t.date_added.replace(tzinfo=UTC)
-            if current_time - at < stalled_window:
-                is_dead = False
-
         if not is_error and not is_dead:
             continue
 

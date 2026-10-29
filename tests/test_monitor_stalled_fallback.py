@@ -66,7 +66,7 @@ async def test_stalled_torrent_purged_and_blacklisted_and_movie_unmarked(tmp_pat
     assert m.grabbed_title is None
 
 
-async def test_errored_torrent_purged_immediately(tmp_path):
+async def test_errored_torrent_purged_after_grace_period(tmp_path):
     now = datetime(2026, 9, 27, 12, 0, tzinfo=UTC)
     t_error = TorrentInfo(
         id=102,
@@ -78,7 +78,7 @@ async def test_errored_torrent_purged_immediately(tmp_path):
         size=1_000_000_000,
         error_string="Tracker returned 404 Not Found",
         info_hash="1122334455",
-        date_added=now - timedelta(minutes=10),
+        date_added=now - timedelta(hours=3),
     )
 
     tr = FakeTransmission([t_error])
@@ -141,5 +141,31 @@ async def test_paused_torrent_is_not_purged(tmp_path):
 
     tr = FakeTransmission([t_paused])
     handled = await handle_stalled_torrents(transmission=tr, now=now)
+    assert handled == []
+    assert tr.removed == []
+
+
+def _fresh(**over):
+    base = dict(id=7, name="MobLand.S02E01.MULTi.2160p.WEB-GRP", percent=0.0, status="downloading",
+                down_rate=0, up_rate=0, size=1, peers_connected=0, peers_sending=0, info_hash="h7")
+    base.update(over)
+    return TorrentInfo(**base)
+
+
+async def test_torrent_with_unknown_age_is_never_purged(tmp_path):
+    tr = FakeTransmission([_fresh(date_added=None)])
+    bl = Blacklist(tmp_path / "bl.db")
+    handled = await handle_stalled_torrents(tr, blacklist=bl, config=Config(monitor=MonitorConfig(stalled_hours=2)))
+    assert handled == []
+    assert tr.removed == []
+    assert bl.list() == []
+
+
+async def test_fresh_torrent_in_error_is_not_purged(tmp_path):
+    now = datetime(2026, 10, 29, 12, 0, tzinfo=UTC)
+    tr = FakeTransmission([_fresh(error_string="Tracker gave HTTP response code 502",
+                                  date_added=now - timedelta(minutes=5))])
+    handled = await handle_stalled_torrents(tr, blacklist=Blacklist(tmp_path / "bl.db"),
+                                            config=Config(monitor=MonitorConfig(stalled_hours=2)), now=now)
     assert handled == []
     assert tr.removed == []

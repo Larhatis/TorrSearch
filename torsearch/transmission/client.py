@@ -159,7 +159,8 @@ class TransmissionClient:
             elif isinstance(eta_val, (int, float)):
                 eta_sec = int(eta_val)
 
-            date_raw = getattr(t, "date_added", None)
+            # transmission-rpc 7 names it ``added_date`` (``date_added`` in older versions).
+            date_raw = getattr(t, "added_date", None) or getattr(t, "date_added", None)
             date_val: datetime | None = None
             if isinstance(date_raw, datetime):
                 date_val = date_raw if date_raw.tzinfo else date_raw.replace(tzinfo=UTC)

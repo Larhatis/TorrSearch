@@ -310,3 +310,13 @@ async def test_list_torrents_maps_extended_fields():
     assert c.peers_sending == 5
     assert c.info_hash == "1234567890abcdef"
 
+
+
+async def test_list_torrents_reads_added_date_of_transmission_rpc_7():
+    from datetime import UTC, datetime
+
+    added = datetime(2026, 10, 29, 10, 50, tzinfo=UTC)
+    rpc = FakeRpcFull()
+    rpc.torrents = [_fake_torrent(id=1, name="A", added_date=added)]
+    infos = await _client_with(rpc).list_torrents()
+    assert infos[0].date_added == added
