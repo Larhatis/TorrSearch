@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
@@ -41,7 +41,92 @@ async def _get_trending(tmdb, media_type: str) -> list[MediaResult]:
 @discover_router.get("/discover", response_class=HTMLResponse)
 async def discover_page(request: Request):
     ctx = request.app.state.ctx
-    return templates.TemplateResponse(request, "discover.html", {"has_tmdb": ctx.tmdb.enabled})
+    genres = await ctx.tmdb.genres("movie") if ctx.tmdb.enabled and hasattr(ctx.tmdb, "genres") else []
+    this_year = date.today().year
+    return templates.TemplateResponse(request, "discover.html", {
+        "has_tmdb": ctx.tmdb.enabled,
+        "genres": genres,
+        "years": list(range(this_year + 1, 1949, -1)),
+    })
+
+
+async def _sections(request: Request, sections, empty: str, notice: str | None = None):
+    ctx = request.app.state.ctx
+    in_library, requested = _state(request)
+    return templates.TemplateResponse(request, "partials/discover_sections.html", {
+        "sections": [s for s in sections if s[2]],
+        "empty": empty,
+        "notice": notice,
+        "owned": await ctx.jellyfin.owned(),
+        "jellyfin_url": ctx.jellyfin.base_url,
+        "in_library": in_library,
+        "requested": requested,
+    })
+
+
+@discover_router.get("/discover/genre-options", response_class=HTMLResponse)
+async def discover_genre_options(request: Request, type: str = "movie"):
+    genres = await request.app.state.ctx.tmdb.genres("tv" if type == "tv" else "movie")
+    return templates.TemplateResponse(request, "partials/genre_options.html", {"genres": genres})
+
+
+@discover_router.get("/discover/browse", response_class=HTMLResponse)
+async def discover_browse(request: Request, type: str = "movie", genre: str = "", year: str = ""):
+    kind = "tv" if type == "tv" else "movie"
+    genre_id = int(genre) if genre.isdigit() else None
+    year_val = int(year) if year.isdigit() and len(year) == 4 else None
+    tmdb = request.app.state.ctx.tmdb
+    items = await tmdb.discover(kind, genre_id=genre_id, year=year_val)
+    names = dict(await tmdb.genres(kind)) if genre_id else {}
+    label = "Series" if kind == "tv" else "Films"
+    parts = [label]
+    if genre_id:
+        parts.append(names.get(genre_id, "genre choisi"))
+    if year_val:
+        parts.append(str(year_val))
+    icon = "ti-device-tv" if kind == "tv" else "ti-movie"
+    return await _sections(request, [(" · ".join(parts), icon, items)], "Rien ne correspond a ces filtres.")
+
+
+@discover_router.get("/discover/upcoming", response_class=HTMLResponse)
+async def discover_upcoming(request: Request):
+    items = await request.app.state.ctx.tmdb.upcoming()
+    return await _sections(request, [("Bientot au cinema en France", "ti-calendar-event", items)],
+                           "Aucune sortie annoncee pour le moment.")
+
+
+_FOR_YOU_SEEDS = 3
+_FOR_YOU_PER_SEED = 10
+
+
+@discover_router.get("/discover/for-you", response_class=HTMLResponse)
+async def discover_for_you(request: Request):
+    """TMDB recommendations for the latest titles added to the watch list, minus what is
+    already watched, requested or in Jellyfin."""
+    ctx = request.app.state.ctx
+    library, series_library = request.app.state.library, request.app.state.series_library
+    added = [("movie", m) for m in (library.list() if library is not None else [])]
+    added += [("tv", s) for s in (series_library.list() if series_library is not None else [])]
+    added.sort(key=lambda item: item[1].added_at, reverse=True)
+    seeds = added[:_FOR_YOU_SEEDS]
+    if not seeds:
+        return await _sections(
+            request, [], "Ajoute des films ou des series a la surveillance pour recevoir des suggestions.",
+        )
+    recos = await asyncio.gather(*(ctx.tmdb.recommendations(kind, item.tmdb_id) for kind, item in seeds))
+    in_library, requested = _state(request)
+    owned = await ctx.jellyfin.owned()
+    seen = set(in_library) | set(requested) | set(owned)
+    sections = []
+    for (_kind, item), items in zip(seeds, recos, strict=True):
+        fresh = []
+        for m in items:
+            key = f"{m.media_type}:{m.tmdb_id}"
+            if key not in seen:
+                seen.add(key)
+                fresh.append(m)
+        sections.append((f"Parce que tu as ajoute « {item.title} »", "ti-sparkles", fresh[:_FOR_YOU_PER_SEED]))
+    return await _sections(request, sections, "Pas de nouvelle suggestion : tu as deja tout !")
 
 
 @discover_router.get("/discover/search", response_class=HTMLResponse)

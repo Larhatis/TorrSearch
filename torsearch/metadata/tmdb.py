@@ -15,6 +15,7 @@ _SEARCH_URL = "https://api.themoviedb.org/3/search/multi"
 _TRENDING_URL = "https://api.themoviedb.org/3/trending/all/week"
 _TV_URL = "https://api.themoviedb.org/3/tv"
 _CONFIG_URL = "https://api.themoviedb.org/3/configuration"
+_API = "https://api.themoviedb.org/3"
 _MOVIE_URL = "https://api.themoviedb.org/3/movie"
 _DIGITAL, _THEATRICAL_LIMITED, _THEATRICAL = 4, 2, 3
 
@@ -90,6 +91,7 @@ class TmdbClient:
         self._episode_cache: dict[int, tuple[float, set[str]]] = {}
         self._seasons_cache: dict[int, tuple[float, list[SeasonInfo]]] = {}
         self._release_cache: dict[int, tuple[float, tuple[str, str] | None]] = {}
+        self._genre_cache: dict[str, list[tuple[int, str]]] = {}
 
     @property
     def enabled(self) -> bool:
@@ -139,6 +141,67 @@ class TmdbClient:
         finally:
             if owns_client:
                 await client.aclose()
+
+    async def _list(self, path: str, default_type: str, **params) -> list[MediaResult]:
+        """A TMDB list endpoint (discover, upcoming, recommendations), in French."""
+        if not self.enabled:
+            return []
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        query = {"api_key": self._api_key, "language": "fr-FR", "include_adult": "false"}
+        query.update({k: str(v) for k, v in params.items() if v not in (None, "")})
+        try:
+            response = await client.get(f"{_API}{path}", params=query)
+            response.raise_for_status()
+            return parse_multi(response.json(), default_type=default_type)
+        except Exception as exc:  # resilience
+            logger.warning("TMDB %s failed: %s", path, exc)
+            return []
+        finally:
+            if owns_client:
+                await client.aclose()
+
+    async def genres(self, media_type: str) -> list[tuple[int, str]]:
+        """``(id, name)`` genres of movies or series (French names), cached for the session."""
+        kind = "tv" if media_type == "tv" else "movie"
+        if not self.enabled:
+            return []
+        if kind in self._genre_cache:
+            return self._genre_cache[kind]
+        owns_client = self._client is None
+        client = self._client or httpx.AsyncClient(timeout=self._timeout)
+        try:
+            response = await client.get(f"{_API}/genre/{kind}/list",
+                                        params={"api_key": self._api_key, "language": "fr-FR"})
+            response.raise_for_status()
+            genres = [(int(g["id"]), str(g["name"])) for g in response.json().get("genres", [])
+                      if g.get("id") is not None and g.get("name")]
+        except Exception as exc:  # resilience
+            logger.warning("TMDB genres failed: %s", exc)
+            return []
+        finally:
+            if owns_client:
+                await client.aclose()
+        if genres:
+            self._genre_cache[kind] = genres
+        return genres
+
+    async def discover(self, media_type: str, genre_id: int | None = None,
+                       year: int | None = None) -> list[MediaResult]:
+        """Popular titles, optionally filtered by genre and year (French region for movies)."""
+        if media_type == "tv":
+            return await self._list("/discover/tv", "tv", sort_by="popularity.desc",
+                                    with_genres=genre_id, first_air_date_year=year)
+        return await self._list("/discover/movie", "movie", sort_by="popularity.desc", region="FR",
+                                with_genres=genre_id, primary_release_year=year)
+
+    async def upcoming(self) -> list[MediaResult]:
+        """Movies coming soon to French theatres."""
+        return await self._list("/movie/upcoming", "movie", region="FR")
+
+    async def recommendations(self, media_type: str, tmdb_id: int) -> list[MediaResult]:
+        kind = "tv" if media_type == "tv" else "movie"
+        return await self._list(f"/{kind}/{int(tmdb_id)}/recommendations", kind)
 
     async def get_details(self, media_type: str, tmdb_id: int) -> MediaResult | None:
         if not self.enabled:
