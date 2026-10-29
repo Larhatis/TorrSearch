@@ -259,3 +259,15 @@ class TmdbClient:
         if keys:
             self._episode_cache[tv_id] = (self._clock() + self._episode_cache_seconds, keys)
         return keys
+
+    async def air_dates(self, tv_id: int) -> dict[str, str]:
+        """Aired episodes with their air date (``{"S01E02": "2026-01-15"}``)."""
+        if not self.enabled:
+            return {}
+        today = date.today().isoformat()
+        return {
+            ep.code: ep.air_date
+            for s in await self.seasons(tv_id)
+            for ep in s.episodes
+            if ep.air_date and ep.air_date <= today
+        }

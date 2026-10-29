@@ -106,8 +106,9 @@ def test_run_now_triggers_when_enabled(tmp_path):
         def __init__(self):
             self.ran = False
 
-        async def run_once(self):
+        async def run_once(self, force=False):
             self.ran = True
+            self.forced = force
             return []
 
     store = SettingsStore(tmp_path / "settings.json")
@@ -122,6 +123,7 @@ def test_run_now_triggers_when_enabled(tmp_path):
     assert resp.status_code == 200
     assert "Verification effectuee" in resp.text
     assert runner.ran is True
+    assert runner.forced is True  # the button bypasses the search schedule
 
 
 def test_clear_history(tmp_path):

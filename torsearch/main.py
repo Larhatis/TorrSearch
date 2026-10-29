@@ -12,6 +12,7 @@ from torsearch.library.movies import MovieLibrary
 from torsearch.library.series import SeriesLibrary
 from torsearch.monitor.history import MonitorHistory
 from torsearch.monitor.runner import MonitorRunner
+from torsearch.monitor.schedule import SearchSchedule
 from torsearch.requests.store import RequestStore
 from torsearch.settings.store import SettingsStore
 from torsearch.users.store import UserStore
@@ -59,7 +60,10 @@ def build_app(
     library = MovieLibrary(db.collection("movies"), migrate_from=library_path)
     series_library = SeriesLibrary(db.collection("series"), migrate_from=series_path)
     blacklist = Blacklist(db.collection("blacklist"))
-    monitor = MonitorRunner(ctx, history, library=library, series_library=series_library, blacklist=blacklist)
+    monitor = MonitorRunner(
+        ctx, history, library=library, series_library=series_library, blacklist=blacklist,
+        schedule=SearchSchedule(db.collection("search_schedule")),
+    )
     auth = AuthSettings.from_env()
     users = UserStore(db.collection("users"), migrate_from=users_path)
     if auth.enabled:

@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from torsearch.library.episodes import build_tv_download_dir, parse_episodes
 from torsearch.models import Category, SearchResult
 from torsearch.monitor.history import MonitorRecord
+from torsearch.monitor.schedule import SAVED_SEARCH_INTERVAL, SearchSchedule, movie_interval, series_interval
 from torsearch.notifications.notifier import Notifier
 from torsearch.search.decision import select_best_movie_release, select_series_releases
 from torsearch.search.filters import ResultFilters, apply, detect_quality
+from torsearch.search.matcher import matches_query
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,41 @@ logger = logging.getLogger(__name__)
 def grab_key(result: SearchResult) -> str:
     k = result.infohash or result.download_url
     return k.lower() if k else ""
+
+
+def _targeted_due(schedule: SearchSchedule | None, key: str, interval: timedelta, now: datetime,
+                  feed: list[SearchResult] | None, force: bool) -> bool:
+    """Whether an item needs a targeted tracker search this cycle.
+
+    Without a schedule, or when the RSS feed brought nothing (trackers without RSS
+    support), every item is searched each cycle as before.
+    """
+    if force or schedule is None or not feed:
+        return True
+    return schedule.is_due(key, interval, now)
+
+
+def _mark_searched(schedule: SearchSchedule | None, key: str, now: datetime) -> None:
+    if schedule is not None:
+        schedule.mark(key, now)
+
+
+async def _search_all(search_service, queries: list[str], category: Category) -> list[SearchResult]:
+    """Run each query (e.g. French + original title) and merge the results."""
+    all_results: list[SearchResult] = []
+    seen_keys: set[str] = set()
+    for q in queries:
+        try:
+            res = await search_service.search(q, category)
+        except Exception as exc:
+            logger.warning("Search '%s' failed: %s", q, exc)
+            continue
+        for r in res:
+            key = r.infohash or r.download_url
+            if key not in seen_keys:
+                seen_keys.add(key)
+                all_results.append(r)
+    return all_results
 
 
 def select_new(results, filters, seen):
@@ -206,19 +243,33 @@ async def run_jellyfin_refresh(transmission, jellyfin, completed_seen: set[int])
 
 
 async def run_cycle(
-    config, search_service, transmission, history, notifier=None, series_library=None
+    config, search_service, transmission, history, notifier=None, series_library=None,
+    feed: list[SearchResult] | None = None, schedule: SearchSchedule | None = None, force: bool = False,
 ) -> list[MonitorRecord]:
     if not config.monitor.enabled:
         return []
     created: list[MonitorRecord] = []
+    now = datetime.now(UTC)
     for saved in config.saved_searches:
         if not saved.enabled:
             continue
-        try:
-            results = await search_service.search(saved.query, saved.category)
-        except Exception as exc:
-            logger.warning("Monitor search '%s' failed: %s", saved.name, exc)
-            continue
+        key = f"saved:{saved.name}"
+        if _targeted_due(schedule, key, SAVED_SEARCH_INTERVAL, now, feed, force):
+            logger.info("Recherche ciblee : %s", saved.name)
+            try:
+                results = await search_service.search(saved.query, saved.category)
+            except Exception as exc:
+                logger.warning("Monitor search '%s' failed: %s", saved.name, exc)
+                continue
+            _mark_searched(schedule, key, now)
+        else:
+            results = [
+                r for r in feed or []
+                if matches_query(r.title, saved.query)
+                and saved.category in (Category.ALL, r.category)
+            ]
+            if not results:
+                continue
         filters = ResultFilters(
             min_seeders=saved.min_seeders, min_size=saved.min_size, max_size=saved.max_size,
             qualities=saved.qualities, exclude=saved.exclude, sort="seeders", direction="desc",
@@ -353,7 +404,9 @@ async def _grab_movie(config, movie, pick, transmission, library, history, notif
 
 
 async def run_movie_cycle(config, library, search_service, transmission, history,
-                          notifier=None, jellyfin=None, blacklist=None) -> list[MonitorRecord]:
+                          notifier=None, jellyfin=None, blacklist=None,
+                          feed: list[SearchResult] | None = None, schedule: SearchSchedule | None = None,
+                          force: bool = False) -> list[MonitorRecord]:
     if not config.monitor.enabled or library is None:
         return []
     profile = config.library
@@ -382,18 +435,14 @@ async def run_movie_cycle(config, library, search_service, transmission, history
             if orig_q != queries[0]:
                 queries.append(orig_q)
 
-        all_results: list[SearchResult] = []
-        seen_keys: set[str] = set()
-        for q in queries:
-            try:
-                res = await search_service.search(q, Category.MOVIES)
-                for r in res:
-                    key = r.infohash or r.download_url
-                    if key not in seen_keys:
-                        seen_keys.add(key)
-                        all_results.append(r)
-            except Exception as exc:
-                logger.warning("Movie search '%s' failed: %s", q, exc)
+        key = f"movie:{movie.tmdb_id}"
+        searched = _targeted_due(schedule, key, movie_interval(movie, now), now, feed, force)
+        if searched:
+            logger.info("Recherche ciblee : film %s", queries[0])
+            all_results = await _search_all(search_service, queries, Category.MOVIES)
+            _mark_searched(schedule, key, now)
+        else:
+            all_results = [r for r in feed or [] if not parse_episodes(r.title)]
 
         if needs:
             pick = select_best_movie_release(
@@ -407,6 +456,8 @@ async def run_movie_cycle(config, library, search_service, transmission, history
             )
             if pick is not None:
                 await _grab_movie(config, movie, pick, transmission, library, history, notifier, created)
+            elif searched:
+                logger.info("Film %s : %d resultat(s), aucun acceptable", queries[0], len(all_results))
         else:
             # Upgrade: strictly better quality
             curr_q = detect_quality(movie.grabbed_title or "")
@@ -491,19 +542,23 @@ async def _series_have(
     return present | recent | legacy | disk_eps | tr_eps
 
 
-async def _series_aired(series, tmdb) -> set[str]:
-    """Episodes already aired per TMDB, or empty when TMDB is unavailable."""
+async def _series_air_dates(series, tmdb) -> dict[str, str | None]:
+    """Aired episodes per TMDB with their air date, or empty when TMDB is unavailable."""
     if tmdb is None or not getattr(tmdb, "enabled", False):
-        return set()
+        return {}
     try:
-        return await tmdb.episodes(series.tmdb_id)
+        if hasattr(tmdb, "air_dates"):
+            return dict(await tmdb.air_dates(series.tmdb_id))
+        return dict.fromkeys(await tmdb.episodes(series.tmdb_id))
     except Exception as exc:
         logger.warning("TMDB episodes for '%s' failed: %s", series.title, exc)
-        return set()
+        return {}
 
 
 async def run_series_cycle(config, series_library, search_service, transmission, history,
-                           notifier=None, jellyfin=None, tmdb=None, blacklist=None) -> list[MonitorRecord]:
+                           notifier=None, jellyfin=None, tmdb=None, blacklist=None,
+                           feed: list[SearchResult] | None = None, schedule: SearchSchedule | None = None,
+                           force: bool = False) -> list[MonitorRecord]:
     if not config.monitor.enabled or series_library is None:
         return []
     profile = config.library
@@ -524,7 +579,8 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             series, jellyfin, owned_map, records, now, window,
             base_tv_dir=base_tv_dir, transmission=transmission,
         )
-        aired = await _series_aired(series, tmdb)
+        air_dates = await _series_air_dates(series, tmdb)
+        aired = set(air_dates)
         if aired:
             season_tags = {k for k in have if len(k) == 3 and k.startswith("S") and k[1:].isdigit()}
             if season_tags:
@@ -540,18 +596,14 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             if orig_q != queries[0]:
                 queries.append(orig_q)
 
-        all_results: list[SearchResult] = []
-        seen_keys: set[str] = set()
-        for q in queries:
-            try:
-                res = await search_service.search(q, Category.TV)
-                for r in res:
-                    key = r.infohash or r.download_url
-                    if key not in seen_keys:
-                        seen_keys.add(key)
-                        all_results.append(r)
-            except Exception as exc:
-                logger.warning("Series search '%s' failed: %s", q, exc)
+        key = f"tv:{series.tmdb_id}"
+        interval = series_interval([air_dates.get(ep) for ep in remaining or ()], date.today())
+        if _targeted_due(schedule, key, interval, now, feed, force):
+            logger.info("Recherche ciblee : serie %s", series.title)
+            all_results = await _search_all(search_service, queries, Category.TV)
+            _mark_searched(schedule, key, now)
+        else:
+            all_results = [r for r in feed or [] if parse_episodes(r.title)]
 
         missing = set(remaining) if remaining is not None else None
         picks = select_series_releases(
@@ -602,16 +654,38 @@ async def run_series_cycle(config, series_library, search_service, transmission,
     return created
 
 
+async def fetch_feed(config, search_service, library=None, series_library=None) -> list[SearchResult] | None:
+    """Latest releases of every tracker, fetched once per cycle (None = nothing to watch)."""
+    if not config.monitor.enabled or not hasattr(search_service, "recent"):
+        return None
+    watching = (
+        any(s.enabled for s in config.saved_searches)
+        or (library is not None and bool(library.list()))
+        or (series_library is not None and bool(series_library.list()))
+    )
+    if not watching:
+        return None
+    try:
+        feed = await search_service.recent()
+    except Exception as exc:
+        logger.warning("RSS feed failed: %s", exc)
+        return None
+    logger.info("Flux RSS : %d release(s) recente(s) sur les trackers", len(feed))
+    return feed
+
+
 class MonitorRunner:
-    def __init__(self, ctx, history, notifier=None, library=None, series_library=None, blacklist=None):
+    def __init__(self, ctx, history, notifier=None, library=None, series_library=None, blacklist=None,
+                 schedule: SearchSchedule | None = None):
         self._ctx = ctx
         self._history = history
         self._notifier = notifier or Notifier()
         self._library = library
         self._series_library = series_library
         self._blacklist = blacklist
+        self._schedule = schedule if schedule is not None else SearchSchedule()
         self._completed_seen: set[int] = set()
-        self._task = None
+        self._task: asyncio.Task | None = None
         self._wake_event = asyncio.Event()
         self._lock = asyncio.Lock()
         self.last_run_at: datetime | None = None
@@ -621,8 +695,12 @@ class MonitorRunner:
         """Wake the monitor loop immediately (e.g. settings changed or manual run)."""
         self._wake_event.set()
 
-    async def run_once(self) -> list[MonitorRecord]:
-        """Execute all surveillance checks once and return any newly grabbed records."""
+    async def run_once(self, force: bool = False) -> list[MonitorRecord]:
+        """Execute all surveillance checks once and return any newly grabbed records.
+
+        ``force`` runs a targeted tracker search for every item, regardless of the schedule
+        (the "Verifier maintenant" button).
+        """
         async with self._lock:
             records: list[MonitorRecord] = []
             await handle_stalled_torrents(
@@ -633,16 +711,21 @@ class MonitorRunner:
                 notifier=self._notifier,
                 config=self._ctx.config,
             )
+            feed = await fetch_feed(
+                self._ctx.config, self._ctx.search_service, self._library, self._series_library,
+            )
             records.extend(await run_cycle(
                 self._ctx.config, self._ctx.search_service, self._ctx.transmission,
                 self._history, self._notifier,
                 series_library=self._series_library,
+                feed=feed, schedule=self._schedule, force=force,
             ))
             records.extend(await run_movie_cycle(
                 self._ctx.config, self._library, self._ctx.search_service,
                 self._ctx.transmission, self._history, self._notifier,
                 jellyfin=getattr(self._ctx, "jellyfin", None),
                 blacklist=self._blacklist,
+                feed=feed, schedule=self._schedule, force=force,
             ))
             records.extend(await run_series_cycle(
                 self._ctx.config, self._series_library, self._ctx.search_service,
@@ -650,7 +733,10 @@ class MonitorRunner:
                 jellyfin=getattr(self._ctx, "jellyfin", None),
                 tmdb=getattr(self._ctx, "tmdb", None),
                 blacklist=self._blacklist,
+                feed=feed, schedule=self._schedule, force=force,
             ))
+            for record in records:
+                logger.info("Envoye a Transmission : %s (%s)", record.title, record.search)
             self._completed_seen = await run_jellyfin_refresh(
                 self._ctx.transmission, getattr(self._ctx, "jellyfin", None),
                 self._completed_seen,

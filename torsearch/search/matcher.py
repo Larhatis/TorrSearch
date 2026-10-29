@@ -21,6 +21,15 @@ def normalize_title(title: str) -> str:
     return re.sub(r"\s+", " ", clean).strip().lower()
 
 
+def matches_query(title: str, query: str) -> bool:
+    """Whether every word of a free-text query appears in a release title."""
+    words = normalize_title(query).split()
+    if not words:
+        return False
+    title_words = set(normalize_title(title).split())
+    return all(w in title_words for w in words)
+
+
 def strip_articles(norm_title: str) -> str:
     return _ARTICLES_RE.sub("", norm_title).strip()
 
