@@ -184,13 +184,18 @@ async def update_library(
     quality: list[str] = Form(default=[]),
     min_seeders: str = Form("1"),
     upgrades: str | None = Form(None),
+    max_movie_gb: str = Form(""),
+    max_episode_gb: str = Form(""),
 ):
     ctx: AppContext = request.app.state.ctx
+    current = ctx.config.library
     try:
         profile = LibraryConfig(
             qualities=[q for q in quality if q],
             min_seeders=to_int(min_seeders),
             upgrades=upgrades is not None,
+            max_movie_gb=max_movie_gb.strip().replace(",", ".") or current.max_movie_gb,
+            max_episode_gb=max_episode_gb.strip().replace(",", ".") or current.max_episode_gb,
         )
         ctx.update_settings(set_library(ctx.config, profile))
         return _toast(request, True, "Profil bibliotheque enregistre.")

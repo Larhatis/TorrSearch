@@ -89,6 +89,17 @@ class LibraryConfig(BaseModel):
     qualities: list[str] = Field(default_factory=lambda: ["2160p", "1080p"])
     min_seeders: int = 1
     upgrades: bool = False
+    # Size caps in GB (0 = no limit); season packs are judged per episode.
+    max_movie_gb: float = Field(default=20.0, ge=0)
+    max_episode_gb: float = Field(default=5.0, ge=0)
+
+    @property
+    def max_movie_size(self) -> int | None:
+        return int(self.max_movie_gb * 1e9) if self.max_movie_gb else None
+
+    @property
+    def max_episode_size(self) -> int | None:
+        return int(self.max_episode_gb * 1e9) if self.max_episode_gb else None
 
 
 class JellyfinConfig(BaseModel):

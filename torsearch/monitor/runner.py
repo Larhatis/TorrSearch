@@ -492,7 +492,7 @@ def _movie_repack(movie, feed: list[SearchResult], profile, blacklist, now: date
         ev = evaluate_release(
             r, target_title=movie.title, target_original_title=movie.original_title,
             target_year=movie.year, qualities=profile.qualities, min_seeders=profile.min_seeders,
-            blacklist=blacklist,
+            blacklist=blacklist, max_size=profile.max_movie_size,
         )
         if not ev.acceptable or ev.parsed is None:
             continue
@@ -579,6 +579,7 @@ async def run_movie_cycle(config, library, search_service, transmission, history
                 qualities=profile.qualities,
                 min_seeders=profile.min_seeders,
                 blacklist=blacklist,
+                max_size=profile.max_movie_size,
             )
             if pick is not None:
                 await _grab_movie(config, movie, pick, transmission, library, history, notifier, created)
@@ -596,6 +597,7 @@ async def run_movie_cycle(config, library, search_service, transmission, history
                 min_seeders=profile.min_seeders,
                 blacklist=blacklist,
                 current_quality=curr_q,
+                max_size=profile.max_movie_size,
             )
             if best is not None:
                 await _grab_movie(config, movie, best, transmission, library, history, notifier, created)
@@ -771,6 +773,7 @@ async def run_series_cycle(config, series_library, search_service, transmission,
                 qualities=profile.qualities,
                 min_seeders=profile.min_seeders,
                 blacklist=blacklist,
+                max_episode_size=profile.max_episode_size,
             )
             for r, covered in picks:
                 if remaining is not None and not (covered & remaining):
@@ -794,6 +797,7 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             min_seeders=profile.min_seeders,
             blacklist=blacklist,
             upgrades=profile.upgrades,
+            max_episode_size=profile.max_episode_size,
         )
         for r, covered in replacements:
             if covered & set(newly):
