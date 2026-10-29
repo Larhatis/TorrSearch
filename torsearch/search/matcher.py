@@ -21,13 +21,26 @@ def normalize_title(title: str) -> str:
     return re.sub(r"\s+", " ", clean).strip().lower()
 
 
+_YEAR_WORD_RE = re.compile(r"^(19|20)\d\d$")
+
+
 def matches_query(title: str, query: str) -> bool:
-    """Whether every word of a free-text query appears in a release title."""
+    """Whether every word of a free-text query appears in a release title.
+
+    A year in the query ("Lanterns 2026") is optional, since episode releases rarely carry
+    one; but a release carrying another year is a different work.
+    """
     words = normalize_title(query).split()
     if not words:
         return False
     title_words = set(normalize_title(title).split())
-    return all(w in title_words for w in words)
+    for w in words:
+        if w in title_words:
+            continue
+        if _YEAR_WORD_RE.match(w) and not any(_YEAR_WORD_RE.match(t) for t in title_words):
+            continue
+        return False
+    return True
 
 
 def strip_articles(norm_title: str) -> str:

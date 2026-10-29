@@ -28,10 +28,14 @@ class TrackerThrottle:
 
     async def __aenter__(self) -> TrackerThrottle:
         await self._lock.acquire()
-        if self._last_done is not None:
-            wait = self._last_done + self.min_interval - self._clock()
-            if wait > 0:
-                await self._sleep(wait)
+        try:
+            if self._last_done is not None:
+                wait = self._last_done + self.min_interval - self._clock()
+                if wait > 0:
+                    await self._sleep(wait)
+        except BaseException:  # cancelled while waiting: never leave the tracker locked
+            self._lock.release()
+            raise
         return self
 
     async def __aexit__(self, *exc) -> None:

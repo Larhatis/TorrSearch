@@ -13,7 +13,10 @@ from torsearch.monitor.schedule import (
     SAVED_SEARCH_INTERVAL,
     SearchSchedule,
     movie_interval,
+    movie_signature,
+    saved_signature,
     series_interval,
+    series_signature,
 )
 from torsearch.search.matcher import matches_query
 
@@ -110,7 +113,7 @@ async def test_movie_not_due_uses_feed_without_searching(tmp_path):
     lib = MovieLibrary(db)
     lib.add(WantedMovie(tmdb_id=1, title="Avatar", year="2009", added_at=NOW))
     schedule = SearchSchedule()
-    schedule.mark("movie:1", datetime.now(UTC))
+    schedule.mark("movie:1", datetime.now(UTC), movie_signature(lib.get(1)))
     search, tx = FakeSearch(), FakeTransmission()
     feed = [_res("Avatar.2009.MULTi.1080p.BluRay"), _res("Other.Movie.2020.1080p")]
 
@@ -170,7 +173,7 @@ async def test_series_recent_gap_due_hourly(tmp_path):
     yesterday = (date.today() - timedelta(days=1)).isoformat()
     tmdb = FakeTmdb({"S01E01": "2025-01-01", "S01E02": yesterday})
     schedule = SearchSchedule()
-    schedule.mark("tv:7", datetime.now(UTC) - timedelta(minutes=90))
+    schedule.mark("tv:7", datetime.now(UTC) - timedelta(minutes=90), series_signature(lib.get(7)))
     search = FakeSearch({"Severance": [_res("Severance.S01E02.MULTi.1080p.WEB", Category.TV)]})
     tx = FakeTransmission()
 
@@ -188,7 +191,7 @@ async def test_series_old_gap_not_due_uses_feed(tmp_path):
     lib.add(WantedSeries(tmdb_id=7, title="Severance", added_at=NOW, grabbed=["S01E01"]))
     tmdb = FakeTmdb({"S01E01": "2025-01-01", "S01E02": "2025-01-08"})
     schedule = SearchSchedule()
-    schedule.mark("tv:7", datetime.now(UTC) - timedelta(hours=3))
+    schedule.mark("tv:7", datetime.now(UTC) - timedelta(hours=3), series_signature(lib.get(7)))
     search = FakeSearch()
     feed = [_res("Severance.S01E02.MULTi.1080p.WEB", Category.TV)]
 
@@ -204,7 +207,7 @@ async def test_saved_search_not_due_matches_feed_by_words(tmp_path):
     db = Database(tmp_path / "db.sqlite")
     cfg = _cfg(saved_searches=[SavedSearch(name="Dune", query="dune part two")])
     schedule = SearchSchedule()
-    schedule.mark("saved:Dune", datetime.now(UTC))
+    schedule.mark("saved:Dune", datetime.now(UTC), saved_signature(cfg.saved_searches[0]))
     search = FakeSearch()
     feed = [_res("Dune.Part.Two.2024.MULTi.1080p"), _res("Dune.1984.1080p")]
 
@@ -244,3 +247,50 @@ async def test_fetch_feed_skipped_when_monitor_disabled(tmp_path):
     search = FeedSearch([_res("A.2020.1080p")])
     cfg = Config(saved_searches=[SavedSearch(name="A", query="a")])
     assert await fetch_feed(cfg, search) is None
+
+
+async def test_regrab_changes_signature_and_makes_movie_due(tmp_path):
+    db = Database(tmp_path / "db.sqlite")
+    lib = MovieLibrary(db)
+    lib.add(WantedMovie(tmdb_id=1, title="Avatar", year="2009", added_at=NOW - timedelta(days=30)))
+    lib.mark_grabbed(1, "Avatar.2009.MULTi.1080p.BluRay", datetime.now(UTC))
+    schedule = SearchSchedule()
+    schedule.mark("movie:1", datetime.now(UTC), movie_signature(lib.get(1)))
+    lib.unmark_grabbed(1)  # "Regrab" button
+    search = FakeSearch()
+    await run_movie_cycle(_cfg(), lib, search, FakeTransmission(), MonitorHistory(db),
+                          feed=[_res("Unrelated.2020.1080p")], schedule=schedule)
+    assert search.searched == ["Avatar 2009"]
+
+
+async def test_trackers_without_rss_still_searched_each_cycle(tmp_path):
+    from torsearch.monitor.runner import rss_less_trackers
+
+    class Ix:
+        def __init__(self, name):
+            self.name, self.enabled = name, True
+
+    class Service(FakeSearch):
+        indexers = [Ix("t1"), Ix("t2")]
+
+        async def search(self, query, category=Category.ALL, only=None):
+            self.searched.append((query, only))
+            return []
+
+    db = Database(tmp_path / "db.sqlite")
+    lib = MovieLibrary(db)
+    lib.add(WantedMovie(tmdb_id=1, title="Avatar", year="2009", added_at=NOW))
+    schedule = SearchSchedule()
+    schedule.mark("movie:1", datetime.now(UTC), movie_signature(lib.get(1)))
+    service = Service()
+    feed = [_res("Unrelated.2020.1080p")]  # source "t1": t2 has no RSS feed
+    fallback = rss_less_trackers(service, feed)
+    assert fallback == frozenset({"t2"})
+    await run_movie_cycle(_cfg(), lib, service, FakeTransmission(), MonitorHistory(db),
+                          feed=feed, schedule=schedule, fallback=fallback)
+    assert service.searched == [("Avatar 2009", frozenset({"t2"}))]
+
+
+def test_matches_query_treats_years_as_optional():
+    assert matches_query("Lanterns.S01E03.MULTi.1080p", "Lanterns 2026")
+    assert not matches_query("Lanterns.2025.1080p", "Lanterns 2026")

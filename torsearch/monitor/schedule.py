@@ -15,30 +15,52 @@ _RECENT_EPISODE_DAYS = 14
 
 class SearchSchedule:
     """When each watched item (``movie:<id>``, ``tv:<id>``, ``saved:<name>``) was last
-    searched on the trackers. Persisted when given a collection, in memory otherwise."""
+    searched on the trackers. Persisted when given a collection, in memory otherwise.
+
+    Each mark stores a ``signature`` of the item's state (status, grabbed episodes, query):
+    when the item changes (regrab, re-added, episodes unmarked), it is due again at once.
+    """
 
     def __init__(self, collection: Collection | None = None):
         self._c = collection
-        self._mem: dict[str, datetime] = {}
+        self._mem: dict[str, tuple[datetime, str]] = {}
 
-    def last(self, key: str) -> datetime | None:
+    def _get(self, key: str) -> tuple[datetime, str] | None:
         if self._c is None:
             return self._mem.get(key)
         data = self._c.get(key)
         if not data:
             return None
         at = datetime.fromisoformat(data["at"])
-        return at if at.tzinfo else at.replace(tzinfo=UTC)
+        return (at if at.tzinfo else at.replace(tzinfo=UTC)), data.get("sig", "")
 
-    def mark(self, key: str, at: datetime) -> None:
+    def last(self, key: str) -> datetime | None:
+        entry = self._get(key)
+        return entry[0] if entry else None
+
+    def mark(self, key: str, at: datetime, signature: str = "") -> None:
         if self._c is None:
-            self._mem[key] = at
+            self._mem[key] = (at, signature)
         else:
-            self._c.upsert(key, {"at": at.isoformat()})
+            self._c.upsert(key, {"at": at.isoformat(), "sig": signature})
 
-    def is_due(self, key: str, interval: timedelta, now: datetime) -> bool:
-        last = self.last(key)
-        return last is None or now - last >= interval
+    def is_due(self, key: str, interval: timedelta, now: datetime, signature: str = "") -> bool:
+        entry = self._get(key)
+        if entry is None or entry[1] != signature:
+            return True
+        return now - entry[0] >= interval
+
+
+def movie_signature(movie) -> str:
+    return f"{movie.added_at.isoformat()}|{movie.status}|{movie.grabbed_title or ''}"
+
+
+def series_signature(series) -> str:
+    return f"{series.added_at.isoformat()}|{','.join(sorted(series.grabbed))}"
+
+
+def saved_signature(saved) -> str:
+    return f"{saved.query}|{saved.category.value}"
 
 
 def movie_interval(movie, now: datetime) -> timedelta:

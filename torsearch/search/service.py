@@ -35,8 +35,17 @@ class SearchService:
     def indexers(self) -> list[Indexer]:
         return self._indexers
 
-    async def search(self, query: str, category: Category = Category.ALL) -> list[SearchResult]:
-        deduped = await self._gather(query, category)
+    def available(self) -> bool:
+        """Whether at least one active tracker is not paused (HTTP 429)."""
+        return any(
+            ix.enabled and not (self._throttles is not None and ix.name in self._throttles
+                                and self._throttles[ix.name].is_blocked())
+            for ix in self._indexers
+        )
+
+    async def search(self, query: str, category: Category = Category.ALL,
+                     only: frozenset[str] | None = None) -> list[SearchResult]:
+        deduped = await self._gather(query, category, only)
         if query.strip():
             deduped.sort(key=lambda r: (compute_relevance(r, query), r.seeders), reverse=True)
         else:
@@ -49,8 +58,9 @@ class SearchService:
         deduped.sort(key=lambda r: r.publish_date or _OLDEST, reverse=True)
         return deduped
 
-    async def _gather(self, query: str, category: Category) -> list[SearchResult]:
-        active = [ix for ix in self._indexers if ix.enabled]
+    async def _gather(self, query: str, category: Category,
+                      only: frozenset[str] | None = None) -> list[SearchResult]:
+        active = [ix for ix in self._indexers if ix.enabled and (only is None or ix.name in only)]
         results_lists = await asyncio.gather(*(self._search_one(ix, query, category) for ix in active))
         merged = [r for lst in results_lists for r in lst]
         return self._dedupe(merged)
@@ -66,6 +76,8 @@ class SearchService:
             return []
         # The wait in the throttle queue is not counted in the request timeout.
         async with throttle:
+            if throttle.is_blocked():  # paused by a 429 while we were queued
+                return []
             try:
                 return await self._query(indexer, query, category, reraise_limit=True)
             except RateLimited as exc:
