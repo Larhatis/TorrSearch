@@ -21,3 +21,10 @@ def test_masks_telegram_bot_token():
 def test_leaves_harmless_text_untouched():
     msg = "can't connect to transmission daemon: HTTPConnectionPool(host='localhost', port=9091)"
     assert redact(msg) == msg
+
+
+def test_redact_masks_discord_webhook_token():
+    from torsearch.redact import redact
+
+    text = "Client error '404' for url 'https://discord.com/api/webhooks/123/abcSECRET'"
+    assert "abcSECRET" not in redact(text)
