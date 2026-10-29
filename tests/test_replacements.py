@@ -120,9 +120,9 @@ async def test_series_upgrade_from_feed_when_enabled(tmp_path):
     history = MonitorHistory(db)
     history.add(MonitorRecord(
         search="Severance", title="Severance.S01E01.MULTi.1080p.WEB-GRP", source="t1",
-        download_url="magnet:old", kind="grabbed", at=datetime.now(UTC) - timedelta(days=60),
+        download_url="magnet:old", kind="grabbed", at=datetime.now(UTC) - timedelta(days=10),
     ))
-    feed = [_res("Severance.S01E01.MULTi.2160p.WEB-GRP")]
+    feed = [_res("Severance.S01E01.MULTi.1080p.WEB-OTHER"), _res("Severance.S01E01.MULTi.2160p.WEB-GRP")]
 
     off = await run_series_cycle(_cfg(), lib, NoSearch(), FakeTransmission(), history,
                                  tmdb=FakeTmdb(), feed=feed, schedule=SearchSchedule())
@@ -144,3 +144,8 @@ async def test_movie_repack_from_feed(tmp_path):
                                     feed=feed, schedule=SearchSchedule())
     assert [r.title for r in records] == ["Avatar.2009.REPACK.MULTi.1080p.BluRay-GRP"]
     assert lib.get(1).grabbed_title == "Avatar.2009.REPACK.MULTi.1080p.BluRay-GRP"
+
+
+def test_upgrade_ignores_old_grabs():
+    assert _reason("Show.S01E01.MULTi.2160p.WEB-GRP", "Show.S01E01.MULTi.1080p.WEB-GRP",
+                   at=NOW - timedelta(days=60), upgrades=True) is None

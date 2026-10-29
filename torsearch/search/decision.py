@@ -230,6 +230,9 @@ def select_series_releases(
 
 
 REPACK_WINDOW = timedelta(days=14)
+# Episode upgrades only follow recent grabs: enabling the option must not re-download a
+# whole back catalogue (old files are not deleted).
+UPGRADE_WINDOW = timedelta(days=30)
 _REPACK_EDITIONS = ("proper", "repack")
 _GROUP_RE = re.compile(r"-([A-Za-z0-9]+)(?:\.(?:mkv|mp4|avi))?$")
 
@@ -251,8 +254,8 @@ def replacement_reason(
     """Why ``candidate`` should replace an already grabbed release, or None.
 
     ``"repack"``: a PROPER/REPACK of a recent grab, same resolution and (when both are
-    tagged) same group. ``"upgrade"``: upgrades enabled and a strictly better quality of
-    the profile without a worse language.
+    tagged) same group. ``"upgrade"``: upgrades enabled, a grab of the last 30 days, and a
+    strictly better quality of the profile without a worse language.
     """
     previous = parse_release(previous_title)
     if (
@@ -264,7 +267,7 @@ def replacement_reason(
         cand_group, prev_group = release_group(candidate.raw_title), release_group(previous_title)
         if not (cand_group and prev_group and cand_group.lower() != prev_group.lower()):
             return "repack"
-    if upgrades and qualities and candidate.resolution in qualities:
+    if upgrades and qualities and candidate.resolution in qualities and now - previous_at <= UPGRADE_WINDOW:
         prev_rank = qualities.index(previous.resolution) if previous.resolution in qualities else 999
         if (
             qualities.index(candidate.resolution) < prev_rank
@@ -291,8 +294,7 @@ def select_series_replacements(
     Only releases covering episodes all grabbed before are considered; ``taken`` holds the
     lowercased titles/keys already grabbed so a replacement is never taken twice.
     """
-    picks: list[tuple[SearchResult, set[str]]] = []
-    covered_all: set[str] = set()
+    candidates: list[tuple[SearchResult, ReleaseEvaluation]] = []
     for r in results:
         key = (r.infohash or r.download_url or "").lower()
         if r.title.lower() in taken or key in taken:
@@ -301,8 +303,15 @@ def select_series_replacements(
             r, target_title=target_title, target_original_title=target_original_title,
             is_series=True, qualities=qualities, min_seeders=min_seeders, blacklist=blacklist,
         )
-        if not ev.acceptable or ev.parsed is None:
-            continue
+        if ev.acceptable and ev.parsed is not None:
+            candidates.append((r, ev))
+    # Best first, so a 2160p is not preceded by an intermediate 1080p download.
+    candidates.sort(key=lambda c: (c[1].lang_tier, c[1].quality_rank, -c[0].seeders))
+
+    picks: list[tuple[SearchResult, set[str]]] = []
+    covered_all: set[str] = set()
+    for r, ev in candidates:
+        assert ev.parsed is not None
         eps = {e for e in ev.parsed.episodes if "E" in e}
         if not eps or eps & covered_all or not eps <= previous.keys():
             continue
