@@ -37,12 +37,17 @@ class ReleaseRules:
 
     def excluded_word(self, title: str) -> str | None:
         """The first excluded word/phrase present as whole words in ``title``."""
-        padded = f" {normalize_title(title)} "
+        padded = f" {_words(title)} "
         for word in self.exclude_words:
-            norm = normalize_title(word)
+            norm = _words(word)
             if norm and f" {norm} " in padded:
                 return word
         return None
+
+
+def _words(text: str) -> str:
+    """Lowercase words without accents, any non-alphanumeric character as a separator."""
+    return " ".join(w for w in re.split(r"[^0-9a-z]+", normalize_title(text)) if w)
 
 
 def _get_lang_tier(language: str) -> int:

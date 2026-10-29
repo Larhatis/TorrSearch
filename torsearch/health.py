@@ -56,17 +56,16 @@ def folder_covered(path: str, library_folders: list[str]) -> bool:
     parts = _parts(path)
     for lib in library_folders:
         lib_parts = _parts(lib)
-        if not lib_parts:
-            continue
-        needed = max(1, len(lib_parts) - 1)
-        tail = lib_parts[-needed:]
         for end in range(len(parts), 0, -1):  # the folder itself, then its parents
-            if parts[:end][-needed:] == tail:
+            folder = parts[:end]
+            # Drop the mount root on both sides (either may be deeper than the other).
+            k = min(len(lib_parts), len(folder)) - 1
+            if k >= 1 and folder[-k:] == lib_parts[-k:]:
                 return True
     return False
 
 
-_LABELS = {"movies": "Films", "tv": "Series", "anime": "Anime"}
+_LABELS = {"movies": "Films", "tv": "Series", "anime": "Anime"}  # categories Jellyfin must see
 _IGNORED_LIBRARIES = {"boxsets", "playlists"}
 
 
@@ -78,7 +77,7 @@ async def _folders_check(ctx) -> tuple[bool, str]:
     outside = [
         f"{_LABELS.get(cat, cat)} ({path})"
         for cat, path in ctx.config.paths.by_category.items()
-        if path and not folder_covered(path, locations)
+        if cat in _LABELS and path and not folder_covered(path, locations)
     ]
     if outside:
         return False, "Hors des bibliotheques Jellyfin : " + ", ".join(outside)

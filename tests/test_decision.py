@@ -210,3 +210,15 @@ def test_multi_season_pack_is_judged_per_episode_over_all_its_seasons():
                                    qualities=["1080p"], max_episode_size=5_000_000_000)
     assert [r.title for r, _ in picks] == [pack.title]
     assert picks[0][1] == missing
+
+
+def test_excluded_words_split_on_any_punctuation_and_vost_variants():
+    from torsearch.search.decision import ReleaseRules
+
+    rules = ReleaseRules(accept_vostfr=False, exclude_words=("stv",))
+    for title in ("Rush.2013.{STV}.1080p.WEB-X", "Rush.2013.1080p.x265&STV-X"):
+        assert evaluate_release(_make_result(title, infohash=title), "Rush", target_year=2013,
+                                rules=rules).rejection_reason == "excluded_word:stv"
+    for title in ("Rush.2013.VOST.FR.1080p.WEB-X", "Rush.2013.VOST-FR.1080p.WEB-X", "Rush.2013.VOST.1080p.WEB-X"):
+        assert evaluate_release(_make_result(title, infohash=title), "Rush", target_year=2013,
+                                rules=rules).rejection_reason == "vostfr_refused"

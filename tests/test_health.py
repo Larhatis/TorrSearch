@@ -81,7 +81,9 @@ def test_folder_covered_across_container_mounts():
     assert folder_covered("/downloads/disk2", libs)
     assert folder_covered("/downloads/disk1/Films/Nouveaux/", libs)  # inside a library
     assert not folder_covered("/downloads/disk1", libs)  # root of the disk: outside "Films"
-    assert not folder_covered("/downloads/Films", libs)  # same last name, different disk
+    assert not folder_covered("/downloads/disk3", libs)
+    # Jellyfin mounting the host path as-is (deeper than Transmission's mount)
+    assert folder_covered("/downloads/Films", ["/srv/dev-disk-by-uuid-1234/Films"])
 
 
 class _Jelly(_Service):
@@ -104,7 +106,8 @@ async def test_folders_check_flags_paths_outside_jellyfin():
     assert check.state == "error"
     assert "Films (/downloads/disk1)" in check.message
 
-    cfg = Config(paths=PathsConfig(by_category={"movies": "/downloads/disk1/Films", "tv": "/downloads/disk2"}))
+    cfg = Config(paths=PathsConfig(by_category={"movies": "/downloads/disk1/Films", "tv": "/downloads/disk2",
+                                                "other": "/downloads/Divers"}))  # "other" is not checked
     statuses = await check_all(_Ctx(cfg, _Service(), _Jelly(folders), _Service(enabled=False)))
     assert next(s for s in statuses if s.name == "Dossiers").state == "ok"
 

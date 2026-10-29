@@ -10,14 +10,17 @@ _SEASON_EP_RE = re.compile(
     r"s(\d{1,2})((?:[ ._-]*e\d{1,2}(?:\s*-\s*e?\d{1,2}(?!\d))?)+)", re.IGNORECASE
 )
 _EP_TOKEN_RE = re.compile(r"e(\d{1,2})(?:\s*-\s*e?(\d{1,2}))?", re.IGNORECASE)
+# "\b" before "s": audio codecs such as "DTS5.1" must not read as season 5.
 _SEASON_RE = re.compile(
-    r"(?:s(\d{1,2})\b|season[ ._-]*(\d{1,2})|saison[ ._-]*(\d{1,2}))", re.IGNORECASE
+    r"(?:\bs(\d{1,2})\b|season[ ._-]*(\d{1,2})|saison[ ._-]*(\d{1,2}))", re.IGNORECASE
 )
 
 
+# The second number may drop its "s" only when glued to a dash ("S01-09"): "S2 - 05" is an
+# anime episode and "S02 - 4K" a title, not season ranges.
 _SEASON_RANGE_RE = re.compile(
-    r"\bs(\d{1,2})[ ._]*(?:-|a|à|to)[ ._]*s?(\d{1,2})(?![\dp])"
-    r"|\b(?:saisons?|seasons?)[ ._-]*(\d{1,2})[ ._]*(?:-|a|à|to)[ ._]*(\d{1,2})(?![\dp])",
+    r"\bs(\d{1,2})(?:-s?|[ ._]*(?:-|a|à|to)[ ._]*s)(\d{1,2})(?![\da-z])"
+    r"|\b(?:saisons?|seasons?)[ ._-]*(\d{1,2})[ ._]*(?:-|a|à|to)[ ._]*(\d{1,2})(?![\da-z])",
     re.IGNORECASE,
 )
 _MAX_SEASON_SPAN = 40
