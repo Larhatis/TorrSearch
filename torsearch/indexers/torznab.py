@@ -7,7 +7,7 @@ import defusedxml.ElementTree as ET
 import httpx
 
 from torsearch.config import AuthMode, IndexerConfig
-from torsearch.indexers.base import Indexer
+from torsearch.indexers.base import DEFAULT_RETRY_AFTER, Indexer, RateLimited
 from torsearch.models import Category, SearchResult
 from torsearch.redact import redact
 
@@ -27,6 +27,11 @@ _MAX_REDIRECTS = 5
 
 class RedirectRefused(Exception):
     """A tracker redirect we will not follow (another host, https -> http, or a loop)."""
+
+
+def _retry_after(response: httpx.Response) -> float:
+    value = response.headers.get("retry-after", "").strip()
+    return float(value) if value.isdigit() else DEFAULT_RETRY_AFTER
 
 
 def _next_url(current: str, location: str) -> str:
@@ -204,8 +209,12 @@ class TorznabIndexer(Indexer):
         client = self._client or httpx.AsyncClient(timeout=self._timeout)
         try:
             response = await self._get(client, params, headers)
+            if response.status_code == 429:
+                raise RateLimited(_retry_after(response))
             response.raise_for_status()
             return parse_response(response.content, self.name)
+        except RateLimited:
+            raise
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in (401, 403):
                 logger.warning(

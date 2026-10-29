@@ -51,6 +51,8 @@
       <input type="checkbox" name="https" {% if config.transmission.https %}checked{% endif %}> https</label>
     <label class="text-xs text-slate-400">Timeout (s)<br>
       <input name="timeout_seconds" value="{{ config.search.timeout_seconds }}" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400" title="Delai minimal entre deux requetes vers un meme tracker (evite les bannissements)">Delai tracker (s)<br>
+      <input name="min_interval_seconds" value="{{ config.search.min_interval_seconds }}" class="w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <button class="w-full sm:w-auto rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>
   </form>
 </section>

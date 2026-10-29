@@ -4,6 +4,7 @@ import os
 
 from torsearch.config import Config, MetadataConfig
 from torsearch.indexers.registry import build_indexers
+from torsearch.indexers.throttle import TrackerThrottle
 from torsearch.jellyfin.client import JellyfinClient
 from torsearch.metadata.tmdb import TmdbClient
 from torsearch.search.service import SearchService
@@ -15,6 +16,7 @@ class AppContext:
     def __init__(self, store: SettingsStore):
         self._store = store
         self._config = store.load()
+        self._throttles: dict[str, TrackerThrottle] = {}
         self._rebuild()
 
     @property
@@ -39,7 +41,12 @@ class AppContext:
 
     def _rebuild(self) -> None:
         indexers = build_indexers(self._config)
-        self._search_service = SearchService(indexers, timeout=self._config.search.timeout_seconds)
+        self._search_service = SearchService(
+            indexers,
+            timeout=self._config.search.timeout_seconds,
+            throttles=self._throttles,
+            min_interval=self._config.search.min_interval_seconds,
+        )
         self._transmission = TransmissionClient(self._config.transmission)
         self._tmdb = TmdbClient(self._effective_metadata())
         self._jellyfin = JellyfinClient(self._config.jellyfin)

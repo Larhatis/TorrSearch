@@ -42,6 +42,7 @@ class SearchConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     timeout_seconds: float = 10.0
+    min_interval_seconds: float = Field(default=2.0, ge=0, le=60)
 
 
 class SavedSearch(BaseModel):

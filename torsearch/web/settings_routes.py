@@ -133,6 +133,7 @@ async def update_general(
     password: str = Form(""),
     https: str | None = Form(None),
     timeout_seconds: str = Form(...),
+    min_interval_seconds: str = Form(""),
 ):
     ctx: AppContext = request.app.state.ctx
     current = ctx.config.transmission
@@ -149,7 +150,10 @@ async def update_general(
                 return _toast(request, False,
                               "Ressaisis le mot de passe Transmission pour changer d'hote, de port ou de protocole.")
             transmission = transmission.model_copy(update={"password": current.password})
-        search = SearchConfig(timeout_seconds=timeout_seconds)
+        search = SearchConfig(
+            timeout_seconds=timeout_seconds,
+            min_interval_seconds=min_interval_seconds.strip() or ctx.config.search.min_interval_seconds,
+        )
         ctx.update_settings(set_general(ctx.config, transmission, search))
         return _saved(_toast(request, True, "Reglages enregistres."))
     except (ValidationError, SettingsError) as exc:
