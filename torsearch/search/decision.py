@@ -242,7 +242,8 @@ def _drop_redundant(
     have = set(have_episodes or ())
 
     def full(r: SearchResult) -> set[str]:
-        eps = parsed[id(r)].episodes if parsed.get(id(r)) else set()
+        p = parsed.get(id(r))
+        eps = p.episodes if p is not None else set()
         if missing_episodes is not None:
             return covered_episodes(eps, set(missing_episodes))
         return {ep for ep in eps if "E" in ep} - have
