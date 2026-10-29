@@ -21,7 +21,7 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.4.1)
+## 2. État actuel (v0.4.2)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
@@ -35,6 +35,9 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
   - Couverture des saisons au coût par épisode + retrait des releases redondantes (plus de
     pack + épisodes isolés pour les mêmes épisodes).
   - Logs de l'app de nouveau dans `docker logs` (handler console avec `redact()`).
+  - v0.4.2 : une purge retire aussi la release de l'historique (`MonitorHistory.remove_where`,
+    `_same_release`) — sinon elle comptait comme « en cours » pendant `regrab_hours` — et
+    démarque tous les épisodes d'un pack de saison purgé.
 - Chantier 5 — surveillance sobre, calendrier et exploitation (v0.4.0, spec
   `docs/superpowers/specs/2026-10-29-chantier5-surveillance-sobre-et-confort-design.md`) :
   - Limite de fréquence par tracker (`indexers/throttle.py`) : une requête à la fois, délai
@@ -111,7 +114,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **641 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **642 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
