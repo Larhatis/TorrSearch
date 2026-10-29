@@ -416,3 +416,12 @@ def test_context_keeps_throttles_across_rebuilds(tmp_path):
     ctx.update_settings(ctx.config)
     assert ctx._throttles["t1"] is first
     assert first.is_blocked()
+
+
+def test_settings_page_has_tabs_without_accounts_when_auth_disabled(tmp_path):
+    client, _, _ = _client(tmp_path)
+    html = client.get("/settings").text
+    for key in ("connexions", "trackers", "surveillance", "notifications", "maintenance"):
+        assert f'data-settings-tab="{key}"' in html
+        assert f'data-settings-panel="{key}"' in html
+    assert 'data-settings-tab="comptes"' not in html

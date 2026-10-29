@@ -73,6 +73,35 @@
     }
   });
 
+  // Settings tabs: show one panel, remember it in the URL hash (#trackers...).
+  function showSettingsTab(key) {
+    var panels = document.querySelectorAll('[data-settings-panel]');
+    if (!panels.length) return;
+    var exists = Array.prototype.some.call(panels, function (p) { return p.dataset.settingsPanel === key; });
+    if (!exists) key = panels[0].dataset.settingsPanel;
+    panels.forEach(function (p) { p.classList.toggle('hidden', p.dataset.settingsPanel !== key); });
+    document.querySelectorAll('[data-settings-tab]').forEach(function (btn) {
+      var active = btn.dataset.settingsTab === key;
+      btn.classList.toggle('bg-emerald-600', active);
+      btn.classList.toggle('text-white', active);
+      btn.classList.toggle('bg-slate-800/80', !active);
+      btn.classList.toggle('text-slate-300', !active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+  }
+
+  document.addEventListener('click', function (event) {
+    var settingsTab = event.target.closest('[data-settings-tab]');
+    if (!settingsTab) return;
+    var key = settingsTab.dataset.settingsTab;
+    history.replaceState(null, '', '#' + key);
+    showSettingsTab(key);
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    showSettingsTab(location.hash.replace('#', ''));
+  });
+
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') closeModal();
   });

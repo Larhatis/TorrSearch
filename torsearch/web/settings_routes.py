@@ -60,12 +60,25 @@ def _saved(response):
     return response
 
 
+_TABS = [
+    ("connexions", "ti-plug-connected", "Connexions"),
+    ("trackers", "ti-rss", "Trackers"),
+    ("surveillance", "ti-eye", "Surveillance"),
+    ("notifications", "ti-bell", "Notifications"),
+    ("comptes", "ti-users", "Comptes"),
+    ("maintenance", "ti-tool", "Maintenance"),
+]
+
+
 @settings_router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     ctx: AppContext = request.app.state.ctx
     users = getattr(request.app.state, "users", None)
+    auth = getattr(request.app.state, "auth", None)
+    auth_enabled = bool(auth and getattr(auth, "enabled", False))
     return templates.TemplateResponse(
         request, "settings.html", {
+            "settings_tabs": [t for t in _TABS if t[0] != "comptes" or auth_enabled],
             "config": ctx.config, "indexers": ctx.config.indexers,
             "channels": ctx.config.notifications, "categories": list(Category),
             "users": users.list() if users else [],

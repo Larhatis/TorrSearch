@@ -92,3 +92,61 @@ async def logout(request: Request):
     if request.app.state.auth.enabled:
         request.session.clear()
     return RedirectResponse("/login", status_code=303)
+
+
+_MIN_PASSWORD = 8
+
+
+def _account(request: Request, error: str | None = None, notice: str | None = None,
+             status_code: int = 200):
+    username = request.session.get("user", "")
+    users = getattr(request.app.state, "users", None)
+    managed = users is not None and users.get(username) is not None
+    return templates.TemplateResponse(
+        request, "account.html",
+        {"username": username, "managed": managed, "error": error, "notice": notice},
+        status_code=status_code,
+    )
+
+
+@auth_router.get("/account")
+async def account_page(request: Request):
+    if not request.app.state.auth.enabled:
+        return RedirectResponse("/", status_code=303)
+    return _account(request)
+
+
+@auth_router.post("/account/password")
+async def account_password(
+    request: Request,
+    current_password: str = Form(""),
+    new_password: str = Form(""),
+    confirm_password: str = Form(""),
+):
+    auth: AuthSettings = request.app.state.auth
+    if not auth.enabled:
+        return RedirectResponse("/", status_code=303)
+    username = request.session.get("user", "")
+    users = getattr(request.app.state, "users", None)
+    if users is None or users.get(username) is None:
+        return _account(request, error="Ce compte est defini par les variables d'environnement.")
+    throttle = getattr(request.app.state, "login_throttle", None)
+    key = f"password:{username}"
+    if throttle is not None and throttle.is_blocked(key):
+        return _account(request, error="Trop de tentatives. Reessaie dans quelques minutes.",
+                        status_code=429)
+    if users.verify(username, current_password) is None:
+        if throttle is not None:
+            throttle.record_failure(key)
+        return _account(request, error="Mot de passe actuel incorrect.")
+    if len(new_password) < _MIN_PASSWORD:
+        return _account(request, error=f"Le nouveau mot de passe doit faire au moins {_MIN_PASSWORD} caracteres.")
+    if new_password != confirm_password:
+        return _account(request, error="Les deux mots de passe ne correspondent pas.")
+    users.set_password(username, new_password)
+    if throttle is not None:
+        throttle.reset(key)
+    user = users.get(username)
+    # Other sessions of this account are revoked (old fingerprint); this one is renewed.
+    request.session["pwd"] = session_fingerprint(user.password_hash, auth.secret_key)
+    return _account(request, notice="Mot de passe modifie. Tes autres sessions sont deconnectees.")
