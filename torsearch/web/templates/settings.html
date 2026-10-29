@@ -120,6 +120,10 @@
     </fieldset>
     <label class="text-xs text-slate-400">Seeders min<br>
       <input name="min_seeders" value="{{ config.library.min_seeders }}" class="mt-1 w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400" title="Au-dela, la release est ignoree. 0 = sans limite">Taille max film (Go)<br>
+      <input name="max_movie_gb" value="{{ config.library.max_movie_gb | round(1) }}" class="mt-1 w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400" title="Par episode ; un pack de saison est juge au poids moyen par episode. 0 = sans limite">Taille max episode (Go)<br>
+      <input name="max_episode_gb" value="{{ config.library.max_episode_gb | round(1) }}" class="mt-1 w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="flex items-center gap-1.5 text-xs text-slate-400" title="Re-telecharge un film, ou un episode recupere depuis moins de 30 jours, en meilleure qualite quand une release superieure du profil apparait (l'ancien fichier n'est pas supprime)">
       <input type="checkbox" name="upgrades" {% if config.library.upgrades %}checked{% endif %}> Upgrades de qualite (films et episodes)</label>
     <button class="w-full sm:w-auto rounded bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold px-4 py-2">Enregistrer</button>

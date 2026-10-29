@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import UTC, date, datetime, timedelta
 
-from torsearch.library.episodes import build_tv_download_dir, parse_episodes
+from torsearch.library.episodes import build_movie_download_dir, build_tv_download_dir, parse_episodes
 from torsearch.models import Category, SearchResult
 from torsearch.monitor.history import MonitorRecord
 from torsearch.monitor.schedule import (
@@ -446,8 +446,11 @@ def _movie_needs_grab(movie, jellyfin, owned_map, now, window) -> bool:
 
 
 async def _grab_movie(config, movie, pick, transmission, library, history, notifier, created) -> None:
+    download_dir = build_movie_download_dir(
+        config.paths.for_category(Category.MOVIES), movie.title, movie.year, movie.tmdb_id,
+    )
     try:
-        await transmission.add(pick.download_url, download_dir=config.paths.for_category(Category.MOVIES))
+        await transmission.add(pick.download_url, download_dir=download_dir)
     except Exception as exc:
         logger.warning("Movie grab '%s' failed: %s", movie.title, exc)
         return
@@ -489,7 +492,7 @@ def _movie_repack(movie, feed: list[SearchResult], profile, blacklist, now: date
         ev = evaluate_release(
             r, target_title=movie.title, target_original_title=movie.original_title,
             target_year=movie.year, qualities=profile.qualities, min_seeders=profile.min_seeders,
-            blacklist=blacklist,
+            blacklist=blacklist, max_size=profile.max_movie_size,
         )
         if not ev.acceptable or ev.parsed is None:
             continue
@@ -576,11 +579,15 @@ async def run_movie_cycle(config, library, search_service, transmission, history
                 qualities=profile.qualities,
                 min_seeders=profile.min_seeders,
                 blacklist=blacklist,
+                max_size=profile.max_movie_size,
             )
             if pick is not None:
                 await _grab_movie(config, movie, pick, transmission, library, history, notifier, created)
             elif searched:
-                logger.info("Film %s : %d resultat(s), aucun acceptable", queries[0], len(all_results))
+                cap = profile.max_movie_size
+                too_big = sum(1 for r in all_results if cap and r.size > cap)
+                logger.info("Film %s : %d resultat(s), aucun acceptable%s", queries[0], len(all_results),
+                            f" ({too_big} au-dessus de la taille max)" if too_big else "")
         else:
             # Upgrade: strictly better quality
             curr_q = detect_quality(movie.grabbed_title or "")
@@ -593,6 +600,7 @@ async def run_movie_cycle(config, library, search_service, transmission, history
                 min_seeders=profile.min_seeders,
                 blacklist=blacklist,
                 current_quality=curr_q,
+                max_size=profile.max_movie_size,
             )
             if best is not None:
                 await _grab_movie(config, movie, best, transmission, library, history, notifier, created)
@@ -768,6 +776,7 @@ async def run_series_cycle(config, series_library, search_service, transmission,
                 qualities=profile.qualities,
                 min_seeders=profile.min_seeders,
                 blacklist=blacklist,
+                max_episode_size=profile.max_episode_size,
             )
             for r, covered in picks:
                 if remaining is not None and not (covered & remaining):
@@ -791,6 +800,7 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             min_seeders=profile.min_seeders,
             blacklist=blacklist,
             upgrades=profile.upgrades,
+            max_episode_size=profile.max_episode_size,
         )
         for r, covered in replacements:
             if covered & set(newly):

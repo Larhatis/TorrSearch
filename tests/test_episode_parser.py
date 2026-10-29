@@ -79,7 +79,7 @@ def test_build_tv_download_dir_single_season():
     # Season pack
     assert build_tv_download_dir("/downloads/disk2", "Paolo", {"S02"}) == "/downloads/disk2/Paolo/Saison 02"
     # No base dir (relative path)
-    assert build_tv_download_dir(None, "Paolo", {"S01E01"}) == "Paolo/Saison 01"
+    assert build_tv_download_dir(None, "Paolo", {"S01E01"}) is None
 
 
 def test_build_tv_download_dir_multi_season():

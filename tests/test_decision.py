@@ -146,3 +146,33 @@ def test_select_series_releases_drops_singles_made_redundant_by_a_pack():
     )
     assert [r.title for r, _ in picks] == [pack.title]
     assert picks[0][1] == missing
+
+
+def test_movie_over_size_cap_is_rejected():
+    big = _make_result("Dune.2021.MULTi.2160p.WEB-A", size=27_000_000_000, infohash="big")
+    small = _make_result("Dune.2021.MULTi.2160p.WEB-B", size=8_000_000_000, infohash="small")
+    pick = select_best_movie_release([big, small], target_title="Dune", target_year=2021,
+                                     qualities=["2160p"], max_size=20_000_000_000)
+    assert pick is small
+    assert select_best_movie_release([big], target_title="Dune", target_year=2021,
+                                     qualities=["2160p"], max_size=20_000_000_000) is None
+
+
+def test_series_cap_is_per_episode_for_season_packs():
+    missing = {f"S01E{i:02d}" for i in range(1, 11)}
+    pack = _ep_result("MobLand.S01.MULTi.2160p.WEB-BATGirl", 18_700_000_000)  # ~1.9 Go / episode
+    picks = select_series_releases([pack], target_title="MobLand", missing_episodes=missing,
+                                   qualities=["2160p"], max_episode_size=5_000_000_000)
+    assert [r.title for r, _ in picks] == [pack.title]
+
+    huge_single = _ep_result("MobLand.S01E01.MULTi.2160p.REMUX-X", 12_000_000_000)
+    assert select_series_releases([huge_single], target_title="MobLand", missing_episodes={"S01E01"},
+                                  qualities=["2160p"], max_episode_size=5_000_000_000) == []
+
+
+def test_season_pack_without_tmdb_counts_a_typical_season():
+    from torsearch.search.decision import _episode_count
+
+    assert _episode_count({"S01"}, {"S01E01"}, aired_known=False) == 10
+    assert _episode_count({"S01"}, {f"S01E{i:02d}" for i in range(1, 9)}, aired_known=True) == 8
+    assert _episode_count({"S01E01", "S01E02"}, set()) == 2

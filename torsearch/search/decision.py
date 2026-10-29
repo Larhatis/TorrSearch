@@ -42,10 +42,14 @@ def evaluate_release(
     qualities: list[str] | None = None,
     min_seeders: int = 1,
     blacklist: Any = None,
+    max_size: int | None = None,
 ) -> ReleaseEvaluation:
     """Evaluate whether a search result is acceptable for auto-grab and rank it."""
     if result.seeders < min_seeders:
         return ReleaseEvaluation(acceptable=False, rejection_reason="low_seeders")
+
+    if max_size and result.size > max_size:
+        return ReleaseEvaluation(acceptable=False, rejection_reason="too_large")
 
     if blacklist is not None and blacklist.is_blacklisted(result.infohash, result.title):
         return ReleaseEvaluation(acceptable=False, rejection_reason="blacklisted")
@@ -113,6 +117,7 @@ def select_best_movie_release(
     min_seeders: int = 1,
     blacklist: Any = None,
     current_quality: str | None = None,
+    max_size: int | None = None,
 ) -> SearchResult | None:
     """Pick the single best movie release according to preferences and quality rankings."""
     candidates: list[tuple[SearchResult, ReleaseEvaluation]] = []
@@ -127,6 +132,7 @@ def select_best_movie_release(
             qualities=qualities,
             min_seeders=min_seeders,
             blacklist=blacklist,
+            max_size=max_size,
         )
         if not ev.acceptable:
             continue
@@ -165,6 +171,7 @@ def select_series_releases(
     qualities: list[str] | None = None,
     min_seeders: int = 1,
     blacklist: Any = None,
+    max_episode_size: int | None = None,
 ) -> list[tuple[SearchResult, set[str]]]:
     """Select the best combination of torrents covering missing episodes.
 
@@ -188,6 +195,10 @@ def select_series_releases(
             blacklist=blacklist,
         )
         if ev.acceptable and ev.parsed and ev.parsed.episodes:
+            known = set(missing_episodes or ()) | set(have_episodes or ())
+            per_episode = r.size / _episode_count(ev.parsed.episodes, known, aired_known=missing_episodes is not None)
+            if max_episode_size and per_episode > max_episode_size:
+                continue
             evaluations.append((r, ev))
 
     target_missing = set(missing_episodes) if missing_episodes is not None else None
@@ -229,6 +240,20 @@ def select_series_releases(
                 break
 
     return _drop_redundant(picks, evaluations, missing_episodes, have_episodes)
+
+
+_DEFAULT_SEASON_LENGTH = 10
+
+
+def _episode_count(keys: set[str], known: set[str], aired_known: bool = True) -> int:
+    """Episodes in a release: its ``SxxEyy`` keys, or for a season pack the season's known
+    episodes (aired/missing/have). Without TMDB (``aired_known`` False) only what we have is
+    known, so a typical season length is the floor."""
+    count = sum(1 for k in keys if "E" in k)
+    for season in (k for k in keys if len(k) == 3):
+        in_season = sum(1 for e in known if e.startswith(season + "E"))
+        count += in_season if aired_known and in_season else max(in_season, _DEFAULT_SEASON_LENGTH)
+    return max(count, 1)
 
 
 def _drop_redundant(
@@ -323,6 +348,7 @@ def select_series_replacements(
     min_seeders: int = 1,
     blacklist: Any = None,
     upgrades: bool = False,
+    max_episode_size: int | None = None,
 ) -> list[tuple[SearchResult, set[str]]]:
     """Releases replacing already grabbed episodes (``previous``: episode -> (title, at)).
 
@@ -349,6 +375,8 @@ def select_series_replacements(
         assert ev.parsed is not None
         eps = {e for e in ev.parsed.episodes if "E" in e}
         if not eps or eps & covered_all or not eps <= previous.keys():
+            continue
+        if max_episode_size and r.size / len(eps) > max_episode_size:
             continue
         if all(
             replacement_reason(ev.parsed, *previous[e], now, qualities, upgrades) for e in eps

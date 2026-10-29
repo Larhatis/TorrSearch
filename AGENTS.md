@@ -21,10 +21,22 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.4.2)
+## 2. État actuel (v0.5.0)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Chantier 6 — rangement et garde-fous (v0.5.0) :
+  - Chaque film va dans `Titre (Année) [tmdbid-N]/` sous le dossier Films
+    (`episodes.build_movie_download_dir`, « : » → « - »), reconnu tel quel par Jellyfin.
+  - Téléchargement manuel (`/download`) : `library/linking.py` range la release comme la
+    surveillance (dossier film ou `Série/Saison XX`) et, si elle correspond à une œuvre
+    surveillée, la marque acquise + entrée d'historique (source « manuel »).
+  - Plafonds de taille du profil : `max_movie_gb` et `max_episode_gb`, **0 par défaut = sans
+    limite** (opt-in) ; un pack de saison est jugé au poids moyen par épisode
+    (`decision._episode_count`, saison de 10 épisodes par défaut sans TMDB).
+  - Dossiers : sans dossier configuré, `None` (dossier par défaut de Transmission, qui refuse
+    les chemins relatifs) ; l'année d'un film n'est gardée que si c'est `AAAA` et le nom
+    entier est re-nettoyé (pas de traversée via une année saisie par un utilisateur).
 - Correctifs v0.4.1 (constatés en production) :
   - `transmission-rpc` 7 expose `added_date` (pas `date_added`) : la date d'ajout était
     toujours vide, donc la purge des torrents « bloqués » supprimait (données comprises) et
@@ -114,7 +126,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **642 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **656 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
