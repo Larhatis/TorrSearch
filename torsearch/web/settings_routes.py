@@ -186,6 +186,8 @@ async def update_library(
     upgrades: str | None = Form(None),
     max_movie_gb: str = Form(""),
     max_episode_gb: str = Form(""),
+    accept_vostfr: str | None = Form(None),
+    exclude_words: str = Form(""),
 ):
     ctx: AppContext = request.app.state.ctx
     current = ctx.config.library
@@ -196,6 +198,8 @@ async def update_library(
             upgrades=upgrades is not None,
             max_movie_gb=max_movie_gb.strip().replace(",", ".") or current.max_movie_gb,
             max_episode_gb=max_episode_gb.strip().replace(",", ".") or current.max_episode_gb,
+            accept_vostfr=accept_vostfr is not None,
+            exclude_words=[w.strip().lower() for w in exclude_words.split(",") if w.strip()],
         )
         ctx.update_settings(set_library(ctx.config, profile))
         return _toast(request, True, "Profil bibliotheque enregistre.")

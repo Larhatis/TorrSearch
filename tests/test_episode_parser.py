@@ -115,3 +115,28 @@ def test_find_episodes_on_disk(tmp_path):
     found = find_episodes_on_disk(str(tv_dir), "Lanterns")
     assert found == {"S01E01", "S01E02"}
 
+
+
+def test_multi_season_packs():
+    assert parse_episodes("Breaking.Bad.S01-S05.MULTi.1080p.BluRay-X") == {"S01", "S02", "S03", "S04", "S05"}
+    assert parse_episodes("The.Office.US.S01-09.1080p.WEB") == {f"S{i:02d}" for i in range(1, 10)}
+    assert parse_episodes("South Park - L'Integrale S01 a S28 [MULTI] 1080p") == {f"S{i:02d}" for i in range(1, 29)}
+    assert parse_episodes("Lost.Saison.1.a.6.FRENCH.DVDRip") == {f"S{i:02d}" for i in range(1, 7)}
+    assert parse_episodes("Show.S01.S02.S03.MULTi.1080p") == {"S01", "S02", "S03"}
+
+
+def test_multi_season_does_not_eat_resolution_or_year():
+    assert parse_episodes("Show.S01-1080p.WEB") == {"S01"}
+    assert parse_episodes("Show.S02.2024.1080p") == {"S02"}
+    assert parse_episodes("Show.S03-S01.1080p") == {"S01", "S03"}  # inverted range: read as a list
+
+
+def test_titles_that_are_not_season_ranges():
+    assert parse_episodes("The Boys S02 - 4K HDR MULTI") == {"S02"}
+    assert parse_episodes("The Boys Saison 2 - 4K") == {"S02"}
+    assert parse_episodes("Show S2 - 12 VOSTFR") == {"S02"}
+    assert parse_episodes("Show.S01-10bits.1080p") == {"S01"}
+    assert parse_episodes("Show S05 - 6CH") == {"S05"}
+    assert parse_episodes("Dark.S02.MULTi.1080p.BluRay.DTS5.1-GRP") == {"S02"}
+    assert parse_episodes("Dark.S02.MULTi.1080p.Atmos7.1.DTS51-GRP") == {"S02"}
+    assert parse_episodes("Movie.2019.MULTi.1080p.BluRay.DTS5.1-GRP") == set()

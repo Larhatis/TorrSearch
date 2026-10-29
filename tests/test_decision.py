@@ -176,3 +176,49 @@ def test_season_pack_without_tmdb_counts_a_typical_season():
     assert _episode_count({"S01"}, {"S01E01"}, aired_known=False) == 10
     assert _episode_count({"S01"}, {f"S01E{i:02d}" for i in range(1, 9)}, aired_known=True) == 8
     assert _episode_count({"S01E01", "S01E02"}, set()) == 2
+
+
+def test_rules_reject_vostfr_and_excluded_words():
+    from torsearch.search.decision import ReleaseRules
+
+    vostfr = _make_result("The.Odyssey.2026.VOSTFR.1080p.WEB-X", infohash="v")
+    stv = _make_result("The.Odyssey.2026.STV.MULTi.1080p.WEB-X", infohash="s")
+    good = _make_result("The.Odyssey.2026.MULTi.1080p.WEB-X", infohash="g")
+    strict = ReleaseRules(accept_vostfr=False, exclude_words=("stv",))
+
+    assert evaluate_release(vostfr, "The Odyssey", target_year=2026, rules=strict).rejection_reason == "vostfr_refused"
+    assert evaluate_release(stv, "The Odyssey", target_year=2026, rules=strict).rejection_reason == "excluded_word:stv"
+    assert evaluate_release(good, "The Odyssey", target_year=2026, rules=strict).acceptable
+    assert evaluate_release(vostfr, "The Odyssey", target_year=2026).acceptable  # default: accepted
+    assert select_best_movie_release([vostfr, stv, good], "The Odyssey", target_year=2026, rules=strict) is good
+
+
+def test_excluded_words_match_whole_words_only():
+    from torsearch.search.decision import ReleaseRules
+
+    rules = ReleaseRules(exclude_words=("ts", "hc sub"))
+    assert evaluate_release(_make_result("Rush.2013.MULTi.1080p.BluRay-TSUNAMI", infohash="a"), "Rush",
+                            target_year=2013, rules=rules).acceptable
+    assert not evaluate_release(_make_result("Rush.2013.HC.SUB.1080p.WEB-X", infohash="b"), "Rush",
+                                target_year=2013, rules=rules).acceptable
+
+
+def test_multi_season_pack_is_judged_per_episode_over_all_its_seasons():
+    missing = {f"S{s:02d}E{e:02d}" for s in range(1, 6) for e in range(1, 11)}
+    pack = _ep_result("Breaking.Bad.S01-S05.MULTi.1080p.BluRay-X", 150_000_000_000)  # 3 Go / episode
+    picks = select_series_releases([pack], target_title="Breaking Bad", missing_episodes=missing,
+                                   qualities=["1080p"], max_episode_size=5_000_000_000)
+    assert [r.title for r, _ in picks] == [pack.title]
+    assert picks[0][1] == missing
+
+
+def test_excluded_words_split_on_any_punctuation_and_vost_variants():
+    from torsearch.search.decision import ReleaseRules
+
+    rules = ReleaseRules(accept_vostfr=False, exclude_words=("stv",))
+    for title in ("Rush.2013.{STV}.1080p.WEB-X", "Rush.2013.1080p.x265&STV-X"):
+        assert evaluate_release(_make_result(title, infohash=title), "Rush", target_year=2013,
+                                rules=rules).rejection_reason == "excluded_word:stv"
+    for title in ("Rush.2013.VOST.FR.1080p.WEB-X", "Rush.2013.VOST-FR.1080p.WEB-X", "Rush.2013.VOST.1080p.WEB-X"):
+        assert evaluate_release(_make_result(title, infohash=title), "Rush", target_year=2013,
+                                rules=rules).rejection_reason == "vostfr_refused"

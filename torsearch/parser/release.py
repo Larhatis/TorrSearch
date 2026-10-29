@@ -40,7 +40,7 @@ _LANGUAGE_PATTERNS = [
     ("vff", re.compile(r"\b(truefrench|vff)\b", re.IGNORECASE)),
     ("vfq", re.compile(r"\b(vfq)\b", re.IGNORECASE)),
     ("vf", re.compile(r"\b(french|vf|vof)\b", re.IGNORECASE)),
-    ("vostfr", re.compile(r"\b(vostfr|subfrench)\b", re.IGNORECASE)),
+    ("vostfr", re.compile(r"\b(vost(?:[ ._-]?fr)?|subfrench)\b", re.IGNORECASE)),
     ("vo", re.compile(r"\b(english|eng|vo)\b", re.IGNORECASE)),
 ]
 

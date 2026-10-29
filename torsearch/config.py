@@ -92,6 +92,9 @@ class LibraryConfig(BaseModel):
     # Size caps in GB (0 = no limit); season packs are judged per episode.
     max_movie_gb: float = Field(default=0.0, ge=0, le=10000, allow_inf_nan=False)
     max_episode_gb: float = Field(default=0.0, ge=0, le=10000, allow_inf_nan=False)
+    accept_vostfr: bool = True
+    # Words (or short phrases) that reject a release, e.g. "stv", "hc sub".
+    exclude_words: list[str] = Field(default_factory=list)
 
     @property
     def max_movie_size(self) -> int | None:

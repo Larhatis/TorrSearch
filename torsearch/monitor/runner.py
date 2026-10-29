@@ -18,6 +18,7 @@ from torsearch.monitor.schedule import (
 )
 from torsearch.notifications.notifier import Notifier
 from torsearch.search.decision import (
+    ReleaseRules,
     evaluate_release,
     replacement_reason,
     select_best_movie_release,
@@ -492,7 +493,7 @@ def _movie_repack(movie, feed: list[SearchResult], profile, blacklist, now: date
         ev = evaluate_release(
             r, target_title=movie.title, target_original_title=movie.original_title,
             target_year=movie.year, qualities=profile.qualities, min_seeders=profile.min_seeders,
-            blacklist=blacklist, max_size=profile.max_movie_size,
+            blacklist=blacklist, max_size=profile.max_movie_size, rules=ReleaseRules.from_profile(profile),
         )
         if not ev.acceptable or ev.parsed is None:
             continue
@@ -580,6 +581,7 @@ async def run_movie_cycle(config, library, search_service, transmission, history
                 min_seeders=profile.min_seeders,
                 blacklist=blacklist,
                 max_size=profile.max_movie_size,
+                rules=ReleaseRules.from_profile(profile),
             )
             if pick is not None:
                 await _grab_movie(config, movie, pick, transmission, library, history, notifier, created)
@@ -601,6 +603,7 @@ async def run_movie_cycle(config, library, search_service, transmission, history
                 blacklist=blacklist,
                 current_quality=curr_q,
                 max_size=profile.max_movie_size,
+                rules=ReleaseRules.from_profile(profile),
             )
             if best is not None:
                 await _grab_movie(config, movie, best, transmission, library, history, notifier, created)
@@ -777,6 +780,7 @@ async def run_series_cycle(config, series_library, search_service, transmission,
                 min_seeders=profile.min_seeders,
                 blacklist=blacklist,
                 max_episode_size=profile.max_episode_size,
+                rules=ReleaseRules.from_profile(profile),
             )
             for r, covered in picks:
                 if remaining is not None and not (covered & remaining):
@@ -801,6 +805,7 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             blacklist=blacklist,
             upgrades=profile.upgrades,
             max_episode_size=profile.max_episode_size,
+            rules=ReleaseRules.from_profile(profile),
         )
         for r, covered in replacements:
             if covered & set(newly):
