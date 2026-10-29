@@ -21,10 +21,20 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.7.1)
+## 2. État actuel (v0.8.0)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Chantier 9 (v0.8.0) :
+  - Découvrir : raccourcis Tendances / Bientôt au cinéma (`TmdbClient.upcoming`, région FR) /
+    Pour toi (`recommendations` des 3 derniers ajouts, sans ce qui est déjà surveillé, demandé
+    ou dans Jellyfin) et filtres type + genre (`genres`, mis en cache) + année (`discover`).
+    Cartes partagées dans `partials/media_cards.html`.
+  - Abonnement iCal : `/calendar.ics?token=…` (route publique de l'auth, protégée par un jeton
+    gardé en base, collection `app_secrets`, régénérable par l'admin) → `library.calendar.build_ics`.
+  - Clés des trackers masquées aux membres : voir règle §6.8.
+  - Tests de contrat `tests/test_transmission_contract.py` sur de **vrais** `transmission_rpc.Torrent`
+    (champ absent = `KeyError` géré par `_field`, `hash_string` au lieu de `hashString` obsolète).
 - v0.7.1 — affichage téléphone : `html, body { overflow-x: clip }` + `overflow-wrap: anywhere`
   sur `main` (un nom de release ne peut plus élargir la page ni repousser la barre du bas hors
   écran), historique et canaux de notification sur plusieurs lignes, menus déroulants opaques
@@ -158,7 +168,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **687 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **708 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
