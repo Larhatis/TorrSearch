@@ -37,6 +37,16 @@ class Database:
     def collection(self, name: str) -> Collection:
         return Collection(self, name)
 
+    def backup_to(self, target: str | Path) -> None:
+        """Consistent copy of the whole database (safe while the app writes, WAL included)."""
+        src = self._connect()
+        dst = sqlite3.connect(str(target))
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+            src.close()
+
 
 class Collection:
     def __init__(self, db: Database, name: str):

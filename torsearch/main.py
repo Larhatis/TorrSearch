@@ -5,6 +5,7 @@ import os
 
 from fastapi import FastAPI
 
+from torsearch import logbuffer
 from torsearch.context import AppContext
 from torsearch.db.database import Database
 from torsearch.library.blacklist import Blacklist
@@ -60,7 +61,9 @@ def build_app(
     library = MovieLibrary(db.collection("movies"), migrate_from=library_path)
     series_library = SeriesLibrary(db.collection("series"), migrate_from=series_path)
     blacklist = Blacklist(db.collection("blacklist"))
-    auth = AuthSettings.from_env()
+    log_handler = logbuffer.install()
+    # The session key lives next to the database, i.e. in the /data volume under Docker.
+    auth = AuthSettings.from_env(data_dir=os.path.dirname(db_path) or ".")
     users = UserStore(db.collection("users"), migrate_from=users_path)
     if auth.enabled:
         _warn_if_weak_admin_password(auth.username, auth.password)
@@ -74,7 +77,7 @@ def build_app(
     return create_app(
         ctx, history=history, monitor=monitor, auth=auth,
         library=library, series_library=series_library, users=users,
-        requests_store=requests_store, blacklist=blacklist,
+        requests_store=requests_store, blacklist=blacklist, db=db, log_handler=log_handler,
     )
 
 

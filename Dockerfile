@@ -21,5 +21,8 @@ COPY deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 8000
+# Python-only probe: the slim image ships neither curl nor wget.
+HEALTHCHECK --interval=60s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4)" || exit 1
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["uvicorn", "torsearch.main:get_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

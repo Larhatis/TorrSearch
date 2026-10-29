@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import logging
 import os
+import tempfile
+from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import ValidationError
 
 from torsearch.config import (
@@ -385,3 +389,33 @@ async def test_notification(request: Request, name: str):
         return _toast(request, False, "Canal introuvable.")
     ok, message = await Notifier().test(channel)
     return _toast(request, ok, f"{name} : {message}")
+
+
+@settings_router.get("/settings/backup")
+async def settings_backup(request: Request):
+    db = getattr(request.app.state, "db", None)
+    if db is None:
+        return Response("Sauvegarde indisponible.", status_code=404)
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "backup.db"
+        db.backup_to(target)
+        content = target.read_bytes()
+    filename = f"torsearch-{datetime.now():%Y%m%d-%H%M}.db"
+    return Response(
+        content,
+        media_type="application/vnd.sqlite3",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+_LOG_LEVELS = {"info": logging.INFO, "warning": logging.WARNING, "error": logging.ERROR}
+
+
+@settings_router.get("/settings/journal", response_class=HTMLResponse)
+async def settings_journal(request: Request, level: str = "info"):
+    handler = getattr(request.app.state, "log_handler", None)
+    level = level if level in _LOG_LEVELS else "info"
+    entries = handler.entries(_LOG_LEVELS[level]) if handler is not None else []
+    return templates.TemplateResponse(
+        request, "journal.html", {"entries": entries, "level": level, "enabled": handler is not None},
+    )
