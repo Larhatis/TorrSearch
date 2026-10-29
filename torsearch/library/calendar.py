@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -101,3 +101,51 @@ async def build_calendar(
         (day, sorted(by_day[day], key=lambda e: (e.kind, e.title, e.detail)))
         for day in sorted(by_day)
     ]
+
+
+def _ics_escape(text: str) -> str:
+    return (text.replace("\\", "\\\\").replace(";", "\;").replace(",", "\\,")
+            .replace("\r", "").replace("\n", "\\n"))
+
+
+def _fold(line: str) -> list[str]:
+    """RFC 5545: lines of at most 75 octets, continuations start with a space."""
+    out: list[str] = []
+    current = ""
+    for ch in line:
+        limit = 75 if not out else 74
+        if len((current + ch).encode()) > limit:
+            out.append(current)
+            current = ch
+        else:
+            current += ch
+    out.append(current)
+    return [out[0]] + [" " + part for part in out[1:]]
+
+
+def build_ics(days: list[tuple[date, list[CalendarEntry]]], now: datetime | None = None) -> str:
+    """The "A venir" calendar as an iCalendar feed (all-day events), for phone calendars."""
+    import hashlib
+
+    stamp = (now or datetime.now(UTC)).strftime("%Y%m%dT%H%M%SZ")
+    lines = [
+        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//TorrSearch//A venir//FR",
+        "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:TorrSearch - A venir",
+    ]
+    status_label = {"acquired": "Acquis", "missing": "En recherche", "upcoming": "A venir"}
+    for day, entries in days:
+        for e in entries:
+            uid = hashlib.sha1(f"{e.link}|{e.detail}".encode()).hexdigest()[:20]
+            lines += [
+                "BEGIN:VEVENT",
+                f"UID:{uid}@torrsearch",
+                f"DTSTAMP:{stamp}",
+                f"DTSTART;VALUE=DATE:{day:%Y%m%d}",
+                f"DTEND;VALUE=DATE:{day + timedelta(days=1):%Y%m%d}",
+                f"SUMMARY:{_ics_escape(e.title)} · {_ics_escape(e.detail)}",
+                f"DESCRIPTION:{_ics_escape(status_label.get(e.status, e.status))}",
+                "TRANSP:TRANSPARENT",
+                "END:VEVENT",
+            ]
+    lines.append("END:VCALENDAR")
+    return "".join(f"{part}\r\n" for line in lines for part in _fold(line))

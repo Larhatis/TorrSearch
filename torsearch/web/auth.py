@@ -122,7 +122,7 @@ class CrossSiteGuardMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-_PUBLIC_PATHS = {"/login", "/logout", "/healthz"}
+_PUBLIC_PATHS = {"/login", "/logout", "/healthz", "/calendar.ics"}  # .ics: checks its own token
 _PUBLIC_PREFIXES = ("/static/",)
 
 
