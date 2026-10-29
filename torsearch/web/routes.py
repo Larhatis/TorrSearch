@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, Depends, FastAPI, Form, Query, Request
@@ -33,6 +34,8 @@ from torsearch.web.series_routes import series_router
 from torsearch.web.settings_routes import settings_router
 from torsearch.web.surveillance_routes import surveillance_router
 from torsearch.web.templating import STATIC_DIR, templates
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -178,9 +181,12 @@ async def download(
     except Exception as exc:
         message, ok = f"Erreur Transmission : {redact(str(exc))}", False
     if ok and grab.watched_title:
-        record_manual_grab(grab, download_url, library, series_library,
-                           getattr(request.app.state, "history", None))
-        message += f" · marque acquis dans la surveillance ({grab.watched_title})"
+        try:
+            record_manual_grab(grab, download_url, library, series_library,
+                               getattr(request.app.state, "history", None))
+            message += f" · marque acquis dans la surveillance ({grab.watched_title})"
+        except Exception as exc:  # the torrent is added: never turn that into an error page
+            logger.warning("Manual grab bookkeeping for '%s' failed: %s", title, exc)
     return templates.TemplateResponse(request, "partials/toast.html", {"ok": ok, "message": message})
 
 

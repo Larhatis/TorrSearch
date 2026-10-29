@@ -113,29 +113,37 @@ def build_tv_download_dir(
         sub_path = clean_series
 
     if not base_dir:
-        return sub_path
+        return None  # Transmission's default folder (relative paths are refused)
 
     clean_base = base_dir.rstrip("/\\")
     return f"{clean_base}/{sub_path}"
 
 
+_YEAR_RE = re.compile(r"^(19|20)\d\d$")
+
+
 def build_movie_download_dir(
     base_dir: str | None, title: str, year: str | int | None, tmdb_id: int | None,
-) -> str:
+) -> str | None:
     """Per-movie folder, Jellyfin/Radarr style: ``Title (Year) [tmdbid-N]``.
 
     Example: "/films", "Spider-Man : Brand New Day", 2026, 969681
     -> "/films/Spider-Man - Brand New Day (2026) [tmdbid-969681]"
+
+    Without a configured base folder, None (Transmission's default folder): Transmission 4
+    refuses relative paths. The year comes from user input: only a plain 4-digit year is
+    kept, and the whole name is sanitized again so nothing can escape the base folder.
     """
+    if not base_dir:
+        return None
     name = re.sub(r"\s*:\s*", " - ", title.strip())
     name = sanitize_folder_name(name)
-    if year:
-        name = f"{name} ({year})"
+    year_str = str(year).strip() if year is not None else ""
+    if _YEAR_RE.match(year_str):
+        name = f"{name} ({year_str})"
     if tmdb_id:
-        name = f"{name} [tmdbid-{tmdb_id}]"
-    if not base_dir:
-        return name
-    return f"{base_dir.rstrip('/\\')}/{name}"
+        name = f"{name} [tmdbid-{int(tmdb_id)}]"
+    return f"{base_dir.rstrip('/\\')}/{sanitize_folder_name(name)}"
 
 
 VIDEO_EXTENSIONS = {".mkv", ".mp4", ".avi", ".ts", ".m4v", ".mov"}

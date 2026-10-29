@@ -168,3 +168,11 @@ def test_series_cap_is_per_episode_for_season_packs():
     huge_single = _ep_result("MobLand.S01E01.MULTi.2160p.REMUX-X", 12_000_000_000)
     assert select_series_releases([huge_single], target_title="MobLand", missing_episodes={"S01E01"},
                                   qualities=["2160p"], max_episode_size=5_000_000_000) == []
+
+
+def test_season_pack_without_tmdb_counts_a_typical_season():
+    from torsearch.search.decision import _episode_count
+
+    assert _episode_count({"S01"}, {"S01E01"}, aired_known=False) == 10
+    assert _episode_count({"S01"}, {f"S01E{i:02d}" for i in range(1, 9)}, aired_known=True) == 8
+    assert _episode_count({"S01E01", "S01E02"}, set()) == 2

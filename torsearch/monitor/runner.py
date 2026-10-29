@@ -584,7 +584,10 @@ async def run_movie_cycle(config, library, search_service, transmission, history
             if pick is not None:
                 await _grab_movie(config, movie, pick, transmission, library, history, notifier, created)
             elif searched:
-                logger.info("Film %s : %d resultat(s), aucun acceptable", queries[0], len(all_results))
+                cap = profile.max_movie_size
+                too_big = sum(1 for r in all_results if cap and r.size > cap)
+                logger.info("Film %s : %d resultat(s), aucun acceptable%s", queries[0], len(all_results),
+                            f" ({too_big} au-dessus de la taille max)" if too_big else "")
         else:
             # Upgrade: strictly better quality
             curr_q = detect_quality(movie.grabbed_title or "")

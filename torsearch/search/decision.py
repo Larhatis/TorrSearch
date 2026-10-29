@@ -196,7 +196,8 @@ def select_series_releases(
         )
         if ev.acceptable and ev.parsed and ev.parsed.episodes:
             known = set(missing_episodes or ()) | set(have_episodes or ())
-            if max_episode_size and r.size / _episode_count(ev.parsed.episodes, known) > max_episode_size:
+            per_episode = r.size / _episode_count(ev.parsed.episodes, known, aired_known=missing_episodes is not None)
+            if max_episode_size and per_episode > max_episode_size:
                 continue
             evaluations.append((r, ev))
 
@@ -244,13 +245,14 @@ def select_series_releases(
 _DEFAULT_SEASON_LENGTH = 10
 
 
-def _episode_count(keys: set[str], known: set[str]) -> int:
+def _episode_count(keys: set[str], known: set[str], aired_known: bool = True) -> int:
     """Episodes in a release: its ``SxxEyy`` keys, or for a season pack the season's known
-    episodes (aired/missing/have), else a typical season length."""
+    episodes (aired/missing/have). Without TMDB (``aired_known`` False) only what we have is
+    known, so a typical season length is the floor."""
     count = sum(1 for k in keys if "E" in k)
     for season in (k for k in keys if len(k) == 3):
         in_season = sum(1 for e in known if e.startswith(season + "E"))
-        count += in_season or _DEFAULT_SEASON_LENGTH
+        count += in_season if aired_known and in_season else max(in_season, _DEFAULT_SEASON_LENGTH)
     return max(count, 1)
 
 

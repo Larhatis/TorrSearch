@@ -429,9 +429,16 @@ def test_settings_page_has_tabs_without_accounts_when_auth_disabled(tmp_path):
 
 def test_library_update_sets_size_caps(tmp_path):
     client, ctx, _ = _client(tmp_path)
-    assert ctx.config.library.max_movie_gb == 20 and ctx.config.library.max_episode_gb == 5
+    assert ctx.config.library.max_movie_size is None  # opt-in: no cap by default
     client.post("/settings/library", data={"quality": ["1080p"], "min_seeders": "1",
                                            "max_movie_gb": "15", "max_episode_gb": "0"})
     assert ctx.config.library.max_movie_size == 15_000_000_000
     assert ctx.config.library.max_episode_size is None  # 0 = no limit
     assert 'name="max_movie_gb"' in client.get("/settings").text
+
+
+def test_library_size_cap_rejects_infinity(tmp_path):
+    client, ctx, _ = _client(tmp_path)
+    resp = client.post("/settings/library", data={"quality": ["1080p"], "min_seeders": "1", "max_movie_gb": "inf"})
+    assert "Erreur" in resp.text
+    assert ctx.config.library.max_movie_size is None

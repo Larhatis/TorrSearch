@@ -78,3 +78,22 @@ def test_failed_download_marks_nothing(tmp_path):
     _download(client, "The.Dog.Stars.2026.MULTi.VFQ.1080p.WEBRip.x265-GL0P")
     assert movies.get(1384216).status == "wanted"
     assert history.records() == []
+
+
+def test_tv_category_without_episode_keys_goes_to_its_series_folder(tmp_path):
+    client, tx, _, series, _ = _setup(tmp_path)
+    _download(client, "The.Office.US.Integrale.MULTi.1080p.WEB", category="tv")
+    assert tx.dirs == ["/series/The Office US Integrale"]
+
+
+def test_older_show_with_same_name_is_not_marked(tmp_path):
+    client, tx, _, series, _ = _setup(tmp_path)
+    series.add(WantedSeries(tmdb_id=126308, title="Shogun", year="2024", added_at=datetime.now(UTC)))
+    _download(client, "Shogun.1980.S01.MULTi.1080p.WEB-X", category="tv")
+    assert series.get(126308).grabbed == []
+
+
+def test_release_without_year_does_not_mark_a_movie(tmp_path):
+    client, _, movies, _, _ = _setup(tmp_path)
+    _download(client, "The.Dog.Stars.MULTi.1080p.WEB-X")
+    assert movies.get(1384216).status == "wanted"

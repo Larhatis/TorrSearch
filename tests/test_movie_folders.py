@@ -16,7 +16,10 @@ def test_movie_folder_follows_jellyfin_convention():
         "/downloads/disk1/Films/Spider-Man - Brand New Day (2026) [tmdbid-969681]"
     )
     assert build_movie_download_dir("/films/", "Heat", None, 949) == "/films/Heat [tmdbid-949]"
-    assert build_movie_download_dir(None, "Dune: Part Two", "2024", None) == "Dune - Part Two (2024)"
+    assert build_movie_download_dir("/f", "Dune: Part Two", "2024", None) == "/f/Dune - Part Two (2024)"
+    assert build_movie_download_dir(None, "Dune", "2024", 1) is None
+    assert build_movie_download_dir("/films", "Avatar", "2009/../../../../srv/x", 1) == "/films/Avatar [tmdbid-1]"
+    assert build_movie_download_dir("/films", "..", None, None) == "/films/Unknown"
     assert build_movie_download_dir("/f", 'Who? "Me" / You', "2020", 1) == "/f/Who Me You (2020) [tmdbid-1]"
 
 

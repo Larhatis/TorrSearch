@@ -31,8 +31,12 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
   - Téléchargement manuel (`/download`) : `library/linking.py` range la release comme la
     surveillance (dossier film ou `Série/Saison XX`) et, si elle correspond à une œuvre
     surveillée, la marque acquise + entrée d'historique (source « manuel »).
-  - Plafonds de taille du profil : `max_movie_gb` (20) et `max_episode_gb` (5), 0 = sans
-    limite ; un pack de saison est jugé au poids moyen par épisode (`decision._episode_count`).
+  - Plafonds de taille du profil : `max_movie_gb` et `max_episode_gb`, **0 par défaut = sans
+    limite** (opt-in) ; un pack de saison est jugé au poids moyen par épisode
+    (`decision._episode_count`, saison de 10 épisodes par défaut sans TMDB).
+  - Dossiers : sans dossier configuré, `None` (dossier par défaut de Transmission, qui refuse
+    les chemins relatifs) ; l'année d'un film n'est gardée que si c'est `AAAA` et le nom
+    entier est re-nettoyé (pas de traversée via une année saisie par un utilisateur).
 - Correctifs v0.4.1 (constatés en production) :
   - `transmission-rpc` 7 expose `added_date` (pas `date_added`) : la date d'ajout était
     toujours vide, donc la purge des torrents « bloqués » supprimait (données comprises) et
@@ -122,7 +126,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **651 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **656 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

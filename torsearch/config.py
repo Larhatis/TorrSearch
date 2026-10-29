@@ -90,8 +90,8 @@ class LibraryConfig(BaseModel):
     min_seeders: int = 1
     upgrades: bool = False
     # Size caps in GB (0 = no limit); season packs are judged per episode.
-    max_movie_gb: float = Field(default=20.0, ge=0)
-    max_episode_gb: float = Field(default=5.0, ge=0)
+    max_movie_gb: float = Field(default=0.0, ge=0, le=10000, allow_inf_nan=False)
+    max_episode_gb: float = Field(default=0.0, ge=0, le=10000, allow_inf_nan=False)
 
     @property
     def max_movie_size(self) -> int | None:
