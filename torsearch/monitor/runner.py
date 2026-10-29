@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import UTC, date, datetime, timedelta
 
-from torsearch.library.episodes import build_tv_download_dir, parse_episodes
+from torsearch.library.episodes import build_movie_download_dir, build_tv_download_dir, parse_episodes
 from torsearch.models import Category, SearchResult
 from torsearch.monitor.history import MonitorRecord
 from torsearch.monitor.schedule import (
@@ -446,8 +446,11 @@ def _movie_needs_grab(movie, jellyfin, owned_map, now, window) -> bool:
 
 
 async def _grab_movie(config, movie, pick, transmission, library, history, notifier, created) -> None:
+    download_dir = build_movie_download_dir(
+        config.paths.for_category(Category.MOVIES), movie.title, movie.year, movie.tmdb_id,
+    )
     try:
-        await transmission.add(pick.download_url, download_dir=config.paths.for_category(Category.MOVIES))
+        await transmission.add(pick.download_url, download_dir=download_dir)
     except Exception as exc:
         logger.warning("Movie grab '%s' failed: %s", movie.title, exc)
         return

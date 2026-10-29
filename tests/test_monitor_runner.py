@@ -315,7 +315,7 @@ async def test_movie_cycle_uses_movies_path(tmp_path):
     tr = FakeTransmission()
     await run_movie_cycle(cfg, lib, FakeSearch([_r("Dune.2024.1080p", infohash="X")]),
                           tr, MonitorHistory(tmp_path / "m.json"))
-    assert tr.dirs == ["/data/films"]
+    assert tr.dirs == ["/data/films/Dune (2024) [tmdbid-1]"]
 
 
 async def test_series_cycle_uses_tv_path(tmp_path):

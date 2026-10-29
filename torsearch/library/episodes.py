@@ -119,6 +119,25 @@ def build_tv_download_dir(
     return f"{clean_base}/{sub_path}"
 
 
+def build_movie_download_dir(
+    base_dir: str | None, title: str, year: str | int | None, tmdb_id: int | None,
+) -> str:
+    """Per-movie folder, Jellyfin/Radarr style: ``Title (Year) [tmdbid-N]``.
+
+    Example: "/films", "Spider-Man : Brand New Day", 2026, 969681
+    -> "/films/Spider-Man - Brand New Day (2026) [tmdbid-969681]"
+    """
+    name = re.sub(r"\s*:\s*", " - ", title.strip())
+    name = sanitize_folder_name(name)
+    if year:
+        name = f"{name} ({year})"
+    if tmdb_id:
+        name = f"{name} [tmdbid-{tmdb_id}]"
+    if not base_dir:
+        return name
+    return f"{base_dir.rstrip('/\\')}/{name}"
+
+
 VIDEO_EXTENSIONS = {".mkv", ".mp4", ".avi", ".ts", ".m4v", ".mov"}
 
 
