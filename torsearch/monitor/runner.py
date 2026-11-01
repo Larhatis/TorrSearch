@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 
 from torsearch.library.episodes import build_movie_download_dir, build_tv_download_dir, parse_episodes
 from torsearch.models import Category, SearchResult
+from torsearch.monitor.grabs import AUTO, added_hash
 from torsearch.monitor.history import MonitorRecord
 from torsearch.monitor.schedule import (
     SAVED_SEARCH_INTERVAL,
@@ -34,6 +35,12 @@ logger = logging.getLogger(__name__)
 def grab_key(result: SearchResult) -> str:
     k = result.infohash or result.download_url
     return k.lower() if k else ""
+
+
+def _remember(grabs, added, pick: SearchResult, target: str) -> None:
+    """Record a surveillance grab: only these may ever be purged automatically."""
+    if grabs is not None:
+        grabs.record(added_hash(added) or (pick.infohash or ""), pick.title, AUTO, target)
 
 
 def _targeted_due(schedule: SearchSchedule | None, key: str, interval: timedelta, now: datetime,
@@ -309,7 +316,7 @@ async def run_jellyfin_refresh(transmission, jellyfin, completed_seen: set[int])
 async def run_cycle(
     config, search_service, transmission, history, notifier=None, series_library=None,
     feed: list[SearchResult] | None = None, schedule: SearchSchedule | None = None, force: bool = False,
-    fallback: frozenset[str] = frozenset(),
+    fallback: frozenset[str] = frozenset(), grabs=None,
 ) -> list[MonitorRecord]:
     if not config.monitor.enabled:
         return []
@@ -400,10 +407,11 @@ async def run_cycle(
                 else:
                     download_dir = config.paths.for_category(saved.category)
                 try:
-                    await transmission.add(pick.download_url, download_dir=download_dir)
+                    added = await transmission.add(pick.download_url, download_dir=download_dir)
                 except Exception as exc:
                     logger.warning("Monitor grab for '%s' failed: %s", saved.name, exc)
                     continue
+                _remember(grabs, added, pick, f"saved:{saved.name}")
                 kind = "grabbed"
                 if is_tv and matching_series is not None and series_library is not None:
                     rel_eps = parse_episodes(pick.title)
@@ -446,15 +454,17 @@ def _movie_needs_grab(movie, jellyfin, owned_map, now, window) -> bool:
     return True
 
 
-async def _grab_movie(config, movie, pick, transmission, library, history, notifier, created) -> None:
+async def _grab_movie(config, movie, pick, transmission, library, history, notifier, created,
+                      grabs=None) -> None:
     download_dir = build_movie_download_dir(
         config.paths.for_category(Category.MOVIES), movie.title, movie.year, movie.tmdb_id,
     )
     try:
-        await transmission.add(pick.download_url, download_dir=download_dir)
+        added = await transmission.add(pick.download_url, download_dir=download_dir)
     except Exception as exc:
         logger.warning("Movie grab '%s' failed: %s", movie.title, exc)
         return
+    _remember(grabs, added, pick, f"movie:{movie.tmdb_id}")
     now = datetime.now(UTC)
     library.mark_grabbed(movie.tmdb_id, pick.title, now)
     record = MonitorRecord(
@@ -507,7 +517,8 @@ def _movie_repack(movie, feed: list[SearchResult], profile, blacklist, now: date
 async def run_movie_cycle(config, library, search_service, transmission, history,
                           notifier=None, jellyfin=None, blacklist=None,
                           feed: list[SearchResult] | None = None, schedule: SearchSchedule | None = None,
-                          force: bool = False, fallback: frozenset[str] = frozenset()) -> list[MonitorRecord]:
+                          force: bool = False, fallback: frozenset[str] = frozenset(),
+                          grabs=None) -> list[MonitorRecord]:
     if not config.monitor.enabled or library is None:
         return []
     profile = config.library
@@ -544,7 +555,7 @@ async def run_movie_cycle(config, library, search_service, transmission, history
             repack = _movie_repack(movie, feed, profile, blacklist, now)
             if repack is not None:
                 logger.info("Remplacement (PROPER/REPACK) : %s", repack.title)
-                await _grab_movie(config, movie, repack, transmission, library, history, notifier, created)
+                await _grab_movie(config, movie, repack, transmission, library, history, notifier, created, grabs)
                 continue
         upgrade = not needs and profile.upgrades and movie.status == "grabbed"
         if not needs and not upgrade:
@@ -584,7 +595,7 @@ async def run_movie_cycle(config, library, search_service, transmission, history
                 rules=ReleaseRules.from_profile(profile),
             )
             if pick is not None:
-                await _grab_movie(config, movie, pick, transmission, library, history, notifier, created)
+                await _grab_movie(config, movie, pick, transmission, library, history, notifier, created, grabs)
             elif searched:
                 cap = profile.max_movie_size
                 too_big = sum(1 for r in all_results if cap and r.size > cap)
@@ -606,7 +617,7 @@ async def run_movie_cycle(config, library, search_service, transmission, history
                 rules=ReleaseRules.from_profile(profile),
             )
             if best is not None:
-                await _grab_movie(config, movie, best, transmission, library, history, notifier, created)
+                await _grab_movie(config, movie, best, transmission, library, history, notifier, created, grabs)
     return created
 
 
@@ -717,7 +728,8 @@ async def _series_air_dates(series, tmdb) -> dict[str, str | None]:
 async def run_series_cycle(config, series_library, search_service, transmission, history,
                            notifier=None, jellyfin=None, tmdb=None, blacklist=None,
                            feed: list[SearchResult] | None = None, schedule: SearchSchedule | None = None,
-                           force: bool = False, fallback: frozenset[str] = frozenset()) -> list[MonitorRecord]:
+                           force: bool = False, fallback: frozenset[str] = frozenset(),
+                           grabs=None) -> list[MonitorRecord]:
     if not config.monitor.enabled or series_library is None:
         return []
     profile = config.library
@@ -786,7 +798,7 @@ async def run_series_cycle(config, series_library, search_service, transmission,
                 if remaining is not None and not (covered & remaining):
                     continue
                 if not await _grab_series_release(config, series, r, covered, transmission,
-                                                  history, notifier, created):
+                                                  history, notifier, created, grabs):
                     continue
                 if remaining is not None:
                     remaining -= covered
@@ -811,14 +823,15 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             if covered & set(newly):
                 continue
             logger.info("Remplacement (PROPER/REPACK ou upgrade) : %s", r.title)
-            await _grab_series_release(config, series, r, covered, transmission, history, notifier, created)
+            await _grab_series_release(config, series, r, covered, transmission, history, notifier, created,
+                                       grabs)
         if newly:
             series_library.mark_grabbed(series.tmdb_id, sorted(set(newly)))
     return created
 
 
 async def _grab_series_release(config, series, r: SearchResult, covered: set[str], transmission,
-                               history, notifier, created: list[MonitorRecord]) -> bool:
+                               history, notifier, created: list[MonitorRecord], grabs=None) -> bool:
     download_dir = build_tv_download_dir(
         base_dir=config.paths.for_category(Category.TV),
         series_title=series.title,
@@ -826,10 +839,11 @@ async def _grab_series_release(config, series, r: SearchResult, covered: set[str
         release_title=r.title,
     )
     try:
-        await transmission.add(r.download_url, download_dir=download_dir)
+        added = await transmission.add(r.download_url, download_dir=download_dir)
     except Exception as exc:
         logger.warning("Series grab '%s' failed: %s", series.title, exc)
         return False
+    _remember(grabs, added, r, f"tv:{series.tmdb_id}")
     record = MonitorRecord(
         search=series.title, title=r.title, source=r.source,
         infohash=r.infohash, download_url=r.download_url, kind="grabbed", at=datetime.now(UTC),
@@ -900,7 +914,7 @@ async def fetch_feed(config, search_service, library=None, series_library=None) 
 
 class MonitorRunner:
     def __init__(self, ctx, history, notifier=None, library=None, series_library=None, blacklist=None,
-                 schedule: SearchSchedule | None = None, requests_store=None):
+                 schedule: SearchSchedule | None = None, requests_store=None, grabs=None):
         self._ctx = ctx
         self._history = history
         self._notifier = notifier or Notifier()
@@ -909,6 +923,7 @@ class MonitorRunner:
         self._blacklist = blacklist
         self._schedule = schedule if schedule is not None else SearchSchedule()
         self._requests = requests_store
+        self._grabs = grabs
         self._completed_seen: set[int] = set()
         self._task: asyncio.Task | None = None
         self._wake_event = asyncio.Event()
@@ -963,14 +978,14 @@ class MonitorRunner:
                 self._ctx.config, self._ctx.search_service, self._ctx.transmission,
                 self._history, self._notifier,
                 series_library=self._series_library,
-                feed=feed, schedule=self._schedule, force=force, fallback=fallback,
+                feed=feed, schedule=self._schedule, force=force, fallback=fallback, grabs=self._grabs,
             ))
             records.extend(await run_movie_cycle(
                 self._ctx.config, self._library, self._ctx.search_service,
                 self._ctx.transmission, self._history, self._notifier,
                 jellyfin=getattr(self._ctx, "jellyfin", None),
                 blacklist=self._blacklist,
-                feed=feed, schedule=self._schedule, force=force, fallback=fallback,
+                feed=feed, schedule=self._schedule, force=force, fallback=fallback, grabs=self._grabs,
             ))
             records.extend(await run_series_cycle(
                 self._ctx.config, self._series_library, self._ctx.search_service,
@@ -978,7 +993,7 @@ class MonitorRunner:
                 jellyfin=getattr(self._ctx, "jellyfin", None),
                 tmdb=getattr(self._ctx, "tmdb", None),
                 blacklist=self._blacklist,
-                feed=feed, schedule=self._schedule, force=force, fallback=fallback,
+                feed=feed, schedule=self._schedule, force=force, fallback=fallback, grabs=self._grabs,
             ))
             for record in records:
                 logger.info("Envoye a Transmission : %s (%s)", record.title, record.search)
