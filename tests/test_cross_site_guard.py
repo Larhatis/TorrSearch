@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from torsearch.config import Config
 from torsearch.search.service import SearchService
+from torsearch.transmission.client import AddedTorrent
 from torsearch.web.routes import create_app
 
 
@@ -11,7 +12,7 @@ class _Transmission:
 
     async def add(self, download_url, download_dir=None):
         self.added.append(download_url)
-        return 1
+        return AddedTorrent(id=1)
 
 
 class _Ctx:

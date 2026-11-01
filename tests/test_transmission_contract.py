@@ -72,5 +72,6 @@ async def test_missing_fields_never_break_the_listing():
     assert info.date_added is None and info.percent == 0.0 and info.eta is None
 
 
-async def test_add_returns_the_real_torrent_id():
-    assert await _client([]).add("magnet:?xt=urn:btih:ff", "/d") == 77
+async def test_add_reads_the_hash_of_a_real_torrent():
+    added = await _client([]).add("magnet:?xt=urn:btih:ff", "/d")
+    assert (added.id, added.info_hash) == (77, "ff")

@@ -21,10 +21,28 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.8.0)
+## 2. État actuel (v0.9.0)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Chantier 10 — purge sûre (v0.9.0, spec `docs/superpowers/specs/2026-11-01-chantier10-purge-sure-design.md`) :
+  - Constat en production : la purge des torrents « bloqués » supprimait (données comprises) des
+    torrents ajoutés à la main, même surveillance désactivée, et sur de simples avertissements
+    du tracker. Voir règle §6.9.
+  - Registre des envois `monitor/grabs.py` (collection `grabs`, clé = infohash Transmission en
+    minuscules, `origin` `auto`/`manual`) : écrit par les trois cycles (`auto`) et `/download`
+    (`manual`, jamais purgé) ; une entrée `manual` ne redevient jamais `auto`. Amorcé une fois
+    depuis l'historique (grabs non manuels avec infohash).
+  - `TransmissionClient.add()` renvoie `AddedTorrent(id, info_hash)`.
+  - Purge dans `monitor/stalled.py` : surveillance active, entrée `auto` du registre dont la
+    date colle (±15 min) à l'ajout Transmission (un doublon renvoie le torrent existant, plus
+    ancien), statut `downloading` seulement, âge ≥ `stalled_hours`, plus aucune donnée reçue,
+    puis 0 % **ou** `tracker_forgot_torrent()` (« unregistered », « not registered »…, jamais
+    `error_code == 3`). Plus de 3 candidats
+    (`MAX_PURGES_PER_CYCLE`) → aucune purge + notification « Purge suspendue » (`DailyNotice`,
+    une fois par jour).
+  - Réglages → Maintenance → « Liste noire » : liste + « Retirer » (`POST /settings/blacklist/remove`).
+  - `parse_episodes` et le marqueur de `parse_release` lisent les épisodes à 3-4 chiffres (`S01E1089`).
 - Chantier 9 (v0.8.0) :
   - Découvrir : raccourcis Tendances / Bientôt au cinéma (`TmdbClient.upcoming`, région FR) /
     Pour toi (`recommendations` des 3 derniers ajouts, sans ce qui est déjà surveillé, demandé
@@ -169,7 +187,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **711 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **752 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
@@ -208,6 +226,8 @@ Python 3.12+, **FastAPI + Jinja2 + HTMX**, Tailwind (servi localement), **SQLite
 | `library/` | Films, séries, analyse `SxxEyy` (`episodes.py`), liste noire persistante (`blacklist.py`). |
 | `monitor/runner.py` | Boucle de surveillance : flux RSS, auto-grab avec double titre (VF+VO), moteur de décision, PROPER/REPACK, liste noire, demandes disponibles. |
 | `monitor/schedule.py` | `SearchSchedule` : quand relancer une recherche ciblée (par film / série / recherche libre). |
+| `monitor/grabs.py` | `GrabRegistry` : torrents envoyés par l'app (infohash → origine `auto`/`manual`). |
+| `monitor/stalled.py` | Purge des torrents morts envoyés par la surveillance (règles + disjoncteur). |
 | `library/calendar.py` | Construction du calendrier « A venir » (épisodes TMDB + dates de sortie des films). |
 | `logbuffer.py` | Journal en mémoire (page Réglages → Maintenance → Journal). |
 | `health.py` | Panneau d'état : `check_all()` lance tous les `test()` en parallèle. |
@@ -253,6 +273,9 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
 8. **Aucune URL de tracker côté navigateur pour les membres** : la recherche renvoie un
    identifiant opaque (`search/result_cache.py`, 6 h) que `/download` résout côté serveur ;
    une URL brute n'est acceptée que d'un admin (copie de lien comprise).
+9. **La purge automatique supprime des données** : elle ne touche qu'un torrent inscrit `auto`
+   dans le registre des envois, surveillance active, mort de façon certaine, et s'arrête
+   au-delà de 3 candidats par cycle. Jamais un torrent ajouté à la main.
 
 ## 7. Pièges connus
 
@@ -277,6 +300,9 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
 - `.gitignore` : règles **ancrées** à la racine (`/data/`, `/config.yaml`, `/transmission/`).
 - **Dépôt public** : ne pas y écrire de noms de trackers privés, d'infos personnelles
   (chemins de disques, IP) ni de secrets.
+- **Infohash** : `MonitorRecord.infohash` garde celui **du tracker** ; celui de Transmission va
+  dans le registre des envois. Les recopier casserait l'anti-doublon de l'historique
+  (`infohash or download_url`, calculé de la même façon sur les résultats du tracker).
 
 ## 8. Feuille de route (ordre recommandé)
 
@@ -302,7 +328,6 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
 - Réglages en onglets : terminé en v0.4.0.
 - Prochaines étapes : menu simplifié, favicon local.
 
-**Petits chantiers** : masquer les secrets dans les logs de la console (le journal de l'UI
-les masque déjà) ; liens de téléchargement sans clé de tracker côté membres (identifiants
-de résultat côté serveur) ; restauration d'une sauvegarde depuis l'UI ; notification
-personnelle du demandeur (canal par utilisateur).
+**Petits chantiers** : restauration d'une sauvegarde depuis l'UI ; notification personnelle
+du demandeur (canal par utilisateur) ; espace disque avant envoi (`free_space`) ; retrait de
+l'ancienne copie après un upgrade/PROPER terminé.

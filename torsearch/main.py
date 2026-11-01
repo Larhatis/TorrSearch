@@ -11,6 +11,7 @@ from torsearch.db.database import Database
 from torsearch.library.blacklist import Blacklist
 from torsearch.library.movies import MovieLibrary
 from torsearch.library.series import SeriesLibrary
+from torsearch.monitor.grabs import GrabRegistry
 from torsearch.monitor.history import MonitorHistory
 from torsearch.monitor.runner import MonitorRunner
 from torsearch.monitor.schedule import SearchSchedule
@@ -61,6 +62,8 @@ def build_app(
     library = MovieLibrary(db.collection("movies"), migrate_from=library_path)
     series_library = SeriesLibrary(db.collection("series"), migrate_from=series_path)
     blacklist = Blacklist(db.collection("blacklist"))
+    grabs = GrabRegistry(db.collection("grabs"))
+    grabs.seed_from_history(history.records())
     log_handler = logbuffer.install()
     # The session key lives next to the database, i.e. in the /data volume under Docker.
     auth = AuthSettings.from_env(data_dir=os.path.dirname(db_path) or ".")
@@ -72,12 +75,12 @@ def build_app(
     requests_store = RequestStore(db.collection("requests"), migrate_from=requests_path)
     monitor = MonitorRunner(
         ctx, history, library=library, series_library=series_library, blacklist=blacklist,
-        schedule=SearchSchedule(db.collection("search_schedule")), requests_store=requests_store,
+        schedule=SearchSchedule(db.collection("search_schedule")), requests_store=requests_store, grabs=grabs,
     )
     return create_app(
         ctx, history=history, monitor=monitor, auth=auth,
         library=library, series_library=series_library, users=users,
-        requests_store=requests_store, blacklist=blacklist, db=db, log_handler=log_handler,
+        requests_store=requests_store, blacklist=blacklist, db=db, log_handler=log_handler, grabs=grabs,
     )
 
 

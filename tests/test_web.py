@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from torsearch.config import Config, IndexerConfig
 from torsearch.models import Category, MediaResult, SearchResult
 from torsearch.search.service import SearchService
+from torsearch.transmission.client import AddedTorrent
 from torsearch.web.routes import create_app
 
 
@@ -26,7 +27,7 @@ class FakeTransmission:
     async def add(self, download_url, download_dir=None):
         self.added.append(download_url)
         self.dirs.append(download_dir)
-        return 7
+        return AddedTorrent(id=7)
 
 
 class FakeContext:
@@ -91,7 +92,7 @@ def test_download_sends_to_transmission():
     resp = client.post("/download", data={"download_url": "magnet:?xt=urn:btih:XYZ"})
     assert resp.status_code == 200
     assert transmission.added == ["magnet:?xt=urn:btih:XYZ"]
-    assert "Transmission" in resp.text
+    assert "Ajoute a Transmission (#7)" in resp.text
 
 
 def _result(title, size=1000, seeders=10, leechers=1):

@@ -12,6 +12,7 @@ from torsearch import __version__
 from torsearch.context import AppContext
 from torsearch.library.linking import plan_manual_grab, record_manual_grab
 from torsearch.models import Category
+from torsearch.monitor.grabs import MANUAL, added_hash
 from torsearch.redact import redact
 from torsearch.search.filters import VALID_DIRECTIONS, VALID_SORTS, ResultFilters, apply
 from torsearch.search.result_cache import ResultCache
@@ -193,10 +194,14 @@ async def download(
     series_library = getattr(request.app.state, "series_library", None)
     grab = plan_manual_grab(title, cat, ctx.config.paths, library, series_library)
     try:
-        torrent_id = await ctx.transmission.add(download_url, grab.download_dir)
-        message, ok = f"Ajoute a Transmission (#{torrent_id})", True
+        added = await ctx.transmission.add(download_url, grab.download_dir)
+        message, ok = f"Ajoute a Transmission (#{added.id})", True
     except Exception as exc:
         message, ok = f"Erreur Transmission : {redact(str(exc))}", False
+    grabs = getattr(request.app.state, "grabs", None)
+    if ok and grabs is not None:
+        # A release picked by hand is never purged automatically, even if it stalls.
+        grabs.record(added_hash(added), title, MANUAL)
     if ok and grab.watched_title:
         try:
             record_manual_grab(grab, download_url, library, series_library,
@@ -210,6 +215,7 @@ async def download(
 def create_app(
     ctx: AppContext, history=None, monitor=None, auth: AuthSettings | None = None, library=None,
     series_library=None, users=None, requests_store=None, blacklist=None, db=None, log_handler=None,
+    grabs=None,
 ) -> FastAPI:
     if auth is None:
         auth = AuthSettings(enabled=False)
@@ -234,6 +240,7 @@ def create_app(
     app.state.users = users
     app.state.requests = requests_store
     app.state.blacklist = blacklist
+    app.state.grabs = grabs
     app.state.db = db
     app.state.log_handler = log_handler
     app.state.login_throttle = LoginThrottle()

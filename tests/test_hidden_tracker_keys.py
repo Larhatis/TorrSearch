@@ -9,6 +9,7 @@ from torsearch.db.database import Database
 from torsearch.models import Category, SearchResult
 from torsearch.search.result_cache import ResultCache
 from torsearch.search.service import SearchService
+from torsearch.transmission.client import AddedTorrent
 from torsearch.users.store import Role, UserStore
 from torsearch.web.auth import AuthSettings
 from torsearch.web.routes import create_app
@@ -31,7 +32,7 @@ class Transmission:
 
     async def add(self, url, download_dir=None):
         self.added.append((url, download_dir))
-        return 9
+        return AddedTorrent(id=9)
 
 
 class Ctx:

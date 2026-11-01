@@ -65,6 +65,19 @@ def _saved(response):
     return response
 
 
+_BLACKLIST_REASONS = {
+    "torrent_error": "Erreur tracker",
+    "torrent_stalled": "Bloque",
+    "failed_download": "Echec de telechargement",
+}
+
+
+def _blacklist_context(request: Request) -> dict:
+    blacklist = getattr(request.app.state, "blacklist", None)
+    entries = sorted(blacklist.list(), key=lambda e: e.blacklisted_at, reverse=True) if blacklist else []
+    return {"blacklist_entries": entries, "blacklist_reasons": _BLACKLIST_REASONS}
+
+
 _TABS = [
     ("connexions", "ti-plug-connected", "Connexions"),
     ("trackers", "ti-rss", "Trackers"),
@@ -88,6 +101,7 @@ async def settings_page(request: Request):
             "channels": ctx.config.notifications, "categories": list(Category),
             "users": users.list() if users else [],
             "tmdb_from_env": bool(os.environ.get("TMDB_API_KEY")),
+            **_blacklist_context(request),
         }
     )
 
@@ -399,6 +413,15 @@ async def test_notification(request: Request, name: str):
         return _toast(request, False, "Canal introuvable.")
     ok, message = await Notifier().test(channel)
     return _toast(request, ok, f"{name} : {message}")
+
+
+@settings_router.post("/settings/blacklist/remove", response_class=HTMLResponse)
+async def remove_blacklisted(request: Request, key: str = Form("")):
+    """Lift one release (infohash, else title: in the body, a title may hold a "/")."""
+    blacklist = getattr(request.app.state, "blacklist", None)
+    if blacklist is not None and key.strip():
+        blacklist.remove(key)
+    return templates.TemplateResponse(request, "partials/blacklist_list.html", _blacklist_context(request))
 
 
 @settings_router.get("/settings/backup")
