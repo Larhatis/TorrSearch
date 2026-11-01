@@ -5,7 +5,7 @@ from torsearch.monitor.history import MonitorRecord
 from torsearch.transmission.client import AddedTorrent
 
 
-def _rec(kind="grabbed", infohash=None, source="c411", title="Some.Release.1080p"):
+def _rec(kind="grabbed", infohash=None, source="trk", title="Some.Release.1080p"):
     return MonitorRecord(search="s", title=title, source=source, infohash=infohash,
                          download_url="magnet:?xt=urn:btih:x", kind=kind, at=datetime(2026, 10, 1, tzinfo=UTC))
 

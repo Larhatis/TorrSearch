@@ -125,13 +125,13 @@ def test_forget(tmp_path):
     assert g.get("aa") is None
 
 def test_seed_from_history_only_auto_grabs_with_hash(tmp_path):
-    recs = [_rec(kind="grabbed", infohash="H1", source="c411"),
+    recs = [_rec(kind="grabbed", infohash="H1", source="trk"),
             _rec(kind="grabbed", infohash="H2", source="manuel"),
-            _rec(kind="grabbed", infohash=None, source="c411"),
-            _rec(kind="found", infohash="H3", source="c411")]
+            _rec(kind="grabbed", infohash=None, source="trk"),
+            _rec(kind="found", infohash="H3", source="trk")]
     g = GrabRegistry(tmp_path / "g.db")
     assert g.seed_from_history(recs) == 1 and g.is_auto("h1")
-    assert g.seed_from_history([_rec(kind="grabbed", infohash="H9", source="c411")]) == 0  # not empty
+    assert g.seed_from_history([_rec(kind="grabbed", infohash="H9", source="trk")]) == 0  # not empty
 
 def test_added_hash():
     assert added_hash(AddedTorrent(id=1, info_hash="FF")) == "ff"
