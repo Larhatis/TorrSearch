@@ -11,6 +11,7 @@ from torsearch.library.series import SeriesLibrary
 from torsearch.models import WantedMovie, WantedSeries
 from torsearch.monitor.history import MonitorHistory
 from torsearch.search.service import SearchService
+from torsearch.transmission.client import AddedTorrent
 from torsearch.web.routes import create_app
 
 
@@ -23,7 +24,7 @@ class FakeTransmission:
         if self._fail:
             raise RuntimeError("down")
         self.dirs.append(download_dir)
-        return 7
+        return AddedTorrent(id=7)
 
 
 class Ctx:

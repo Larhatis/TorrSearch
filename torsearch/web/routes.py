@@ -193,8 +193,8 @@ async def download(
     series_library = getattr(request.app.state, "series_library", None)
     grab = plan_manual_grab(title, cat, ctx.config.paths, library, series_library)
     try:
-        torrent_id = await ctx.transmission.add(download_url, grab.download_dir)
-        message, ok = f"Ajoute a Transmission (#{torrent_id})", True
+        added = await ctx.transmission.add(download_url, grab.download_dir)
+        message, ok = f"Ajoute a Transmission (#{added.id})", True
     except Exception as exc:
         message, ok = f"Erreur Transmission : {redact(str(exc))}", False
     if ok and grab.watched_title:

@@ -6,6 +6,7 @@ from torsearch.library.movies import MovieLibrary
 from torsearch.library.series import SeriesLibrary
 from torsearch.monitor.history import MonitorHistory
 from torsearch.search.service import SearchService
+from torsearch.transmission.client import AddedTorrent
 from torsearch.users.store import Role, UserStore
 from torsearch.web.auth import AuthSettings
 from torsearch.web.routes import create_app
@@ -21,7 +22,7 @@ class FakeIndexer:
 
 class FakeTransmission:
     async def add(self, url, download_dir=None):
-        return 1
+        return AddedTorrent(id=1)
 
 
 class FakeTmdb:

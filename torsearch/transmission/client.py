@@ -23,6 +23,13 @@ ADD_TIMEOUT = 60.0  # adding by URL: Transmission replies only once it has fetch
 _EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="transmission")
 
 
+class AddedTorrent(BaseModel):
+    """What Transmission answers to an add: the torrent id and its infohash (lowercase)."""
+
+    id: int
+    info_hash: str = ""
+
+
 class TorrentInfo(BaseModel):
     id: int
     name: str
@@ -193,11 +200,13 @@ class TransmissionClient:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(_EXECUTOR, lambda: fn(self._get_client()))
 
-    async def add(self, download_url: str, download_dir: str | None = None) -> int:
+    async def add(self, download_url: str, download_dir: str | None = None) -> AddedTorrent:
         torrent = await self._run(
             lambda c: c.add_torrent(download_url, download_dir=download_dir, timeout=ADD_TIMEOUT)
         )
-        return torrent.id
+        # A duplicate add returns the existing torrent: same fields (id, name, hashString).
+        info_hash = str(_field(torrent, "hash_string", "") or _field(torrent, "hashString", ""))
+        return AddedTorrent(id=torrent.id, info_hash=info_hash.lower())
 
     async def list_torrents(self) -> list[TorrentInfo]:
         torrents = await self._run(lambda c: c.get_torrents())
