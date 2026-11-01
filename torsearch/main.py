@@ -75,7 +75,7 @@ def build_app(
     requests_store = RequestStore(db.collection("requests"), migrate_from=requests_path)
     monitor = MonitorRunner(
         ctx, history, library=library, series_library=series_library, blacklist=blacklist,
-        schedule=SearchSchedule(db.collection("search_schedule")), requests_store=requests_store,
+        schedule=SearchSchedule(db.collection("search_schedule")), requests_store=requests_store, grabs=grabs,
     )
     return create_app(
         ctx, history=history, monitor=monitor, auth=auth,

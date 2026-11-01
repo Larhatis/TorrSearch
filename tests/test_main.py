@@ -50,3 +50,4 @@ def test_build_app_seeds_the_grab_registry_from_history(tmp_path):
         requests_path=str(d / "requests.json"), db_path=str(db_path),
     )
     assert app.state.grabs.is_auto("abc")
+    assert app.state.monitor._grabs is app.state.grabs  # the surveillance records into the same registry

@@ -17,6 +17,7 @@ from torsearch.monitor.schedule import (
     series_interval,
     series_signature,
 )
+from torsearch.monitor.stalled import DailyNotice, handle_stalled_torrents
 from torsearch.notifications.notifier import Notifier
 from torsearch.search.decision import (
     ReleaseRules,
@@ -165,134 +166,6 @@ async def _transmission_series_episodes(transmission, title: str, original_title
     except Exception as exc:
         logger.debug("Failed listing torrents for series '%s': %s", title, exc)
     return eps
-
-
-async def handle_stalled_torrents(
-    transmission,
-    library=None,
-    series_library=None,
-    blacklist=None,
-    notifier=None,
-    config=None,
-    now: datetime | None = None,
-    history=None,
-) -> list[str]:
-    """Detect and purge stalled or errored torrents, blacklist them, and reset library status.
-
-    The purged grab is also removed from the monitor history: otherwise it would still
-    count as "downloading" during the ``regrab_hours`` cooldown and delay the next try.
-    """
-    if transmission is None:
-        return []
-    try:
-        torrents = await transmission.list_torrents()
-    except Exception as exc:
-        logger.warning("Stalled check: listing torrents failed: %s", exc)
-        return []
-
-    stalled_hours = config.monitor.stalled_hours if config and hasattr(config, "monitor") else 2
-    stalled_window = timedelta(hours=stalled_hours)
-    current_time = now or datetime.now(UTC)
-    handled: list[str] = []
-
-    for t in torrents:
-        if t.percent >= 100.0:
-            continue
-        # Never judge a torrent whose age is unknown, nor one younger than the grace
-        # period: a fresh torrent is at 0 % without peers while it fetches metadata, and
-        # tracker errors are often transient. Purging deletes data and blacklists.
-        if t.date_added is None:
-            continue
-        at = t.date_added if t.date_added.tzinfo else t.date_added.replace(tzinfo=UTC)
-        if current_time - at < stalled_window:
-            continue
-        is_error = bool(t.error_string) and t.down_rate == 0
-        is_dead = (
-            t.percent == 0.0
-            and t.down_rate == 0
-            and t.peers_sending == 0
-            and "stop" not in t.status.lower()
-        )
-        if not is_error and not is_dead:
-            continue
-
-        reason = "error" if is_error else "stalled"
-        logger.info("Purging %s torrent '%s' (id=%s)", reason, t.name, t.id)
-
-        # 1. Blacklist
-        if blacklist is not None:
-            blacklist.add(t.info_hash or None, t.name, reason=f"torrent_{reason}")
-
-        # 2. Remove from Transmission
-        try:
-            await transmission.remove(t.id, delete_data=True)
-        except Exception as exc:
-            logger.warning("Failed to remove stalled torrent %s: %s", t.id, exc)
-
-        # 3. Reset Movie Library if matching
-        if library is not None:
-            for m in library.list():
-                if m.status == "grabbed" and m.grabbed_title:
-                    if m.grabbed_title.strip().lower() == t.name.strip().lower():
-                        library.unmark_grabbed(m.tmdb_id)
-                        break
-
-        # 4. Reset Series Library if matching
-        if series_library is not None:
-            from torsearch.parser.release import parse_release
-            from torsearch.search.matcher import match_media_title
-
-            parsed_keys = parse_episodes(t.name)
-            seasons = {k for k in parsed_keys if len(k) == 3}  # season pack tags ("S01")
-            for s in series_library.list():
-                rel = parse_release(t.name)
-                if match_media_title(rel, target_title=s.title, target_original_title=s.original_title, is_series=True):
-                    keys_to_unmark = [
-                        k for k in s.grabbed if k in parsed_keys or k[:3] in seasons
-                    ]
-                    if keys_to_unmark:
-                        series_library.unmark_grabbed(s.tmdb_id, keys_to_unmark)
-
-        # 5. Forget the grab in the history (no cooldown for a dead download)
-        if history is not None and hasattr(history, "remove_where"):
-            history.remove_where(lambda r, t=t: r.kind == "grabbed" and _same_release(r, t))
-
-        # 6. Notify if configured
-        if notifier is not None and config is not None and hasattr(config, "notifications"):
-            record = MonitorRecord(
-                search="Torrent purge",
-                title=t.name,
-                source="Transmission",
-                download_url="",
-                kind="failed",
-                at=current_time,
-            )
-            try:
-                await notifier.notify(config.notifications, record)
-            except Exception as exc:
-                logger.warning("Notification for purged torrent failed: %s", exc)
-
-        handled.append(t.name)
-
-    return handled
-
-
-
-def _same_release(record: MonitorRecord, torrent) -> bool:
-    """Whether a history record is the grab of ``torrent`` (tracker title and torrent name differ)."""
-    from torsearch.parser.release import parse_release
-    from torsearch.search.matcher import normalize_title
-
-    if record.infohash and torrent.info_hash:
-        return record.infohash.lower() == torrent.info_hash.lower()
-    if record.title.strip().lower() == torrent.name.strip().lower():
-        return True
-    rec, tor = parse_release(record.title), parse_release(torrent.name)
-    if not rec.clean_title or normalize_title(rec.clean_title) != normalize_title(tor.clean_title):
-        return False
-    if rec.episodes or tor.episodes:
-        return rec.episodes == tor.episodes
-    return rec.year == tor.year
 
 
 async def run_jellyfin_refresh(transmission, jellyfin, completed_seen: set[int]) -> set[int]:
@@ -924,6 +797,7 @@ class MonitorRunner:
         self._schedule = schedule if schedule is not None else SearchSchedule()
         self._requests = requests_store
         self._grabs = grabs
+        self._purge_notice = DailyNotice()  # "purge suspended" told at most once a day
         self._completed_seen: set[int] = set()
         self._task: asyncio.Task | None = None
         self._wake_event = asyncio.Event()
@@ -966,6 +840,8 @@ class MonitorRunner:
                 notifier=self._notifier,
                 config=self._ctx.config,
                 history=self._history,
+                grabs=self._grabs,
+                notice=self._purge_notice,
             )
             feed = await fetch_feed(
                 self._ctx.config, self._ctx.search_service, self._library, self._series_library,
