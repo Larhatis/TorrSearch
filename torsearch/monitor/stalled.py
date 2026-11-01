@@ -134,15 +134,16 @@ async def handle_stalled_torrents(
     for t, reason in candidates:
         logger.info("Purging %s torrent '%s' (id=%s)", reason, t.name, t.id)
 
-        # 1. Blacklist
-        if blacklist is not None:
-            blacklist.add(t.info_hash or None, t.name, reason=f"torrent_{reason}")
-
-        # 2. Remove from Transmission
+        # 1. Remove from Transmission: if it stays there, nothing else changes (no second copy)
         try:
             await transmission.remove(t.id, delete_data=True)
         except Exception as exc:
             logger.warning("Failed to remove stalled torrent %s: %s", t.id, exc)
+            continue
+
+        # 2. Blacklist
+        if blacklist is not None:
+            blacklist.add(t.info_hash or None, t.name, reason=f"torrent_{reason}")
 
         # 3. Reset Movie Library if matching
         if library is not None:

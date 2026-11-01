@@ -392,3 +392,26 @@ async def test_queued_or_checking_torrent_is_kept(tmp_path):
     torrents = [_old(1, status="download pending"), _old(2, status="checking"), _old(3, status="check pending")]
     handled, tr = await _purge(tmp_path, torrents)
     assert handled == [] and tr.removed == []
+
+
+async def test_failed_removal_changes_nothing_else(tmp_path):
+    # The torrent is still in Transmission: blacklisting it, unmarking the movie or forgetting the
+    # grab would hunt a second copy next to it.
+    class StuckTransmission(FakeTransmission):
+        async def remove(self, torrent_id, delete_data=False):
+            raise RuntimeError("connection refused")
+
+    t = _old(1)
+    bl, grabs, notifier = Blacklist(tmp_path / "bl.db"), _auto(tmp_path, t), FakeNotifier()
+    lib = MovieLibrary(tmp_path / "movies.json")
+    lib.add(WantedMovie(tmdb_id=1, title="Some Movie", added_at=NOW))
+    lib.mark_grabbed(1, t.name, t.date_added)
+
+    handled = await handle_stalled_torrents(StuckTransmission([t]), library=lib, blacklist=bl, notifier=notifier,
+                                            config=ON, now=NOW, grabs=grabs)
+
+    assert handled == []
+    assert bl.is_blacklisted(t.info_hash, t.name) is False
+    assert lib.get(1).status == "grabbed"
+    assert grabs.get(t.info_hash) is not None
+    assert notifier.records == []
