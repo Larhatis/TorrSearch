@@ -210,6 +210,7 @@ async def download(
 def create_app(
     ctx: AppContext, history=None, monitor=None, auth: AuthSettings | None = None, library=None,
     series_library=None, users=None, requests_store=None, blacklist=None, db=None, log_handler=None,
+    grabs=None,
 ) -> FastAPI:
     if auth is None:
         auth = AuthSettings(enabled=False)
@@ -234,6 +235,7 @@ def create_app(
     app.state.users = users
     app.state.requests = requests_store
     app.state.blacklist = blacklist
+    app.state.grabs = grabs
     app.state.db = db
     app.state.log_handler = log_handler
     app.state.login_throttle = LoginThrottle()
