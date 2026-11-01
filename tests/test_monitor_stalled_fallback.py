@@ -6,7 +6,7 @@ from torsearch.library.movies import MovieLibrary
 from torsearch.library.series import SeriesLibrary
 from torsearch.models import WantedMovie, WantedSeries
 from torsearch.monitor.grabs import GrabRegistry
-from torsearch.monitor.stalled import DailyNotice, handle_stalled_torrents, tracker_forgot_torrent
+from torsearch.monitor.stalled import DailyNotice, PurgeBreaker, handle_stalled_torrents, tracker_forgot_torrent
 from torsearch.transmission.client import TorrentInfo
 
 ON = Config(monitor=MonitorConfig(enabled=True, stalled_hours=2))
@@ -251,12 +251,12 @@ def _old(id, **over):
     return TorrentInfo(**base)
 
 
-async def _purge(tmp_path, torrents, grabs="auto", config=ON, notifier=None, notice=None):
+async def _purge(tmp_path, torrents, grabs="auto", config=ON, notifier=None, notice=None, breaker=None, now=NOW):
     tr = FakeTransmission(torrents)
     if grabs == "auto":
         grabs = _auto(tmp_path, *torrents)
-    handled = await handle_stalled_torrents(tr, blacklist=Blacklist(tmp_path / "bl.db"), config=config, now=NOW,
-                                            grabs=grabs, notifier=notifier, notice=notice)
+    handled = await handle_stalled_torrents(tr, blacklist=Blacklist(tmp_path / "bl.db"), config=config, now=now,
+                                            grabs=grabs, notifier=notifier, notice=notice, breaker=breaker)
     return handled, tr
 
 
@@ -415,3 +415,73 @@ async def test_failed_removal_changes_nothing_else(tmp_path):
     assert lib.get(1).status == "grabbed"
     assert grabs.get(t.info_hash) is not None
     assert notifier.records == []
+
+
+async def test_suspended_purge_stays_off_while_candidates_remain(tmp_path):
+    # The torrents of one outage come back a few at a time: the last three are not purged either.
+    breaker = PurgeBreaker()
+    await _purge(tmp_path, [_old(i) for i in range(1, 6)], breaker=breaker)
+    handled, tr = await _purge(tmp_path, [_old(1), _old(2)], breaker=breaker)
+    assert handled == [] and tr.removed == []
+
+
+async def test_purge_resumes_after_a_cycle_without_candidates(tmp_path):
+    breaker = PurgeBreaker()
+    await _purge(tmp_path, [_old(i) for i in range(1, 6)], breaker=breaker)
+    await _purge(tmp_path, [_old(1, down_rate=1000, peers_sending=2)], breaker=breaker)  # back online
+    handled, tr = await _purge(tmp_path, [_old(1)], breaker=breaker)
+    assert tr.removed == [(1, True)]
+
+
+async def test_purge_resumes_after_an_empty_listing(tmp_path):
+    breaker = PurgeBreaker()
+    await _purge(tmp_path, [_old(i) for i in range(1, 6)], breaker=breaker)
+    await _purge(tmp_path, [], breaker=breaker)
+    handled, tr = await _purge(tmp_path, [_old(1)], breaker=breaker)
+    assert tr.removed == [(1, True)]
+
+
+async def test_failed_listing_keeps_the_purge_suspended(tmp_path):
+    class Offline(FakeTransmission):
+        async def list_torrents(self):
+            raise RuntimeError("connection refused")
+
+    breaker = PurgeBreaker()
+    await _purge(tmp_path, [_old(i) for i in range(1, 6)], breaker=breaker)
+    await handle_stalled_torrents(Offline(), config=ON, now=NOW, grabs=_auto(tmp_path), breaker=breaker)
+    handled, tr = await _purge(tmp_path, [_old(1)], breaker=breaker)
+    assert handled == [] and tr.removed == []
+
+
+async def test_still_suspended_purge_is_notified_the_next_day(tmp_path):
+    notifier, notice, breaker = FakeNotifier(), DailyNotice(), PurgeBreaker()
+    await _purge(tmp_path, [_old(i) for i in range(1, 6)], notifier=notifier, notice=notice, breaker=breaker)
+    await _purge(tmp_path, [_old(1), _old(2)], notifier=notifier, notice=notice, breaker=breaker)
+    assert len(notifier.messages) == 1  # once a day
+    await _purge(tmp_path, [_old(1), _old(2)], notifier=notifier, notice=notice, breaker=breaker,
+                 now=NOW + timedelta(days=1))
+    assert notifier.messages[1] == (
+        "Purge suspendue",
+        "2 torrent(s) encore bloque(s) depuis la panne. La purge reprendra quand plus aucun ne le sera ; "
+        "supprime-les a la main s'ils sont morts.",
+    )
+
+
+async def test_monitor_runner_keeps_the_purge_suspended_between_cycles(tmp_path):
+    from torsearch.monitor.history import MonitorHistory
+    from torsearch.monitor.runner import MonitorRunner
+
+    added = datetime.now(UTC) - timedelta(hours=3)
+    dead = [_old(i, date_added=added) for i in range(1, 6)]
+    tr = FakeTransmission(dead)
+
+    class Ctx:
+        config = ON
+        search_service = object()
+        transmission = tr
+
+    runner = MonitorRunner(Ctx(), MonitorHistory(tmp_path / "m.json"), grabs=_auto(tmp_path, *dead))
+    await runner.run_once()
+    tr._torrents = dead[:2]
+    await runner.run_once()
+    assert tr.removed == []

@@ -17,7 +17,7 @@ from torsearch.monitor.schedule import (
     series_interval,
     series_signature,
 )
-from torsearch.monitor.stalled import DailyNotice, handle_stalled_torrents
+from torsearch.monitor.stalled import DailyNotice, PurgeBreaker, handle_stalled_torrents
 from torsearch.notifications.notifier import Notifier
 from torsearch.search.decision import (
     ReleaseRules,
@@ -798,6 +798,7 @@ class MonitorRunner:
         self._requests = requests_store
         self._grabs = grabs
         self._purge_notice = DailyNotice()  # "purge suspended" told at most once a day
+        self._purge_breaker = PurgeBreaker()  # stays off from one cycle to the next
         self._completed_seen: set[int] = set()
         self._task: asyncio.Task | None = None
         self._wake_event = asyncio.Event()
@@ -842,6 +843,7 @@ class MonitorRunner:
                 history=self._history,
                 grabs=self._grabs,
                 notice=self._purge_notice,
+                breaker=self._purge_breaker,
             )
             feed = await fetch_feed(
                 self._ctx.config, self._ctx.search_service, self._library, self._series_library,

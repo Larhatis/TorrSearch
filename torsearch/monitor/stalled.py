@@ -49,6 +49,18 @@ class DailyNotice:
         return True
 
 
+class PurgeBreaker:
+    """Keeps the purge off after a mass die-off until a cycle finds no candidate at all.
+
+    The torrents of one outage come back, or cross the grace period, a few at a time:
+    without this memory the next cycle would purge the last three of them. Kept in memory,
+    per process, like ``DailyNotice``.
+    """
+
+    def __init__(self) -> None:
+        self.tripped = False
+
+
 def _aware(moment: datetime) -> datetime:
     return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
 
@@ -79,8 +91,10 @@ def _purge_reason(t, now: datetime, window: timedelta) -> str | None:
     return None
 
 
-async def _notify_suspension(notifier, config, count: int) -> None:
-    body = f"{count} torrents semblent bloques en meme temps (panne reseau ou VPN ?). Aucun n'a ete supprime."
+async def _report_suspension(notifier, config, notice: DailyNotice | None, today: date, body: str) -> None:
+    logger.warning("Purge suspendue : %s", body)
+    if notifier is None or (notice is not None and not notice.allow(today)):
+        return
     try:
         await notifier.notify_message(config.notifications, "Purge suspendue", body)
     except Exception as exc:
@@ -98,13 +112,15 @@ async def handle_stalled_torrents(
     history=None,
     grabs=None,
     notice: DailyNotice | None = None,
+    breaker: PurgeBreaker | None = None,
 ) -> list[str]:
     """Purge the surveillance's own dead torrents, blacklist them, and reset library status.
 
     Purging deletes data, so it only happens when the surveillance is on, for torrents the
     grab registry records as chosen by the surveillance (never one added by hand), dead for
     sure (0 % without peers past the grace period, or forgotten by the tracker), and when
-    few of them die at once.
+    few of them die at once. After a mass die-off, ``breaker`` keeps the purge off until a
+    cycle finds no candidate.
 
     The purged grab is also removed from the monitor history: otherwise it would still
     count as "downloading" during the ``regrab_hours`` cooldown and delay the next try.
@@ -123,11 +139,19 @@ async def handle_stalled_torrents(
         (t, reason) for t in torrents
         if _sent_by_surveillance(grabs, t) and (reason := _purge_reason(t, current_time, window))
     ]
+    if breaker is not None and not candidates:
+        breaker.tripped = False  # nothing left of the outage: the purge is armed again
     if len(candidates) > MAX_PURGES_PER_CYCLE:
-        logger.warning("Purge suspendue : %d torrents semblent bloques en meme temps (panne reseau ou VPN ?)",
-                       len(candidates))
-        if notifier is not None and (notice is None or notice.allow(current_time.date())):
-            await _notify_suspension(notifier, config, len(candidates))
+        if breaker is not None:
+            breaker.tripped = True
+        body = (f"{len(candidates)} torrents semblent bloques en meme temps (panne reseau ou VPN ?). "
+                "Aucun n'a ete supprime.")
+        await _report_suspension(notifier, config, notice, current_time.date(), body)
+        return []
+    if candidates and breaker is not None and breaker.tripped:
+        body = (f"{len(candidates)} torrent(s) encore bloque(s) depuis la panne. La purge reprendra quand plus "
+                "aucun ne le sera ; supprime-les a la main s'ils sont morts.")
+        await _report_suspension(notifier, config, notice, current_time.date(), body)
         return []
 
     handled: list[str] = []

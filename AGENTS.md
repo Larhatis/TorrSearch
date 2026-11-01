@@ -40,7 +40,9 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
     puis 0 % **ou** `tracker_forgot_torrent()` (« unregistered », « not registered »…, jamais
     `error_code == 3`). Plus de 3 candidats
     (`MAX_PURGES_PER_CYCLE`) → aucune purge + notification « Purge suspendue » (`DailyNotice`,
-    une fois par jour).
+    une fois par jour) ; le disjoncteur (`PurgeBreaker`, tenu par `MonitorRunner`, en mémoire)
+    reste enclenché tant qu'un cycle trouve des candidats et ne se réarme qu'après un cycle
+    sans aucun candidat. Si `transmission.remove` échoue, rien d'autre ne change.
   - Réglages → Maintenance → « Liste noire » : liste + « Retirer » (`POST /settings/blacklist/remove`).
   - `parse_episodes` et le marqueur de `parse_release` lisent les épisodes à 3-4 chiffres (`S01E1089`).
 - Chantier 9 (v0.8.0) :
@@ -275,7 +277,8 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
    une URL brute n'est acceptée que d'un admin (copie de lien comprise).
 9. **La purge automatique supprime des données** : elle ne touche qu'un torrent inscrit `auto`
    dans le registre des envois, surveillance active, mort de façon certaine, et s'arrête
-   au-delà de 3 candidats par cycle. Jamais un torrent ajouté à la main.
+   au-delà de 3 candidats par cycle — puis reste arrêtée jusqu'à un cycle sans aucun candidat.
+   Jamais un torrent ajouté à la main.
 
 ## 7. Pièges connus
 
