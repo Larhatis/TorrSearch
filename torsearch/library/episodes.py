@@ -4,12 +4,13 @@ import re
 from pathlib import Path
 
 # An episode segment after Sxx: one or more e-tokens, each optionally a range
-# (eNN-eMM or eNN-MM). The (?!\d) stops a trailing resolution like "-1080p" being
-# read as a range up to E10.
+# (eNN-eMM or eNN-MM). Episode numbers run up to 4 digits (long-running shows: E1089),
+# but a range end without its "e" stays at 2 digits and the (?!\d) stops a trailing
+# resolution like "-1080p" being read as a range up to E10.
 _SEASON_EP_RE = re.compile(
-    r"s(\d{1,2})((?:[ ._-]*e\d{1,2}(?:\s*-\s*e?\d{1,2}(?!\d))?)+)", re.IGNORECASE
+    r"s(\d{1,2})((?:[ ._-]*e\d{1,4}(?:\s*-\s*(?:e\d{1,4}|\d{1,2}(?!\d)))?)+)", re.IGNORECASE
 )
-_EP_TOKEN_RE = re.compile(r"e(\d{1,2})(?:\s*-\s*e?(\d{1,2}))?", re.IGNORECASE)
+_EP_TOKEN_RE = re.compile(r"e(\d{1,4})(?:\s*-\s*(?:e(\d{1,4})|(\d{1,2})(?!\d)))?", re.IGNORECASE)
 # "\b" before "s": audio codecs such as "DTS5.1" must not read as season 5.
 _SEASON_RE = re.compile(
     r"(?:\bs(\d{1,2})\b|season[ ._-]*(\d{1,2})|saison[ ._-]*(\d{1,2}))", re.IGNORECASE
@@ -32,7 +33,8 @@ def parse_episodes(title: str) -> set[str]:
         season = int(m.group(1))
         for tok in _EP_TOKEN_RE.finditer(m.group(2)):
             start = int(tok.group(1))
-            end = int(tok.group(2)) if tok.group(2) else start
+            end_raw = tok.group(2) or tok.group(3)
+            end = int(end_raw) if end_raw else start
             if end < start:
                 end = start  # inverted range -> single episode
             for ep in range(start, end + 1):

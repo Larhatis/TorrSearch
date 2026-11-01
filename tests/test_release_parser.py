@@ -80,3 +80,9 @@ def test_4klight_is_2160p():
     from torsearch.parser.release import parse_release
 
     assert parse_release("The.Dog.Stars.2026.MULTi.VF2.4KLight.DV.HDR10+.WEBRip-BATGirl").resolution == "2160p"
+
+
+def test_long_running_episode_cuts_the_title():
+    rel = parse_release("One.Piece.S01E1089.VOSTFR.1080p.WEB")
+    assert rel.clean_title == "One Piece"
+    assert rel.episodes == {"S01E1089"}

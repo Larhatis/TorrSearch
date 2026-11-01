@@ -140,3 +140,15 @@ def test_titles_that_are_not_season_ranges():
     assert parse_episodes("Dark.S02.MULTi.1080p.BluRay.DTS5.1-GRP") == {"S02"}
     assert parse_episodes("Dark.S02.MULTi.1080p.Atmos7.1.DTS51-GRP") == {"S02"}
     assert parse_episodes("Movie.2019.MULTi.1080p.BluRay.DTS5.1-GRP") == set()
+
+
+def test_long_running_episode_numbers():
+    assert parse_episodes("One.Piece.S01E1089.VOSTFR.1080p.WEB") == {"S01E1089"}
+    assert parse_episodes("Detective.Conan.S21E1100.FRENCH.720p") == {"S21E1100"}
+    assert parse_episodes("Show.S01E100.MULTi.1080p") == {"S01E100"}
+
+
+def test_episode_range_and_resolution_still_safe():
+    assert parse_episodes("Show.S01E01-E03.1080p") == {"S01E01", "S01E02", "S01E03"}
+    assert parse_episodes("Show.S01E05-1080p.WEB") == {"S01E05"}
+    assert parse_episodes("Show.S01E01-03.1080p") == {"S01E01", "S01E02", "S01E03"}

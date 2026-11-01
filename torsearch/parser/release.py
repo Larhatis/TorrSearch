@@ -9,7 +9,7 @@ from torsearch.library.episodes import parse_episodes
 _YEAR_RE = re.compile(r"\b(19\d\d|20\d\d)\b")
 
 _SEASON_EP_MARKER_RE = re.compile(
-    r"\b(?:s\d{1,2}(?:[ ._-]*e\d{1,2})?|season[ ._-]*\d{1,2}|saison[ ._-]*\d{1,2})\b",
+    r"\b(?:s\d{1,2}(?:[ ._-]*e\d{1,4})?|season[ ._-]*\d{1,2}|saison[ ._-]*\d{1,2})\b",
     re.IGNORECASE,
 )
 
