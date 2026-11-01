@@ -81,10 +81,14 @@ absent, panne générale).
 ### 3.3 Règles de purge (`monitor/stalled.py`)
 Un torrent est **candidat** si toutes ces conditions sont vraies :
 1. surveillance active (`config.monitor.enabled`) — sinon la fonction ne fait rien ;
-2. un registre est fourni et le torrent y figure en `auto` (comparaison par infohash) ;
-3. pas en pause (statut contenant « stop »), progression < 100 % ;
+2. un registre est fourni et le torrent y figure en `auto` (comparaison par infohash), avec une
+   date d'ajout Transmission à 15 min au plus de celle de l'entrée : ajouter une release déjà
+   présente (ajoutée à la main) renvoie le torrent existant, plus ancien — il n'est alors pas
+   « envoyé par la surveillance » ;
+3. statut `downloading` uniquement (ni en pause, ni en file d'attente, ni en vérification),
+   progression < 100 % ;
 4. âge connu et ≥ `stalled_hours` (règle actuelle) ;
-5. et **soit** mort (0 %, aucun pair qui envoie, débit nul — règle actuelle), **soit** erreur
+5. ne reçoit plus rien (débit nul, aucun pair qui envoie), et **soit** à 0 %, **soit** erreur
    « torrent inconnu du tracker » : `error_code != 3` et message contenant (sans casse) l'un de
    `unregistered`, `not registered`, `torrent not found`, `unknown torrent`, `does not exist`,
    `not exist`, `n'existe pas`, `introuvable`, `info_hash not found`, `infohash not found`.

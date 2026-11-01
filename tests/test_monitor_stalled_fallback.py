@@ -12,11 +12,17 @@ from torsearch.transmission.client import TorrentInfo
 ON = Config(monitor=MonitorConfig(enabled=True, stalled_hours=2))
 
 
-def _auto(tmp_path, *hashes, origin="auto"):
-    """A registry where ``hashes`` were sent by the surveillance (or by hand)."""
+def _auto(tmp_path, *sent, origin="auto"):
+    """A registry where ``sent`` torrents (or bare hashes) were sent by the surveillance (or by hand).
+
+    A torrent is recorded at its Transmission ``date_added``, as a real send would be.
+    """
     g = GrabRegistry(tmp_path / "grabs.db")
-    for h in hashes:
-        g.record(h, "t", origin)
+    for item in sent:
+        if isinstance(item, TorrentInfo):
+            g.record(item.info_hash, item.name, origin, at=item.date_added)
+        else:
+            g.record(item, "t", origin)
     return g
 
 
@@ -75,7 +81,7 @@ async def test_stalled_torrent_purged_and_blacklisted_and_movie_unmarked(tmp_pat
         blacklist=bl,
         config=ON,
         now=now,
-        grabs=_auto(tmp_path, "aabbccddee"),
+        grabs=_auto(tmp_path, t_stalled),
     )
 
     assert handled == ["Dune.Part.Two.2024.1080p.WEBRip"]
@@ -94,7 +100,7 @@ async def test_errored_torrent_purged_after_grace_period(tmp_path):
         id=102,
         name="Severance.S01E01.1080p",
         percent=12.0,
-        status="error",
+        status="downloading",
         down_rate=0,
         up_rate=0,
         size=1_000_000_000,
@@ -109,7 +115,7 @@ async def test_errored_torrent_purged_after_grace_period(tmp_path):
     series_lib = SeriesLibrary(tmp_path / "series.json")
     series_lib.add(WantedSeries(tmdb_id=1, title="Severance", added_at=now, grabbed=["S01E01"]))
 
-    grabs = _auto(tmp_path, "1122334455")
+    grabs = _auto(tmp_path, t_error)
     handled = await handle_stalled_torrents(
         transmission=tr,
         series_library=series_lib,
@@ -146,7 +152,7 @@ async def test_fresh_torrent_under_grace_period_is_not_purged(tmp_path):
     tr = FakeTransmission([t_fresh])
     bl = Blacklist(tmp_path / "blacklist.db")
     handled = await handle_stalled_torrents(transmission=tr, blacklist=bl, config=ON, now=now,
-                                            grabs=_auto(tmp_path, t_fresh.info_hash))
+                                            grabs=_auto(tmp_path, t_fresh))
     assert handled == []
     assert tr.removed == []
 
@@ -168,7 +174,7 @@ async def test_paused_torrent_is_not_purged(tmp_path):
     )
 
     tr = FakeTransmission([t_paused])
-    handled = await handle_stalled_torrents(transmission=tr, now=now, config=ON, grabs=_auto(tmp_path, "h104"))
+    handled = await handle_stalled_torrents(transmission=tr, now=now, config=ON, grabs=_auto(tmp_path, t_paused))
     assert handled == []
     assert tr.removed == []
 
@@ -224,7 +230,7 @@ async def test_purge_forgets_the_grab_so_the_gap_is_hunted_again(tmp_path):
 
     handled = await handle_stalled_torrents(
         FakeTransmission(torrents), series_library=series, blacklist=Blacklist(db), history=history,
-        config=ON, now=now, grabs=_auto(tmp_path, "other", "dead"),
+        config=ON, now=now, grabs=_auto(tmp_path, *torrents),
     )
     assert len(handled) == 2
     assert [r.title for r in history.records()] == ["MobLand.S02E05.MULTi.2160p.WEB-GRP"]
@@ -248,7 +254,7 @@ def _old(id, **over):
 async def _purge(tmp_path, torrents, grabs="auto", config=ON, notifier=None, notice=None):
     tr = FakeTransmission(torrents)
     if grabs == "auto":
-        grabs = _auto(tmp_path, *(t.info_hash for t in torrents))
+        grabs = _auto(tmp_path, *torrents)
     handled = await handle_stalled_torrents(tr, blacklist=Blacklist(tmp_path / "bl.db"), config=config, now=NOW,
                                             grabs=grabs, notifier=notifier, notice=notice)
     return handled, tr
@@ -293,7 +299,7 @@ async def test_unregistered_torrent_is_purged(tmp_path):
 
 
 async def test_dead_auto_torrent_is_purged_and_forgotten(tmp_path):
-    grabs = _auto(tmp_path, "h1")
+    grabs = _auto(tmp_path, _old(1))
     handled, tr = await _purge(tmp_path, [_old(1)], grabs=grabs)
     assert tr.removed == [(1, True)]
     assert grabs.get("h1") is None
@@ -350,12 +356,39 @@ async def test_monitor_runner_purges_with_its_registry(tmp_path):
     from torsearch.monitor.history import MonitorHistory
     from torsearch.monitor.runner import MonitorRunner
 
-    tr = FakeTransmission([_old(1, date_added=datetime.now(UTC) - timedelta(hours=3))])
+    dead = _old(1, date_added=datetime.now(UTC) - timedelta(hours=3))
+    tr = FakeTransmission([dead])
 
     class Ctx:
         config = ON
         search_service = object()
         transmission = tr
 
-    await MonitorRunner(Ctx(), MonitorHistory(tmp_path / "m.json"), grabs=_auto(tmp_path, "h1")).run_once()
+    await MonitorRunner(Ctx(), MonitorHistory(tmp_path / "m.json"), grabs=_auto(tmp_path, dead)).run_once()
     assert tr.removed == [(1, True)]
+
+
+# --- Final review fixes ---
+
+
+async def test_duplicate_add_of_an_older_torrent_is_kept(tmp_path):
+    # Added by hand weeks ago; the surveillance later "sends" the same release: Transmission
+    # answers with the existing torrent, so the registry entry is younger than the torrent.
+    t = _old(1, date_added=NOW - timedelta(days=30))
+    grabs = GrabRegistry(tmp_path / "g.db")
+    grabs.record(t.info_hash, t.name, "auto", at=NOW - timedelta(hours=1))
+    handled, tr = await _purge(tmp_path, [t], grabs=grabs)
+    assert handled == [] and tr.removed == []
+
+
+async def test_unregistered_but_still_downloading_is_kept(tmp_path):
+    t = _old(1, percent=85.0, down_rate=5_000_000, peers_sending=12, error_code=2,
+             error_string="Unregistered torrent")
+    handled, tr = await _purge(tmp_path, [t])
+    assert handled == [] and tr.removed == []
+
+
+async def test_queued_or_checking_torrent_is_kept(tmp_path):
+    torrents = [_old(1, status="download pending"), _old(2, status="checking"), _old(3, status="check pending")]
+    handled, tr = await _purge(tmp_path, torrents)
+    assert handled == [] and tr.removed == []

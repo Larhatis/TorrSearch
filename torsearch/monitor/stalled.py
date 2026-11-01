@@ -4,6 +4,7 @@ import logging
 from datetime import UTC, date, datetime, timedelta
 
 from torsearch.library.episodes import parse_episodes
+from torsearch.monitor.grabs import AUTO
 from torsearch.monitor.history import MonitorRecord
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,10 @@ MAX_PURGES_PER_CYCLE = 3
 # Transmission error code for a local failure (disk full, permissions): another release
 # would fail the same way, so it never justifies a purge.
 _LOCAL_ERROR = 3
+
+# A registry entry vouches for a torrent only if Transmission added it at that moment: adding a
+# release that is already there (added by hand) returns the older, existing torrent.
+SAME_ADD_TOLERANCE = timedelta(minutes=15)
 
 # What trackers answer for a torrent they do not (or no longer) know.
 _FORGOTTEN_MARKERS = (
@@ -44,20 +49,32 @@ class DailyNotice:
         return True
 
 
+def _aware(moment: datetime) -> datetime:
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
+def _sent_by_surveillance(grabs, t) -> bool:
+    """Whether the registry records ``t`` as chosen by the surveillance, added at that time."""
+    record = grabs.get(t.info_hash) if t.info_hash else None
+    if record is None or record.origin != AUTO or t.date_added is None:
+        return False
+    return abs(_aware(t.date_added) - _aware(record.added_at)) <= SAME_ADD_TOLERANCE
+
+
 def _purge_reason(t, now: datetime, window: timedelta) -> str | None:
     """"stalled" or "error" when ``t`` is certainly dead, else None (never purge on doubt)."""
-    if t.percent >= 100.0 or "stop" in t.status.lower():
-        return None  # finished, or paused by a user
+    # Only an active download is judged: not a finished, paused, queued or checking one.
+    if t.percent >= 100.0 or t.status.lower() != "downloading":
+        return None
     # Never judge a torrent whose age is unknown, nor one younger than the grace period: a
     # fresh torrent is at 0 % without peers while it fetches metadata.
-    if t.date_added is None:
+    if t.date_added is None or now - _aware(t.date_added) < window:
         return None
-    at = t.date_added if t.date_added.tzinfo else t.date_added.replace(tzinfo=UTC)
-    if now - at < window:
-        return None
+    if t.down_rate > 0 or t.peers_sending > 0:
+        return None  # still receiving data, whatever the tracker says
     if tracker_forgot_torrent(t.error_code, t.error_string):
         return "error"
-    if t.percent == 0.0 and t.down_rate == 0 and t.peers_sending == 0:
+    if t.percent == 0.0:
         return "stalled"
     return None
 
@@ -104,7 +121,7 @@ async def handle_stalled_torrents(
     current_time = now or datetime.now(UTC)
     candidates = [
         (t, reason) for t in torrents
-        if grabs.is_auto(t.info_hash) and (reason := _purge_reason(t, current_time, window))
+        if _sent_by_surveillance(grabs, t) and (reason := _purge_reason(t, current_time, window))
     ]
     if len(candidates) > MAX_PURGES_PER_CYCLE:
         logger.warning("Purge suspendue : %d torrents semblent bloques en meme temps (panne reseau ou VPN ?)",

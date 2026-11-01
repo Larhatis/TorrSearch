@@ -34,9 +34,11 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
     (`manual`, jamais purgé) ; une entrée `manual` ne redevient jamais `auto`. Amorcé une fois
     depuis l'historique (grabs non manuels avec infohash).
   - `TransmissionClient.add()` renvoie `AddedTorrent(id, info_hash)`.
-  - Purge dans `monitor/stalled.py` : surveillance active, entrée `auto` du registre, pas en
-    pause, âge ≥ `stalled_hours`, puis 0 % sans pair **ou** `tracker_forgot_torrent()`
-    (« unregistered », « not registered »…, jamais `error_code == 3`). Plus de 3 candidats
+  - Purge dans `monitor/stalled.py` : surveillance active, entrée `auto` du registre dont la
+    date colle (±15 min) à l'ajout Transmission (un doublon renvoie le torrent existant, plus
+    ancien), statut `downloading` seulement, âge ≥ `stalled_hours`, plus aucune donnée reçue,
+    puis 0 % **ou** `tracker_forgot_torrent()` (« unregistered », « not registered »…, jamais
+    `error_code == 3`). Plus de 3 candidats
     (`MAX_PURGES_PER_CYCLE`) → aucune purge + notification « Purge suspendue » (`DailyNotice`,
     une fois par jour).
   - Réglages → Maintenance → « Liste noire » : liste + « Retirer » (`POST /settings/blacklist/remove`).
@@ -185,7 +187,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **749 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **752 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
