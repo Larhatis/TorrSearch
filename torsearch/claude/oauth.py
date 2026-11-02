@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
 import time
 from datetime import UTC, datetime
@@ -9,7 +10,9 @@ from mcp.server.auth.provider import (
     AccessToken,
     AuthorizationCode,
     AuthorizationParams,
+    AuthorizeError,
     RefreshToken,
+    RegistrationError,
     construct_redirect_uri,
 )
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
@@ -24,6 +27,19 @@ PENDING_TTL = 600  # the user has 10 minutes to log in on the consent page
 CODE_TTL = 300
 ACCESS_TTL = 3600
 REFRESH_TTL = 30 * 24 * 3600
+
+# The endpoint is public: strangers can register clients and open consents, so what they can
+# store is bounded, and codes only ever go back to Claude (no phishing, no open redirect).
+ALLOWED_REDIRECT_URIS = frozenset({
+    "https://claude.ai/api/mcp/auth_callback",
+    "https://claude.com/api/mcp/auth_callback",
+})
+MAX_CLIENT_NAME = 100
+MAX_CLIENT_RECORD = 4096  # bytes of JSON per registered client
+MAX_IDLE_CLIENTS = 20  # registered clients holding no access
+MAX_PENDING = 20
+MAX_STATE = 1024
+_EXPIRING = ("pending", "code", "access", "refresh")
 
 
 class PendingRequest(BaseModel):
@@ -84,6 +100,7 @@ class TorrSearchOAuthProvider:
 
     def _issue(self, client_id: str, scopes: list[str], subject: str, fingerprint: str,
                granted_at: str | None = None) -> OAuthToken:
+        self._purge_expired()
         access, refresh = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         now = self._clock()
         owner = {"client_id": client_id, "scopes": scopes, "subject": subject, "fingerprint": fingerprint}
@@ -94,6 +111,21 @@ class TorrSearchOAuthProvider:
             "granted_at": granted_at or datetime.now(UTC).isoformat(),
         })
         return OAuthToken(access_token=access, expires_in=ACCESS_TTL, scope=" ".join(scopes), refresh_token=refresh)
+
+    def _purge_expired(self) -> None:
+        now = self._clock()
+        for key, doc in self._c.items():
+            if key.split(":", 1)[0] in _EXPIRING and doc.get("expires_at") is not None and doc["expires_at"] <= now:
+                self._c.delete(key)
+
+    def _prune_idle_clients(self) -> None:
+        """Keep the newest ``MAX_IDLE_CLIENTS`` clients that hold no refresh token."""
+        items = self._c.items()
+        holders = {doc["client_id"] for key, doc in items if key.startswith("refresh:")}
+        idle = sorted(((doc.get("client_id_issued_at") or 0, key) for key, doc in items
+                       if key.startswith("client:") and key[len("client:"):] not in holders), reverse=True)
+        for _, key in idle[MAX_IDLE_CLIENTS:]:
+            self._c.delete(key)
 
     def _drop_pair(self, access_digest: str | None, refresh_digest: str | None) -> None:
         if access_digest:
@@ -108,11 +140,25 @@ class TorrSearchOAuthProvider:
         return OAuthClientInformationFull.model_validate(doc) if doc else None
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
-        self._c.upsert(f"client:{client_info.client_id}", client_info.model_dump(mode="json"))
+        uris = [str(u) for u in client_info.redirect_uris or []]
+        if not uris or any(u not in ALLOWED_REDIRECT_URIS for u in uris):
+            raise RegistrationError("invalid_redirect_uri", "Seul Claude (claude.ai) peut se connecter.")
+        record = client_info.model_dump(mode="json")
+        if len(client_info.client_name or "") > MAX_CLIENT_NAME or len(json.dumps(record)) > MAX_CLIENT_RECORD:
+            raise RegistrationError("invalid_client_metadata", "Description du client trop longue.")
+        self._purge_expired()
+        self._c.upsert(f"client:{client_info.client_id}", record)
+        self._prune_idle_clients()
 
     # --- consent -----------------------------------------------------------------------
 
     async def authorize(self, client: OAuthClientInformationFull, params: AuthorizationParams) -> str:
+        if params.state and len(params.state) > MAX_STATE:
+            raise AuthorizeError("invalid_request", "Parametre state trop long.")
+        self._purge_expired()
+        pending = sorted((doc["expires_at"], key) for key, doc in self._c.items() if key.startswith("pending:"))
+        for _, key in pending[: max(0, len(pending) - MAX_PENDING + 1)]:
+            self._c.delete(key)  # the oldest consents give way
         request_id = secrets.token_urlsafe(16)
         pending = PendingRequest(request_id=request_id, client_id=client.client_id,
                                  client_name=client.client_name or client.client_id, params=params,

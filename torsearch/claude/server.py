@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 MAX_DOWNLOADS_PER_HOUR = 10
 MAX_SEARCHES_PER_HOUR = 30
+MAX_FOLLOWS_PER_HOUR = 10  # each follow can make the surveillance fetch a whole series
 MAX_CARDS = 40
 
 _NO_TMDB = "Recherche impossible : cle TMDB absente, ajoute-la dans Reglages > Decouverte."
@@ -100,6 +101,8 @@ def build_claude_server(state, auth: AuthSettings | None = None, provider=None) 
     )
     downloads = HourlyLimit(MAX_DOWNLOADS_PER_HOUR)
     searches = HourlyLimit(MAX_SEARCHES_PER_HOUR)
+    follows = HourlyLimit(MAX_FOLLOWS_PER_HOUR)
+    follow_limit = f"Limite atteinte : {MAX_FOLLOWS_PER_HOUR} suivis par heure. Reessaie plus tard."
 
     async def _torrents():
         try:
@@ -195,6 +198,8 @@ def build_claude_server(state, auth: AuthSettings | None = None, provider=None) 
         ctx = state.ctx
         if not ctx.tmdb.enabled:
             return _NO_TMDB
+        if not follows.allow():
+            return follow_limit
         details = await ctx.tmdb.get_details("tv", tmdb_id)
         if details is None:
             return "Serie introuvable sur TMDB."
@@ -222,6 +227,8 @@ def build_claude_server(state, auth: AuthSettings | None = None, provider=None) 
         ctx = state.ctx
         if not ctx.tmdb.enabled:
             return _NO_TMDB
+        if not follows.allow():
+            return follow_limit
         details = await ctx.tmdb.get_details("movie", tmdb_id)
         if details is None:
             return "Film introuvable sur TMDB."

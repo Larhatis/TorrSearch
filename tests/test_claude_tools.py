@@ -200,3 +200,13 @@ async def test_find_work(tmp_path):
     async with Client(build_claude_server(_state(tmp_path))) as c:
         [work] = json.loads(await _call(c, "chercher_oeuvre", {"titre": "Severance"}))
     assert work["tmdb_id"] == 95396 and work["type"] == "tv" and work["surveille"] is False
+
+
+async def test_follow_tools_are_capped(tmp_path):
+    state = _state(tmp_path)
+    async with Client(build_claude_server(state)) as c:
+        for n in range(10):
+            await _call(c, "surveiller_film" if n % 2 else "suivre_serie", {"tmdb_id": 1000 + n})
+        message = await _call(c, "suivre_serie", {"tmdb_id": 2000})
+    assert message.startswith("Limite atteinte")
+    assert state.series_library.get(2000) is None

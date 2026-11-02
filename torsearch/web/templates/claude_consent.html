@@ -28,6 +28,7 @@
   {% if client_name %}
   <p><strong>{{ client_name }}</strong> demande l'acces a ton TorrSearch : chercher sur tes trackers, telecharger
     et suivre des oeuvres. Il ne pourra rien supprimer et ne verra jamais tes cles de tracker.</p>
+  <p>Apres autorisation, retour vers <strong>{{ redirect_host }}</strong>.</p>
   <form method="post" action="/claude/autoriser">
     <input type="hidden" name="demande" value="{{ demande }}">
     <label for="username">Identifiant (administrateur)</label>

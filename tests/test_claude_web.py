@@ -161,3 +161,17 @@ def test_no_public_url_mounts_nothing(tmp_path):
     with TestClient(_app(tmp_path, public_url=None), base_url=PUBLIC) as c:
         assert c.get("/.well-known/oauth-authorization-server").status_code == 404
         assert c.post("/mcp", headers=MCP_HEADERS, json={}).status_code == 404
+
+
+def test_consent_page_shows_where_it_returns(tmp_path):
+    with TestClient(_app(tmp_path), base_url=PUBLIC) as c:
+        _, request_id, _ = _start_consent(c)
+        page = c.get("/claude/autoriser", params={"demande": request_id}).text
+        assert "claude.ai" in page
+
+
+def test_foreign_redirect_cannot_register(tmp_path):
+    with TestClient(_app(tmp_path), base_url=PUBLIC) as c:
+        reg = c.post("/register", json={"redirect_uris": ["https://evil.example/cb"], "client_name": "Claude",
+                                         "token_endpoint_auth_method": "none"})
+        assert reg.status_code == 400

@@ -153,3 +153,69 @@ async def test_tokens_are_stored_hashed(tmp_path):
     *_, tokens = await _grant(p)
     stored = json.dumps(db.collection("oauth").all())
     assert tokens.access_token not in stored and tokens.refresh_token not in stored
+
+
+# --- Final review fixes: a public endpoint must bound what strangers can store ---
+
+from mcp.server.auth.provider import AuthorizeError, RegistrationError  # noqa: E402
+
+
+async def test_registration_only_accepts_claude_callbacks(tmp_path):
+    _, _, p = _setup(tmp_path)
+    evil = OAuthClientInformationFull(client_id="e1", client_name="Claude", redirect_uris=["https://evil.example/cb"])
+    with pytest.raises(RegistrationError) as err:
+        await p.register_client(evil)
+    assert err.value.error == "invalid_redirect_uri"
+    assert await p.get_client("e1") is None
+    ok = OAuthClientInformationFull(client_id="c2", client_name="Claude",
+                                    redirect_uris=["https://claude.com/api/mcp/auth_callback"])
+    await p.register_client(ok)
+    assert await p.get_client("c2") is not None
+
+
+async def test_registration_rejects_oversized_metadata(tmp_path):
+    _, _, p = _setup(tmp_path)
+    with pytest.raises(RegistrationError):
+        await p.register_client(OAuthClientInformationFull(client_id="x", client_name="C" * 101, redirect_uris=[CALLBACK]))
+    with pytest.raises(RegistrationError):
+        await p.register_client(OAuthClientInformationFull(client_id="y", client_name="Claude", redirect_uris=[CALLBACK],
+                                                           contacts=["a" * 5000]))
+
+
+async def test_clients_without_access_are_capped(tmp_path):
+    _, _, p = _setup(tmp_path)
+    client, *_ = await _grant(p)  # c1 holds an access: never dropped
+    for n in range(25):
+        await p.register_client(OAuthClientInformationFull(client_id=f"spam{n}", client_name="Claude",
+                                                           redirect_uris=[CALLBACK], client_id_issued_at=n + 1))
+    remaining = [n for n in range(25) if await p.get_client(f"spam{n}") is not None]
+    assert remaining == list(range(5, 25))  # the 20 newest
+    assert await p.get_client("c1") is not None
+
+
+async def test_pending_requests_are_capped_and_state_bounded(tmp_path):
+    db, _, p = _setup(tmp_path)
+    client = OAuthClientInformationFull(client_id="c1", client_name="Claude", redirect_uris=[CALLBACK])
+    await p.register_client(client)
+
+    def params(state):
+        return AuthorizationParams(state=state, scopes=None, code_challenge="ch", redirect_uri=CALLBACK,
+                                   redirect_uri_provided_explicitly=True)
+
+    for _ in range(25):
+        await p.authorize(client, params("s"))
+    assert sum(1 for key, _ in db.collection("oauth").items() if key.startswith("pending:")) == 20
+    with pytest.raises(AuthorizeError):
+        await p.authorize(client, params("s" * 1025))
+
+
+async def test_expired_entries_are_purged_on_write(tmp_path):
+    now = [1000.0]
+    db, _, p = _setup(tmp_path, now)
+    client = OAuthClientInformationFull(client_id="c1", client_name="Claude", redirect_uris=[CALLBACK])
+    await p.register_client(client)
+    await p.authorize(client, AuthorizationParams(state=None, scopes=None, code_challenge="ch", redirect_uri=CALLBACK,
+                                                  redirect_uri_provided_explicitly=True))
+    now[0] += 601
+    await p.register_client(OAuthClientInformationFull(client_id="c2", client_name="Claude", redirect_uris=[CALLBACK]))
+    assert not any(key.startswith("pending:") for key, _ in db.collection("oauth").items())

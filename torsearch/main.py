@@ -80,6 +80,10 @@ def build_app(
     )
     # Claude's connector needs a public HTTPS address (e.g. a Cloudflare tunnel) and a login.
     public_url = os.environ.get("TORSEARCH_PUBLIC_URL", "").strip().rstrip("/") or None
+    if public_url and not public_url.startswith("https://"):
+        # OAuth requires HTTPS: a typo must disable the connector, never the whole app.
+        logger.warning("TORSEARCH_PUBLIC_URL doit commencer par https:// : connecteur Claude desactive.")
+        public_url = None
     claude_provider = (
         TorrSearchOAuthProvider(db.collection("oauth"), users, auth.secret_key, public_url)
         if public_url and auth.enabled else None
