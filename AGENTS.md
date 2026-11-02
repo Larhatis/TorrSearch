@@ -21,10 +21,16 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.9.0)
+## 2. État actuel (v0.9.1)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- v0.9.1 — finitions de la revue du chantier 10 : le tri par pertinence retire les épisodes à
+  3-4 chiffres de la requête (`S01E1089`) ; `/download` ne tombe plus en 500 si l'inscription au
+  registre échoue et retombe sur l'infohash du résultat en cache ; un `transmission.remove` en
+  échec ne blackliste, ne démarque ni n'oublie rien ; le disjoncteur de purge (`PurgeBreaker`)
+  reste enclenché jusqu'à un cycle sans candidat, avec un rappel quotidien ; tests du repli
+  `hashString` et du refus cross-site de `POST /settings/blacklist/remove`.
 - Chantier 10 — purge sûre (v0.9.0, spec `docs/superpowers/specs/2026-11-01-chantier10-purge-sure-design.md`) :
   - Constat en production : la purge des torrents « bloqués » supprimait (données comprises) des
     torrents ajoutés à la main, même surveillance désactivée, et sur de simples avertissements
