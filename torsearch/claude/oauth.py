@@ -156,8 +156,8 @@ class TorrSearchOAuthProvider:
         if params.state and len(params.state) > MAX_STATE:
             raise AuthorizeError("invalid_request", "Parametre state trop long.")
         self._purge_expired()
-        pending = sorted((doc["expires_at"], key) for key, doc in self._c.items() if key.startswith("pending:"))
-        for _, key in pending[: max(0, len(pending) - MAX_PENDING + 1)]:
+        waiting = sorted((doc["expires_at"], key) for key, doc in self._c.items() if key.startswith("pending:"))
+        for _, key in waiting[: max(0, len(waiting) - MAX_PENDING + 1)]:
             self._c.delete(key)  # the oldest consents give way
         request_id = secrets.token_urlsafe(16)
         pending = PendingRequest(request_id=request_id, client_id=client.client_id,
