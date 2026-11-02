@@ -18,6 +18,7 @@ se configure entièrement au clic et s'intègre à ton serveur Jellyfin.
 - [Démarrage rapide](#démarrage-rapide-docker)
 - [Configuration](#configuration)
 - [Rôles & demandes](#rôles--demandes)
+- [Claude](#claude)
 - [Sécurité & exposition](#sécurité--exposition)
 - [Données](#données)
 - [Développement](#développement)
@@ -40,6 +41,7 @@ se configure entièrement au clic et s'intègre à ton serveur Jellyfin.
 | Notifications | Discord, ntfy, Telegram ou webhook sur les grabs et les trouvailles. |
 | Téléchargements | Envoi à Transmission en un clic et page de suivi en direct (pause / reprise / suppression). |
 | Configuration | Tout depuis l'interface (page **Réglages**, en onglets) : trackers, Transmission, profil de qualité, Jellyfin, dossiers, comptes. |
+| Claude | Connecteur **MCP** : depuis l'app Claude (web ou mobile), demande « trouve-moi la meilleure version de… » ; Claude cherche sur tes trackers, compare codec, HDR/Dolby Vision, poids et langue, lance le téléchargement et suit la série. Il ne peut rien supprimer et ne voit aucune clé de tracker. |
 | Maintenance | Sauvegarde de la base en un clic, **journal** des événements (secrets masqués), route `/healthz` utilisée par le `HEALTHCHECK` Docker. |
 
 ## Démarrage rapide (Docker)
@@ -89,6 +91,54 @@ L'authentification activée, l'admin gère les comptes dans **Réglages → Util
 Les demandes des invités arrivent dans l'écran **Demandes**, où l'admin approuve (le titre
 rejoint alors la bibliothèque et la surveillance le récupère) ou refuse. Chaque utilisateur
 suit l'état de ses propres demandes dans **Mes demandes**.
+
+## Claude
+
+TorrSearch peut servir de **connecteur** à Claude (protocole MCP) : tu lui parles depuis
+claude.ai ou l'app mobile, il cherche, compare les releases (codec, HDR/Dolby Vision, poids
+par épisode, langue, groupe), télécharge et met en surveillance. Ce qu'il peut faire : chercher
+une œuvre, chercher et comparer ses releases, télécharger, suivre une série ou surveiller un
+film, consulter téléchargements, surveillance et profil de qualité. Ce qu'il ne peut **pas**
+faire : supprimer quoi que ce soit, toucher aux réglages, voir l'adresse ou la clé d'un tracker.
+Garde-fous : 10 téléchargements et 30 recherches par heure au plus.
+
+Prérequis :
+
+1. **Authentification activée** (`TORSEARCH_USERNAME` / `TORSEARCH_PASSWORD`) : Claude obtient
+   son accès quand un **administrateur** se connecte sur la page d'autorisation.
+2. Une **adresse publique en HTTPS**, car Claude appelle le connecteur depuis les serveurs
+   d'Anthropic. Le plus simple : un tunnel Cloudflare sur un sous-domaine, qui ne laisse passer
+   **que** les chemins du connecteur (l'interface reste privée).
+3. `TORSEARCH_PUBLIC_URL=https://torrsearch.example.com` dans l'environnement de TorrSearch
+   (sans `/` final), puis redémarrage.
+
+Exemple de tunnel (`docker-compose.yml`, à côté du service TorrSearch) :
+
+```yaml
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    restart: unless-stopped
+```
+
+Dans le tableau de bord Cloudflare (Zero Trust → Networks → Tunnels), ajoute un *public
+hostname* `torrsearch.example.com` vers `http://torsearch:8000` avec ce **chemin** (regex) :
+
+```text
+^/(mcp|authorize|token|register|revoke|claude/autoriser|\.well-known/oauth-.*)$
+```
+
+et une seconde règle pour le même hôte, sans chemin, vers `http_status:404`. Garde
+l'interface en HTTP sur ton réseau local (ne mets pas `TORSEARCH_HTTPS`, réservé à une
+interface servie en HTTPS).
+
+Enfin, sur claude.ai : **Customize → Connectors → Add custom connector**, adresse
+`https://torrsearch.example.com/mcp`. Claude ouvre la page d'autorisation de TorrSearch :
+connecte-toi avec un compte administrateur. Le connecteur est ensuite disponible dans l'app
+mobile. Les accès accordés se voient et se **révoquent** dans **Réglages → Maintenance →
+Accès Claude**.
 
 ## Sécurité & exposition
 
