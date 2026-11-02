@@ -21,10 +21,28 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.9.1)
+## 2. État actuel (v0.10.0)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Chantier 11 — Claude branché sur TorrSearch (v0.10.0, spec
+  `docs/superpowers/specs/2026-11-02-chantier11-claude-mcp-design.md`) :
+  - Serveur MCP distant (`torsearch/claude/`) sur le SDK officiel `mcp` 2.x (`MCPServer`),
+    Streamable HTTP en JSON, sans état. Actif seulement si `TORSEARCH_PUBLIC_URL` est défini
+    **et** l'authentification activée (sinon `/mcp` répond 503).
+  - 8 outils en français (`server.py`) : `chercher_oeuvre`, `chercher_releases` (fiches
+    `cards.py` : codec, HDR/DV, 10 bits, groupe, poids par épisode, verdict du profil, id opaque
+    du `ResultCache`), `telecharger` (`library/sending.py`, même chemin que `/download`, inscrit
+    `manual`), `suivre_serie`, `surveiller_film`, `etat_telechargements`, `etat_surveillance`,
+    `profil_qualite`. Consignes de choix tirées du profil (`claude_instructions`). Plafonds :
+    10 téléchargements et 30 recherches par heure (`limits.py`). Aucun outil destructif.
+  - OAuth 2.1 + DCR (`oauth.py`, collection `oauth`) : consentement sur `/claude/autoriser`
+    (connexion **admin**, `LoginThrottle`), jetons stockés par empreinte SHA-256, liés à
+    l'empreinte du mot de passe (changement de mot de passe, rétrogradation ou suppression du
+    compte = jetons morts). Réglages → Maintenance → « Acces Claude » : adresse du connecteur
+    et révocation.
+  - Parseur : `ParsedRelease.hdr` (`DV`, `HDR10+`, `HDR`), `bit_depth`, `group`.
+  - Exposition documentée (README) : tunnel Cloudflare limité aux chemins MCP/OAuth.
 - v0.9.1 — finitions de la revue du chantier 10 : le tri par pertinence retire les épisodes à
   3-4 chiffres de la requête (`S01E1089`) ; `/download` ne tombe plus en 500 si l'inscription au
   registre échoue et retombe sur l'infohash du résultat en cache ; un `transmission.remove` en
@@ -195,7 +213,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **764 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **829 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
@@ -236,6 +254,8 @@ Python 3.12+, **FastAPI + Jinja2 + HTMX**, Tailwind (servi localement), **SQLite
 | `monitor/schedule.py` | `SearchSchedule` : quand relancer une recherche ciblée (par film / série / recherche libre). |
 | `monitor/grabs.py` | `GrabRegistry` : torrents envoyés par l'app (infohash → origine `auto`/`manual`). |
 | `monitor/stalled.py` | Purge des torrents morts envoyés par la surveillance (règles + disjoncteur). |
+| `claude/` | Connecteur MCP pour Claude : outils (`server.py`), fiches de release (`cards.py`), OAuth (`oauth.py`), plafonds (`limits.py`). |
+| `library/sending.py` | `send_release` : envoi d'une release choisie par une personne (interface ou Claude). |
 | `library/calendar.py` | Construction du calendrier « A venir » (épisodes TMDB + dates de sortie des films). |
 | `logbuffer.py` | Journal en mémoire (page Réglages → Maintenance → Journal). |
 | `health.py` | Panneau d'état : `check_all()` lance tous les `test()` en parallèle. |
@@ -285,6 +305,10 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
    dans le registre des envois, surveillance active, mort de façon certaine, et s'arrête
    au-delà de 3 candidats par cycle — puis reste arrêtée jusqu'à un cycle sans aucun candidat.
    Jamais un torrent ajouté à la main.
+10. **Claude ne supprime rien et ne voit aucune clé** : aucun outil MCP destructif ni de
+    réglage ; les fiches ne contiennent jamais `download_url` (id opaque du `ResultCache`).
+    Seuls les chemins MCP/OAuth sont publics (`_CLAUDE_PATHS`, préfixe `/.well-known/oauth-`
+    dans `web/auth.py`) ; seul un admin accorde l'accès.
 
 ## 7. Pièges connus
 
@@ -312,6 +336,12 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
 - **Infohash** : `MonitorRecord.infohash` garde celui **du tracker** ; celui de Transmission va
   dans le registre des envois. Les recopier casserait l'anti-doublon de l'historique
   (`infohash or download_url`, calculé de la même façon sur les résultats du tracker).
+
+- **SDK `mcp` 2.x** : `FastMCP` s'appelle `MCPServer` (`mcp.server.mcpserver`). Son app
+  Starlette (routes OAuth + `/mcp`) est montée sur `/` **après** toutes les routes FastAPI et
+  `/static` ; son `session_manager.run()` tourne dans le `lifespan` de l'app. Protection
+  DNS-rebinding désactivée (l'hôte public est celui du tunnel). Tests d'outils en mémoire avec
+  `mcp.Client(server)`.
 
 ## 8. Feuille de route (ordre recommandé)
 

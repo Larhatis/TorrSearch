@@ -78,6 +78,14 @@ def _blacklist_context(request: Request) -> dict:
     return {"blacklist_entries": entries, "blacklist_reasons": _BLACKLIST_REASONS}
 
 
+def _claude_context(request: Request) -> dict:
+    provider = getattr(request.app.state, "claude_provider", None)
+    return {
+        "claude_public_url": getattr(request.app.state, "claude_public_url", None),
+        "claude_grants": provider.grants() if provider is not None else [],
+    }
+
+
 _TABS = [
     ("connexions", "ti-plug-connected", "Connexions"),
     ("trackers", "ti-rss", "Trackers"),
@@ -102,6 +110,7 @@ async def settings_page(request: Request):
             "users": users.list() if users else [],
             "tmdb_from_env": bool(os.environ.get("TMDB_API_KEY")),
             **_blacklist_context(request),
+            **_claude_context(request),
         }
     )
 
@@ -422,6 +431,14 @@ async def remove_blacklisted(request: Request, key: str = Form("")):
     if blacklist is not None and key.strip():
         blacklist.remove(key)
     return templates.TemplateResponse(request, "partials/blacklist_list.html", _blacklist_context(request))
+
+
+@settings_router.post("/settings/claude/revoke", response_class=HTMLResponse)
+async def revoke_claude_access(request: Request, client_id: str = Form("")):
+    provider = getattr(request.app.state, "claude_provider", None)
+    if provider is not None and client_id.strip():
+        provider.revoke_client(client_id.strip())
+    return templates.TemplateResponse(request, "partials/claude_access.html", _claude_context(request))
 
 
 @settings_router.get("/settings/backup")

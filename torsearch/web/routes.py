@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 
 from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -10,10 +10,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from torsearch import __version__
 from torsearch.context import AppContext
-from torsearch.library.linking import plan_manual_grab, record_manual_grab
+from torsearch.library.sending import send_release
 from torsearch.models import Category
-from torsearch.monitor.grabs import MANUAL, added_hash
-from torsearch.redact import redact
 from torsearch.search.filters import VALID_DIRECTIONS, VALID_SORTS, ResultFilters, apply
 from torsearch.search.result_cache import ResultCache
 from torsearch.web.auth import (
@@ -26,6 +24,7 @@ from torsearch.web.auth import (
 from torsearch.web.auth_routes import auth_router
 from torsearch.web.authz import effective_role, require_admin, require_member
 from torsearch.web.calendar_routes import calendar_router
+from torsearch.web.claude_routes import claude_router
 from torsearch.web.cleanup_routes import cleanup_router
 from torsearch.web.discover_routes import discover_router
 from torsearch.web.downloads_routes import downloads_router
@@ -172,7 +171,6 @@ async def download(
     category: str = Form(""),
     title: str = Form(""),
 ):
-    ctx: AppContext = request.app.state.ctx
     tracker_hash = ""
     if result_id:
         # Members only ever hold this opaque id: the tracker URL (passkey) stays server-side.
@@ -192,48 +190,31 @@ async def download(
     except ValueError:
         cat = Category.OTHER
 
-    library = getattr(request.app.state, "library", None)
-    series_library = getattr(request.app.state, "series_library", None)
-    grab = plan_manual_grab(title, cat, ctx.config.paths, library, series_library)
-    try:
-        added = await ctx.transmission.add(download_url, grab.download_dir)
-        message, ok = f"Ajoute a Transmission (#{added.id})", True
-    except Exception as exc:
-        message, ok = f"Erreur Transmission : {redact(str(exc))}", False
-    grabs = getattr(request.app.state, "grabs", None)
-    if ok and grabs is not None:
-        try:
-            # A release picked by hand is never purged automatically, even if it stalls.
-            grabs.record(added_hash(added) or tracker_hash, title, MANUAL)
-        except Exception as exc:  # the torrent is added: never turn that into an error page
-            logger.warning("Recording manual grab '%s' failed: %s", title, exc)
-    if ok and grab.watched_title:
-        try:
-            record_manual_grab(grab, download_url, library, series_library,
-                               getattr(request.app.state, "history", None))
-            message += f" · marque acquis dans la surveillance ({grab.watched_title})"
-        except Exception as exc:  # the torrent is added: never turn that into an error page
-            logger.warning("Manual grab bookkeeping for '%s' failed: %s", title, exc)
-    return templates.TemplateResponse(request, "partials/toast.html", {"ok": ok, "message": message})
+    out = await send_release(request.app.state, download_url, title, cat, fallback_hash=tracker_hash or None)
+    return templates.TemplateResponse(request, "partials/toast.html", {"ok": out.ok, "message": out.message})
 
 
 def create_app(
     ctx: AppContext, history=None, monitor=None, auth: AuthSettings | None = None, library=None,
     series_library=None, users=None, requests_store=None, blacklist=None, db=None, log_handler=None,
-    grabs=None,
+    grabs=None, public_url: str | None = None, claude_provider=None,
 ) -> FastAPI:
     if auth is None:
         auth = AuthSettings(enabled=False)
+    claude: dict = {}  # the MCP server, once built (its session manager runs with the app)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        if monitor is not None:
-            await monitor.start()
-        try:
-            yield
-        finally:
+        async with AsyncExitStack() as stack:
+            if "server" in claude:
+                await stack.enter_async_context(claude["server"].session_manager.run())
             if monitor is not None:
-                await monitor.stop()
+                await monitor.start()
+            try:
+                yield
+            finally:
+                if monitor is not None:
+                    await monitor.stop()
 
     app = FastAPI(title="TorrSearch", lifespan=lifespan)
     app.state.ctx = ctx
@@ -250,6 +231,8 @@ def create_app(
     app.state.log_handler = log_handler
     app.state.login_throttle = LoginThrottle()
     app.state.result_cache = ResultCache()
+    app.state.claude_provider = claude_provider if public_url and auth.enabled else None
+    app.state.claude_public_url = public_url if public_url and auth.enabled else None
     app.add_middleware(CrossSiteGuardMiddleware)  # always on, even without auth
     app.add_middleware(SecurityHeadersMiddleware)
     if auth.enabled:
@@ -273,5 +256,45 @@ def create_app(
     app.include_router(series_router)
     app.include_router(requests_router)
     app.include_router(calendar_router)
+    app.include_router(claude_router)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    if public_url:
+        _mount_claude(app, public_url, auth, claude_provider, claude)
     return app
+
+
+_AUTH_REQUIRED = "Activez l'authentification (TORSEARCH_USERNAME / TORSEARCH_PASSWORD) pour utiliser Claude."
+
+
+def _mount_claude(app: FastAPI, public_url: str, auth: AuthSettings, provider, claude: dict) -> None:
+    """Claude's MCP connector: the SDK app (OAuth routes + /mcp) goes last, after every route."""
+    if not auth.enabled or provider is None:
+        async def disabled(request: Request):
+            return JSONResponse({"error": _AUTH_REQUIRED}, status_code=503)
+
+        app.add_api_route("/mcp", disabled, methods=["GET", "POST", "DELETE"], include_in_schema=False)
+        logger.warning("Claude : connecteur desactive, %s", _AUTH_REQUIRED)
+        return
+    from mcp.server.auth.settings import AuthSettings as McpAuthSettings
+    from mcp.server.auth.settings import ClientRegistrationOptions, RevocationOptions
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    from torsearch.claude.oauth import SCOPE
+    from torsearch.claude.server import build_claude_server
+
+    mcp_auth = McpAuthSettings(
+        issuer_url=public_url, resource_server_url=f"{public_url}/mcp", validate_token_resource=False,
+        required_scopes=[SCOPE],
+        client_registration_options=ClientRegistrationOptions(enabled=True, valid_scopes=[SCOPE],
+                                                              default_scopes=[SCOPE]),
+        revocation_options=RevocationOptions(enabled=True),
+    )
+    server = build_claude_server(app.state, auth=mcp_auth, provider=provider)
+    sub = server.streamable_http_app(
+        streamable_http_path="/mcp", stateless_http=True, json_response=True, host="0.0.0.0",
+        # The public host is the tunnel's; requests reach the app through it, not via a browser.
+        transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+    )
+    claude["server"] = server
+    app.mount("/", sub)
+    logger.info("Claude : connecteur MCP actif sur %s/mcp", public_url)

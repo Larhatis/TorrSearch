@@ -123,11 +123,14 @@ class CrossSiteGuardMiddleware(BaseHTTPMiddleware):
 
 
 _PUBLIC_PATHS = {"/login", "/logout", "/healthz", "/calendar.ics"}  # .ics: checks its own token
-_PUBLIC_PREFIXES = ("/static/",)
+# Claude's connector: the MCP endpoint checks its own OAuth tokens, the OAuth endpoints and the
+# consent page (admin login) are how it gets them. Nothing else of the UI is public.
+_CLAUDE_PATHS = {"/mcp", "/authorize", "/token", "/register", "/revoke", "/claude/autoriser"}
+_PUBLIC_PREFIXES = ("/static/", "/.well-known/oauth-")
 
 
 def _is_public(path: str) -> bool:
-    return path in _PUBLIC_PATHS or path.startswith(_PUBLIC_PREFIXES)
+    return path in _PUBLIC_PATHS or path in _CLAUDE_PATHS or path.startswith(_PUBLIC_PREFIXES)
 
 
 def _route_path(request: Request) -> str:

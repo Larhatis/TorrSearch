@@ -1,0 +1,26 @@
+<section id="claude-access" class="rounded-xl border border-slate-700 bg-slate-800/40 p-4 sm:p-5">
+  <div class="mb-4 flex items-center gap-2 border-b border-slate-700/70 pb-3">
+    <i class="ti ti-robot text-slate-500"></i>
+    <h2 class="text-sm font-semibold text-white">Acces Claude</h2>
+  </div>
+  {% if not claude_public_url %}
+  <p class="text-xs text-slate-400">Definis TORSEARCH_PUBLIC_URL (adresse publique en HTTPS) pour brancher Claude.
+    L'authentification doit aussi etre activee.</p>
+  {% else %}
+  <p class="mb-3 text-xs text-slate-400">Adresse du connecteur a ajouter dans Claude (Customize > Connectors) :
+    <code class="break-all text-slate-300">{{ claude_public_url }}/mcp</code></p>
+  {% for grant in claude_grants %}
+  <form hx-post="/settings/claude/revoke" hx-target="#claude-access" hx-swap="outerHTML"
+        class="flex flex-wrap items-center gap-2 sm:gap-3 border-b border-slate-800 py-2 text-sm">
+    <input type="hidden" name="client_id" value="{{ grant.client_id }}">
+    <span class="min-w-0 break-words font-medium">{{ grant.client_name }}</span>
+    <span class="rounded bg-slate-700 px-2 py-0.5 text-xs">{{ grant.username }}</span>
+    <span class="text-xs text-slate-500">{{ grant.granted_at.strftime("%d/%m/%Y") }}</span>
+    <span class="hidden sm:block sm:ml-auto"></span>
+    <button type="submit" class="rounded bg-red-700 px-2 py-1 text-xs">Revoquer</button>
+  </form>
+  {% else %}
+  <p class="text-slate-400 text-sm">Aucun acces accorde.</p>
+  {% endfor %}
+  {% endif %}
+</section>
