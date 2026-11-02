@@ -86,3 +86,31 @@ def test_long_running_episode_cuts_the_title():
     rel = parse_release("One.Piece.S01E1089.VOSTFR.1080p.WEB")
     assert rel.clean_title == "One Piece"
     assert rel.episodes == {"S01E1089"}
+
+
+def test_hdr_dolby_vision_and_bit_depth():
+    rel = parse_release("Fallout.S02E01.MULTi.DV.HDR10+.2160p.WEBRip.x265.10bit-BATGirl.mkv")
+    assert rel.hdr == ("DV", "HDR10+")
+    assert rel.bit_depth == 10
+    assert rel.group == "BATGirl"
+
+
+def test_plain_hdr_and_bracketed_group():
+    rel = parse_release("Show.S01E05.MULTi.4Klight.HDR.WEBRip.EAC3.x265-[PSA]-BATGirl.mkv")
+    assert rel.hdr == ("HDR",)
+    assert rel.group == "BATGirl"
+
+
+def test_no_hdr_no_group():
+    rel = parse_release("Some Movie 2020 1080p WEB H264")
+    assert rel.hdr == () and rel.bit_depth is None and rel.group is None
+
+
+def test_dvdrip_is_not_dolby_vision():
+    assert parse_release("Old.Film.1999.DVDRip.XviD-GRP").hdr == ()
+
+
+def test_hdr10plus_spelled_out_and_ten_bits():
+    rel = parse_release("Film.2024.MULTI.VFF.2160p.4KLight.DV.HDR10Plus.AC3.5.1.H265-Slay3R")
+    assert rel.hdr == ("DV", "HDR10+")
+    assert parse_release("Show.S01E01.1080p.WEBrip.10.bits.x265-TyHD").bit_depth == 10

@@ -61,6 +61,21 @@ _EDITION_PATTERNS = [
 ]
 
 
+# Dynamic range markers, in the order they are reported. "\bdv\b" never matches "DVDRip".
+_HDR_PATTERNS = [
+    ("DV", re.compile(r"\b(dv|dovi|dolby[ ._-]?vision)\b", re.IGNORECASE)),
+    ("HDR10+", re.compile(r"\bhdr10(?:\+|plus)(?![a-z0-9])", re.IGNORECASE)),
+    ("HDR", re.compile(r"\bhdr(?:10)?(?!\+|plus|[a-z0-9])", re.IGNORECASE)),
+]
+_TEN_BITS_RE = re.compile(r"\b10[ ._-]?bits?\b", re.IGNORECASE)
+# Release group: the last "-GROUP" (brackets allowed) at the very end, before an extension.
+_GROUP_RE = re.compile(r"-\s*\[?([A-Za-z0-9]+)\]?\s*(?:\.(?:mkv|mp4|avi))?$", re.IGNORECASE)
+
+
+def _dynamic_range(title: str) -> tuple[str, ...]:
+    return tuple(label for label, pat in _HDR_PATTERNS if pat.search(title))
+
+
 @dataclass(frozen=True)
 class ParsedRelease:
     raw_title: str
@@ -73,6 +88,9 @@ class ParsedRelease:
     language: str = "unknown"
     codec: str = "unknown"
     edition: str | None = None
+    hdr: tuple[str, ...] = ()
+    bit_depth: int | None = None
+    group: str | None = None
 
 
 def parse_release(raw_title: str) -> ParsedRelease:
@@ -190,4 +208,7 @@ def parse_release(raw_title: str) -> ParsedRelease:
         language=language,
         codec=codec,
         edition=edition,
+        hdr=_dynamic_range(title_work),
+        bit_depth=10 if _TEN_BITS_RE.search(title_work) else None,
+        group=(m.group(1) if (m := _GROUP_RE.search(title_work)) else None),
     )
