@@ -10,10 +10,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from torsearch import __version__
 from torsearch.context import AppContext
-from torsearch.library.linking import plan_manual_grab, record_manual_grab
+from torsearch.library.sending import send_release
 from torsearch.models import Category
-from torsearch.monitor.grabs import MANUAL, added_hash
-from torsearch.redact import redact
 from torsearch.search.filters import VALID_DIRECTIONS, VALID_SORTS, ResultFilters, apply
 from torsearch.search.result_cache import ResultCache
 from torsearch.web.auth import (
@@ -172,7 +170,6 @@ async def download(
     category: str = Form(""),
     title: str = Form(""),
 ):
-    ctx: AppContext = request.app.state.ctx
     tracker_hash = ""
     if result_id:
         # Members only ever hold this opaque id: the tracker URL (passkey) stays server-side.
@@ -192,29 +189,8 @@ async def download(
     except ValueError:
         cat = Category.OTHER
 
-    library = getattr(request.app.state, "library", None)
-    series_library = getattr(request.app.state, "series_library", None)
-    grab = plan_manual_grab(title, cat, ctx.config.paths, library, series_library)
-    try:
-        added = await ctx.transmission.add(download_url, grab.download_dir)
-        message, ok = f"Ajoute a Transmission (#{added.id})", True
-    except Exception as exc:
-        message, ok = f"Erreur Transmission : {redact(str(exc))}", False
-    grabs = getattr(request.app.state, "grabs", None)
-    if ok and grabs is not None:
-        try:
-            # A release picked by hand is never purged automatically, even if it stalls.
-            grabs.record(added_hash(added) or tracker_hash, title, MANUAL)
-        except Exception as exc:  # the torrent is added: never turn that into an error page
-            logger.warning("Recording manual grab '%s' failed: %s", title, exc)
-    if ok and grab.watched_title:
-        try:
-            record_manual_grab(grab, download_url, library, series_library,
-                               getattr(request.app.state, "history", None))
-            message += f" · marque acquis dans la surveillance ({grab.watched_title})"
-        except Exception as exc:  # the torrent is added: never turn that into an error page
-            logger.warning("Manual grab bookkeeping for '%s' failed: %s", title, exc)
-    return templates.TemplateResponse(request, "partials/toast.html", {"ok": ok, "message": message})
+    out = await send_release(request.app.state, download_url, title, cat, fallback_hash=tracker_hash or None)
+    return templates.TemplateResponse(request, "partials/toast.html", {"ok": out.ok, "message": out.message})
 
 
 def create_app(
