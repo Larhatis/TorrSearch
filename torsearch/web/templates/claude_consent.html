@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TorrSearch - Autoriser Claude</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+           background: #0a0a0a; color: #ffffff; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    main { width: 100%; max-width: 380px; margin: 16px; padding: 24px; border: 1px solid #2a2a2a;
+           border-radius: 12px; background: #141414; }
+    h1 { font-size: 18px; margin: 0 0 8px; }
+    p { color: #aaaaaa; font-size: 14px; line-height: 1.5; }
+    label { display: block; font-size: 13px; color: #cccccc; margin: 14px 0 4px; }
+    input { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid #2a2a2a;
+            background: #0a0a0a; color: #ffffff; font-size: 15px; }
+    .error { background: #7f1d1d; color: #ffffff; padding: 10px; border-radius: 8px; font-size: 14px; }
+    .actions { display: flex; gap: 8px; margin-top: 20px; }
+    button { flex: 1; padding: 11px; border: 0; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .allow { background: #00d4e8; color: #0a0a0a; }
+    .deny { background: #2a2a2a; color: #ffffff; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Autoriser Claude</h1>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  {% if client_name %}
+  <p><strong>{{ client_name }}</strong> demande l'acces a ton TorrSearch : chercher sur tes trackers, telecharger
+    et suivre des oeuvres. Il ne pourra rien supprimer et ne verra jamais tes cles de tracker.</p>
+  <form method="post" action="/claude/autoriser">
+    <input type="hidden" name="demande" value="{{ demande }}">
+    <label for="username">Identifiant (administrateur)</label>
+    <input id="username" name="username" autocomplete="username" required>
+    <label for="password">Mot de passe</label>
+    <input id="password" name="password" type="password" autocomplete="current-password">
+    <div class="actions">
+      <button class="deny" type="submit" name="decision" value="refuser" formnovalidate>Refuser</button>
+      <button class="allow" type="submit" name="decision" value="autoriser">Autoriser</button>
+    </div>
+  </form>
+  {% endif %}
+</main>
+</body>
+</html>

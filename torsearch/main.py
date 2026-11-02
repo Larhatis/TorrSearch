@@ -6,6 +6,7 @@ import os
 from fastapi import FastAPI
 
 from torsearch import logbuffer
+from torsearch.claude.oauth import TorrSearchOAuthProvider
 from torsearch.context import AppContext
 from torsearch.db.database import Database
 from torsearch.library.blacklist import Blacklist
@@ -77,10 +78,17 @@ def build_app(
         ctx, history, library=library, series_library=series_library, blacklist=blacklist,
         schedule=SearchSchedule(db.collection("search_schedule")), requests_store=requests_store, grabs=grabs,
     )
+    # Claude's connector needs a public HTTPS address (e.g. a Cloudflare tunnel) and a login.
+    public_url = os.environ.get("TORSEARCH_PUBLIC_URL", "").strip().rstrip("/") or None
+    claude_provider = (
+        TorrSearchOAuthProvider(db.collection("oauth"), users, auth.secret_key, public_url)
+        if public_url and auth.enabled else None
+    )
     return create_app(
         ctx, history=history, monitor=monitor, auth=auth,
         library=library, series_library=series_library, users=users,
         requests_store=requests_store, blacklist=blacklist, db=db, log_handler=log_handler, grabs=grabs,
+        public_url=public_url, claude_provider=claude_provider,
     )
 
 
