@@ -58,3 +58,12 @@ def test_blacklist_remove_requires_admin(tmp_path):
     client.post("/login", data={"username": "mem", "password": "pw", "next": "/"}, follow_redirects=False)
     assert client.post("/settings/blacklist/remove", data={"key": "aa"}).status_code == 403
     assert bl.is_blacklisted("aa", "Some.Release.1080p")
+
+
+def test_blacklist_remove_refuses_a_cross_site_request(tmp_path):
+    bl = Blacklist(tmp_path / "bl.db")
+    bl.add("aa", "Some.Release.1080p")
+    resp = _client(tmp_path, bl).post("/settings/blacklist/remove", data={"key": "aa"},
+                                      headers={"Sec-Fetch-Site": "cross-site"})
+    assert resp.status_code == 403
+    assert bl.is_blacklisted("aa", "Some.Release.1080p")

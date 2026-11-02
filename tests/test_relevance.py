@@ -107,3 +107,9 @@ async def test_search_service_sorts_by_relevance_across_trackers():
     assert t1_match.title in top_titles
     assert t2_match.title in top_titles
     assert results[-1].title == t1_unrelated.title
+
+
+def test_query_with_four_digit_episode_keeps_an_exact_title_match():
+    r = _res("One.Piece.S01E1089.MULTi.1080p.WEB")
+    # The episode tag is cut from the query like a two-digit one: the title still matches exactly.
+    assert compute_relevance(r, "One Piece S01E1089") > compute_relevance(r, "One Piece")

@@ -40,6 +40,17 @@ async def test_add_returns_torrent_id_and_passes_url():
     assert created["client"].kwargs["protocol"] == "http"
 
 
+
+async def test_add_reads_the_legacy_hashstring_field():
+    # Older transmission-rpc torrents only expose ``hashString``.
+    class LegacyRpc(FakeRpc):
+        def add_torrent(self, url, download_dir=None, timeout=None):
+            return SimpleNamespace(id=7, hashString="ABC123")
+
+    tc = TransmissionClient(TransmissionConfig(), client_factory=lambda **kw: LegacyRpc(**kw))
+    added = await tc.add("magnet:?xt=urn:btih:A")
+    assert (added.id, added.info_hash) == (7, "abc123")
+
 async def test_add_passes_download_dir():
     captured = {}
 

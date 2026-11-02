@@ -173,6 +173,7 @@ async def download(
     title: str = Form(""),
 ):
     ctx: AppContext = request.app.state.ctx
+    tracker_hash = ""
     if result_id:
         # Members only ever hold this opaque id: the tracker URL (passkey) stays server-side.
         cached = request.app.state.result_cache.get(result_id)
@@ -180,6 +181,7 @@ async def download(
             return templates.TemplateResponse(request, "partials/toast.html", {
                 "ok": False, "message": "Resultat expire : relance la recherche."})
         download_url, title, category = cached.download_url, cached.title, cached.category.value
+        tracker_hash = cached.infohash or ""
     elif not download_url:
         return templates.TemplateResponse(request, "partials/toast.html", {
             "ok": False, "message": "Aucun torrent indique."})
@@ -200,8 +202,11 @@ async def download(
         message, ok = f"Erreur Transmission : {redact(str(exc))}", False
     grabs = getattr(request.app.state, "grabs", None)
     if ok and grabs is not None:
-        # A release picked by hand is never purged automatically, even if it stalls.
-        grabs.record(added_hash(added), title, MANUAL)
+        try:
+            # A release picked by hand is never purged automatically, even if it stalls.
+            grabs.record(added_hash(added) or tracker_hash, title, MANUAL)
+        except Exception as exc:  # the torrent is added: never turn that into an error page
+            logger.warning("Recording manual grab '%s' failed: %s", title, exc)
     if ok and grab.watched_title:
         try:
             record_manual_grab(grab, download_url, library, series_library,

@@ -131,3 +131,35 @@ def test_manual_download_is_recorded_manual(tmp_path):
     assert "Ajoute a Transmission" in resp.text
     assert g.get("mm").origin == "manual"
     assert g.get("mm").title == "Some.Film.2020.1080p"
+
+
+class _ManualCtx:
+    def __init__(self, answer):
+        self.search_service = SearchService([])
+        self.transmission = FakeTransmission(answer)
+        self.config = Config()
+        self.jellyfin = None
+        self.tmdb = None
+
+
+def test_manual_download_falls_back_to_the_tracker_hash(tmp_path):
+    # Transmission gave no hash (old fake, odd daemon): the cached result's one still marks it manual.
+    g = GrabRegistry(tmp_path / "g.db")
+    app = create_app(_ManualCtx(AddedTorrent(id=7)), grabs=g)
+    rid = app.state.result_cache.put(_r("Some.Film.2020.1080p", infohash="TRACKERHASH"))
+    resp = TestClient(app).post("/download", data={"result_id": rid})
+    assert "Ajoute a Transmission" in resp.text
+    assert g.get("trackerhash").origin == "manual"
+
+
+def test_registry_failure_after_a_manual_add_still_says_added(tmp_path):
+    class BrokenRegistry:
+        def record(self, *args, **kwargs):
+            raise RuntimeError("database is locked")
+
+    ctx = _ManualCtx(AddedTorrent(id=7, info_hash="mm"))
+    client = TestClient(create_app(ctx, grabs=BrokenRegistry()), raise_server_exceptions=False)
+    resp = client.post("/download", data={"download_url": "magnet:?x", "title": "Some.Film.2020.1080p"})
+    assert resp.status_code == 200
+    assert "Ajoute a Transmission (#7)" in resp.text
+    assert ctx.transmission.added == ["magnet:?x"]
