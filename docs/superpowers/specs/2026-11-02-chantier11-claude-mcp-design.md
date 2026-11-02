@@ -129,11 +129,15 @@ En français, courtes, tirées du profil courant à chaque connexion :
 - Les connecteurs de claude.ai sont appelés depuis l'infrastructure d'Anthropic : le point
   d'entrée doit être public, en HTTPS.
 - Le NAS n'a ni reverse proxy ni tunnel aujourd'hui (TorrSearch écoute en LAN sur le port 8585).
-- Choix proposé : **Tailscale Funnel** (gratuit, sans nom de domaine, sans ouvrir de port sur la
-  box) : adresse stable `https://<machine>.<tailnet>.ts.net`, n'exposant que les chemins MCP et
-  OAuth. Alternative si l'utilisateur a un nom de domaine : Cloudflare Tunnel.
-- Le README documente la mise en place (conteneur Tailscale à côté de TorrSearch, chemins
-  exposés). La mise en place sur le NAS est faite à part, avec l'accord de l'utilisateur.
+- L'utilisateur a un nom de domaine. Choix retenu : **Cloudflare Tunnel** (conteneur
+  `cloudflared` à côté de TorrSearch, aucun port ouvert sur la box, HTTPS géré par Cloudflare)
+  sur un sous-domaine dédié, avec des règles d'entrée qui ne laissent passer **que** les chemins
+  MCP et OAuth (le reste répond 404). Repli si le domaine ne peut pas passer chez Cloudflare :
+  reverse proxy (Caddy) + port 443 ouvert, mêmes chemins seulement.
+- Le domaine de l'utilisateur n'apparaît jamais dans le dépôt (public) : exemples avec
+  `torrsearch.example.com`.
+- Le README documente la mise en place (conteneur `cloudflared`, règles de chemins). La mise en
+  place sur le NAS est faite à part, avec l'accord de l'utilisateur.
 - L'adresse publique sert à construire les URL OAuth : réglage `mcp.public_url` (onglet
   Connexions), vide = MCP désactivé.
 
@@ -157,7 +161,7 @@ aucune clé ») ; README (section « Claude ») ; une PR.
 ## 6. Décisions prises sans l'utilisateur (à relire)
 - OAuth avec connexion admin plutôt qu'une URL secrète : le point d'entrée est public et peut
   lancer des téléchargements.
-- Tailscale Funnel pour l'exposition (aucun nom de domaine connu).
+- Cloudflare Tunnel pour l'exposition, sur un sous-domaine du domaine de l'utilisateur.
 - Les téléchargements lancés par Claude sont inscrits `manual` : jamais purgés automatiquement,
   comme un choix de l'utilisateur.
 - Plafonds : 10 téléchargements et 30 recherches par heure via MCP.
