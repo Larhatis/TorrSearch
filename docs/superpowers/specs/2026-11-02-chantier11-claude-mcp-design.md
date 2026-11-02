@@ -128,7 +128,7 @@ En français, courtes, tirées du profil courant à chaque connexion :
 ### 4.7 Exposition sur Internet
 - Les connecteurs de claude.ai sont appelés depuis l'infrastructure d'Anthropic : le point
   d'entrée doit être public, en HTTPS.
-- Le NAS n'a ni reverse proxy ni tunnel aujourd'hui (TorrSearch écoute en LAN sur le port 8585).
+- Le NAS n'a ni reverse proxy ni tunnel aujourd'hui (TorrSearch n'est joignable que sur le réseau local).
 - L'utilisateur a un nom de domaine. Choix retenu : **Cloudflare Tunnel** (conteneur
   `cloudflared` à côté de TorrSearch, aucun port ouvert sur la box, HTTPS géré par Cloudflare)
   sur un sous-domaine dédié, avec des règles d'entrée qui ne laissent passer **que** les chemins

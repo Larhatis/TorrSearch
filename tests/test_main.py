@@ -71,7 +71,7 @@ def test_build_app_wires_claude_from_the_public_url(tmp_path, monkeypatch):
 def test_http_public_url_disables_only_the_connector(tmp_path, monkeypatch):
     monkeypatch.setenv("TORSEARCH_USERNAME", "admin")
     monkeypatch.setenv("TORSEARCH_PASSWORD", "a-long-password-1")
-    monkeypatch.setenv("TORSEARCH_PUBLIC_URL", "http://192.168.1.10:8585")
+    monkeypatch.setenv("TORSEARCH_PUBLIC_URL", "http://torrsearch.lan:8000")
     d = tmp_path / "data"
     app = main.build_app(
         settings_path=str(d / "settings.json"), bootstrap_config_path=str(tmp_path / "none.yaml"),
