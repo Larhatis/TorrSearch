@@ -192,3 +192,37 @@ async def test_port_line_absent_when_unknown_or_transmission_down():
     for tr in (_PortService(None, result=(True, "v4")), _PortService(True, result=(False, "Injoignable"))):
         statuses = await check_all(_Ctx(Config(), tr, _Service(enabled=False), _Service(enabled=False)))
         assert "Port entrant" not in [s.name for s in statuses]
+
+
+class _SlowPortSpaceService(_SpaceService):
+    async def port_open(self):
+        await asyncio.sleep(0.3)
+        return True
+
+    async def free_space(self, path):
+        await asyncio.sleep(0.3)
+        return self._free.get(path)
+
+
+async def test_port_and_disks_measured_in_parallel_in_a_fixed_order():
+    import time
+
+    from torsearch.config import PathsConfig
+
+    cfg = Config(paths=PathsConfig(by_category={"movies": "/d/disk1/Films"}))
+    tr = _SlowPortSpaceService({"/d/disk1/Films": 1_000_000_000_000}, result=(True, "v4"))
+    start = time.monotonic()
+    statuses = await check_all(_Ctx(cfg, tr, _Service(enabled=False), _Service(enabled=False)))
+    assert time.monotonic() - start < 0.55
+    names = [s.name for s in statuses]
+    assert names[:3] == ["Transmission", "Port entrant", "Disques"]
+
+
+async def test_port_line_absent_when_the_test_times_out():
+    class Hanging(_PortService):
+        async def port_open(self):
+            await asyncio.sleep(5)
+
+    statuses = await check_all(_Ctx(Config(), Hanging(True, result=(True, "v4")), _Service(enabled=False),
+                                    _Service(enabled=False)), timeout=0.1)
+    assert "Port entrant" not in [s.name for s in statuses]

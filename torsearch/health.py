@@ -115,6 +115,17 @@ async def _port_status(transmission, timeout: float) -> ServiceStatus | None:
     )
 
 
+async def _none() -> None:
+    return None
+
+
+async def _disks_status(ctx, timeout: float) -> ServiceStatus:
+    disks = await _probe("Disques", _disks_check(ctx), timeout)
+    if disks.state == "ok" and disks.message == "OK":
+        return ServiceStatus(name="Disques", state="off", message="Espace libre inconnu (pas de controle)")
+    return disks
+
+
 async def check_all(ctx, timeout: float = 12.0) -> list[ServiceStatus]:
     """Check every external service in parallel; statuses come back in display order."""
     config = ctx.config
@@ -139,14 +150,12 @@ async def check_all(ctx, timeout: float = 12.0) -> list[ServiceStatus]:
         label = f"{n} canal{'aux' if n > 1 else ''} · test manuel dans la section Notifications"
         checks.append(_fixed(ServiceStatus(name="Notifications", state="off", message=label)))
     statuses = list(await asyncio.gather(*checks))
-    if statuses[0].state == "ok" and hasattr(ctx.transmission, "port_open"):
-        port = await _port_status(ctx.transmission, timeout)
-        if port is not None:
-            statuses.insert(1, port)
-    if statuses[0].state == "ok" and hasattr(ctx.transmission, "free_space"):
-        # Only Transmission sees the disks: measured once it is known to answer.
-        disks = await _probe("Disques", _disks_check(ctx), timeout)
-        if disks.state == "ok" and disks.message == "OK":
-            disks = ServiceStatus(name="Disques", state="off", message="Espace libre inconnu (pas de controle)")
-        statuses.insert(1, disks)
+    if statuses[0].state == "ok":
+        # Only Transmission sees the disks and the port: measured once it is known to answer,
+        # in parallel (the port test waits for an outside service), shown right after it.
+        port, disks = await asyncio.gather(
+            _port_status(ctx.transmission, timeout) if hasattr(ctx.transmission, "port_open") else _none(),
+            _disks_status(ctx, timeout) if hasattr(ctx.transmission, "free_space") else _none(),
+        )
+        statuses[1:1] = [s for s in (port, disks) if s is not None]
     return statuses
