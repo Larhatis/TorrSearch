@@ -4,7 +4,7 @@
 
 **Goal:** figer toutes les dépendances, tester l'image Docker sur chaque PR, faire proposer les montées de version par Dependabot.
 
-**Architecture:** un `requirements.lock` universel (uv) sert de fichier de contraintes (`pip install -c`) à la CI et au Dockerfile ; un job CI `docker` construit et démarre l'image ; `.github/dependabot.yml` couvre pip, actions et Docker.
+**Architecture:** un `requirements.txt` universel (uv) sert de fichier de contraintes (`pip install -c`) à la CI et au Dockerfile ; un job CI `docker` construit et démarre l'image ; `.github/dependabot.yml` couvre pip, actions et Docker.
 
 **Tech Stack:** uv (régénération seulement), pip, GitHub Actions, Docker, Dependabot.
 
@@ -31,18 +31,18 @@
 ### Task 1 : fichier de versions exactes, utilisé par la CI et le Dockerfile
 
 **Files:**
-- Create: `requirements.lock`
+- Create: `requirements.txt`
 - Modify: `Dockerfile` (ligne `pip install`), `.github/workflows/ci.yml` (étape Install + nouvelle étape « Lock a jour »), `.dockerignore` si besoin
 
 **Interfaces:**
-- Produces : `requirements.lock` à la racine ; commande de régénération
-  `uv pip compile pyproject.toml --extra dev --universal --python-version 3.12 -o requirements.lock`
+- Produces : `requirements.txt` à la racine ; commande de régénération
+  `uv pip compile pyproject.toml --extra dev --universal --python-version 3.12 -o requirements.txt`
 
 - [ ] **Step 1 :** générer le lock avec la commande ci-dessus ; vérifier qu'il contient `fastapi==`, `transmission-rpc==`, `mcp==`, `pytest==`, `ruff==`, `mypy==` et des marqueurs `sys_platform` (preuve du mode universel).
-- [ ] **Step 2 :** CI — `pip install -c requirements.lock -e ".[dev]"` ; étape « Lock a jour » : installer uv (`astral-sh/setup-uv`), régénérer le lock dans un fichier temporaire avec la même commande et `diff` contre `requirements.lock` en ignorant la ligne d'en-tête de commande (échec = message « requirements.lock n'est plus a jour : relancer … »).
-- [ ] **Step 3 :** Dockerfile — `COPY pyproject.toml requirements.lock ./` puis `pip install --no-cache-dir -c requirements.lock .`
-- [ ] **Step 4 :** vérifier localement : venv neuf + `pip install -c requirements.lock -e ".[dev]"`, puis ruff, mypy, pytest verts ; `docker build` réussit.
-- [ ] **Step 5 :** commit `build(deps): versions exactes dans requirements.lock (CI et image)`.
+- [ ] **Step 2 :** CI — `pip install -c requirements.txt -e ".[dev]"` ; étape « Lock a jour » : installer uv (`astral-sh/setup-uv`), régénérer le lock dans un fichier temporaire avec la même commande et `diff` contre `requirements.txt` en ignorant la ligne d'en-tête de commande (échec = message « requirements.txt n'est plus a jour : relancer … »).
+- [ ] **Step 3 :** Dockerfile — `COPY pyproject.toml requirements.txt ./` puis `pip install --no-cache-dir -c requirements.txt .`
+- [ ] **Step 4 :** vérifier localement : venv neuf + `pip install -c requirements.txt -e ".[dev]"`, puis ruff, mypy, pytest verts ; `docker build` réussit.
+- [ ] **Step 5 :** commit `build(deps): versions exactes dans requirements.txt (CI et image)`.
 
 ### Task 2 : la CI construit et démarre l'image
 

@@ -12,7 +12,7 @@ supprimait des torrents tout juste ajoutés).
 
 ## Objectifs
 
-1. **Versions exactes** : un fichier `requirements.lock` (toutes les dépendances, transitives
+1. **Versions exactes** : un fichier `requirements.txt` (toutes les dépendances, transitives
    comprises) utilisé comme contraintes par le Dockerfile **et** la CI. Même code ⇒ même image.
 2. **Montées de version visibles** : Dependabot propose chaque semaine des PR (pip, actions
    GitHub, image Docker de base), testées par la CI avant fusion.
@@ -44,18 +44,19 @@ supprimait des torrents tout juste ajoutés).
 
 ## Conception
 
-- `requirements.lock` à la racine, généré par
-  `uv pip compile pyproject.toml --extra dev --universal --python-version 3.12 -o requirements.lock`
+- `requirements.txt` à la racine (nom en `.txt` exigé par Dependabot ; un premier essai en
+  `requirements.lock` était ignoré par Dependabot, relevé en revue), généré par
+  `uv pip compile pyproject.toml --extra dev --universal --python-version 3.12 -o requirements.txt`
   (commande rappelée en tête du fichier par uv). Les outils de dev y sont aussi figés : la CI
   utilise exactement les mêmes ruff/mypy/pytest.
-- Dockerfile : `pip install --no-cache-dir -c requirements.lock .`
-- CI : `pip install -c requirements.lock -e ".[dev]"`, plus une étape qui vérifie que le lock
+- Dockerfile : `pip install --no-cache-dir -c requirements.txt .`
+- CI : `pip install -c requirements.txt -e ".[dev]"`, plus une étape qui vérifie que le lock
   correspond au `pyproject.toml` (`uv pip compile … --check` ou régénération + `git diff --exit-code`).
 - Nouveau job CI `docker` : `docker build`, démarrage du conteneur (auth désactivée, base en
   `/tmp`), attente du `HEALTHCHECK` / requête `/healthz` (60 s max), logs affichés en cas d'échec.
   amd64 seulement (l'émulation arm64 reste au workflow de release).
 - `.github/dependabot.yml` : `pip` (racine, hebdomadaire, mises à jour groupées mineures/patchs),
-  `github-actions` (mensuel), `docker` (mensuel, image `python:3.12-slim`).
+  `github-actions` (mensuel), `docker` (mensuel, image `python:3.12-slim`, sans proposer d'autre version mineure de Python).
 - Doc : README (section contribution) et AGENTS.md (§3 Démarrer, §5 Méthode, §7 Pièges).
 
 ## Laissé au constructeur

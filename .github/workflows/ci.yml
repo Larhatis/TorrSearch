@@ -7,13 +7,14 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install (exact versions from requirements.lock)
-        run: pip install -c requirements.lock -e ".[dev]"
+      - name: Install (exact versions from requirements.txt)
+        run: pip install -c requirements.txt -e ".[dev]"
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.11.8"
@@ -21,11 +22,11 @@ jobs:
         # uv keeps the pins already in the copied file, so this only differs when
         # pyproject.toml changed without regenerating the lock.
         run: |
-          cp requirements.lock "$RUNNER_TEMP/check.lock"
+          cp requirements.txt "$RUNNER_TEMP/check.txt"
           uv pip compile pyproject.toml --extra dev --universal --python-version 3.12 \
-            -o "$RUNNER_TEMP/check.lock" --quiet
-          if ! diff <(grep -v '^#' requirements.lock) <(grep -v '^#' "$RUNNER_TEMP/check.lock"); then
-            echo "::error::requirements.lock n'est plus a jour : relancer 'uv pip compile pyproject.toml --extra dev --universal --python-version 3.12 -o requirements.lock'"
+            -o "$RUNNER_TEMP/check.txt" --quiet
+          if ! diff <(grep -v '^#' requirements.txt) <(grep -v '^#' "$RUNNER_TEMP/check.txt"); then
+            echo "::error::requirements.txt n'est plus a jour : relancer 'uv pip compile pyproject.toml --extra dev --universal --python-version 3.12 -o requirements.txt'"
             exit 1
           fi
       - name: Lint (ruff)
@@ -40,6 +41,7 @@ jobs:
     # startup shows up here instead of on the server after a release (amd64 only: arm64
     # emulation stays in the release workflow).
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Build image
@@ -48,8 +50,13 @@ jobs:
         run: |
           docker run -d --name ts -e TORSEARCH_DB=/data/torsearch.db -p 8000:8000 torsearch:ci
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8000/healthz; then
+            if curl -fs http://127.0.0.1:8000/healthz; then
               echo; echo "Image demarree"; exit 0
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' ts)" != "true" ]; then
+              echo "::error::le conteneur s'est arrete"
+              docker logs ts
+              exit 1
             fi
             sleep 2
           done
