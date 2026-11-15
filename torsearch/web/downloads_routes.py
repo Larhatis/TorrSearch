@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
@@ -11,9 +9,6 @@ from torsearch.transmission.client import TorrentInfo
 from torsearch.web.templating import templates
 
 downloads_router = APIRouter()
-
-_finished_scanned: set[int] = set()
-
 
 def _format_rate(bytes_per_sec: int | float) -> str:
     r = float(bytes_per_sec)
@@ -65,15 +60,8 @@ async def _render_list(request: Request, error: str | None = None, filter_status
 
     filtered_torrents, counts, current_filter = _filter_torrents(torrents, filter_status)
 
-    # Auto-trigger Jellyfin scan when a torrent completes
-    if hasattr(ctx, "jellyfin") and ctx.jellyfin and ctx.jellyfin.enabled:
-        for t in torrents:
-            if (t.percent >= 100.0 or "seed" in t.status.lower()) and t.id not in _finished_scanned:
-                _finished_scanned.add(t.id)
-                try:
-                    asyncio.create_task(ctx.jellyfin.refresh())
-                except Exception:
-                    pass
+    # No Jellyfin scan here: the monitor loop (always running) scans once per cycle when a
+    # torrent has newly finished (``run_jellyfin_refresh``); "Scanner Jellyfin" forces one.
 
     return templates.TemplateResponse(
         request,

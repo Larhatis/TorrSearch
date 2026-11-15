@@ -207,3 +207,16 @@ def test_downloads_list_filters_and_counters():
     assert 'filter=downloading' in resp_action.text
 
 
+
+
+def test_downloads_list_never_triggers_jellyfin_scans():
+    """Polling the Activity list must not scan Jellyfin: the monitor loop does it once per cycle.
+
+    The page used to fire one full library scan per finished torrent after every app or
+    Transmission restart (ids kept in memory), i.e. hundreds of scans at once.
+    """
+    jelly = FakeJellyfin()
+    torrents = [_ti(id=900 + i, name=f"Done.{i}", percent=100.0, status="seeding") for i in range(3)]
+    resp = _client(FakeTransmission(torrents), jellyfin=jelly).get("/downloads/list")
+    assert resp.status_code == 200
+    assert jelly.refreshed is False
