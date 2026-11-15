@@ -21,10 +21,21 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.11.0)
+## 2. État actuel (v0.12.0)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Chantier 14 — purge patiente (v0.12.0, spec
+  `docs/superpowers/specs/2026-11-15-chantier14-purge-patiente-design.md`) : constat en
+  production, 6 releases de *Primetime* brûlées en 6 jours (port entrant fermé + purge à 2 h).
+  - `TorrentInfo.tracker_seeders` (max des `seederCount >= 0` des trackers, `None` si inconnu).
+    Un torrent à 0 % dont le tracker annonce des sources n'est purgé qu'après
+    `max(stalled_hours, 24 h)` (`SOURCES_PATIENCE`) : le problème vient alors de chez nous.
+  - Après une purge, l'œuvre est démarquée via la **cible du registre des envois**
+    (`movie:N`, `tv:N`) — le titre du tracker et le nom Transmission diffèrent souvent, et le
+    film restait « acquis » 48 h (`regrab_hours`) puis repartait en double liste noire. Les titres
+    restent en repli.
+  - Panneau d'état : ligne « Port entrant » (`TransmissionClient.port_open`, RPC `port-test`).
 - Chantier 13 — espace disque (v0.11.0, spec
   `docs/superpowers/specs/2026-11-15-chantier13-espace-disque-design.md`) :
   - `TransmissionClient.free_space(path)` (RPC `free-space`) : dossier de session si `None`,
@@ -241,7 +252,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **869 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **883 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

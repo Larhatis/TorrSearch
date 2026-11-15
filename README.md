@@ -40,6 +40,7 @@ se configure entièrement au clic et s'intègre à ton serveur Jellyfin.
 | Multi-utilisateur | Comptes **admin / membre / invité** avec mots de passe hachés (changeables dans **Mon compte**), et une **file de demandes** validée par l'admin ; une demande passe « Disponible » (avec notification) dès que Jellyfin a l'œuvre. |
 | Notifications | Discord, ntfy, Telegram ou webhook sur les grabs et les trouvailles. |
 | Téléchargements | Envoi à Transmission en un clic et page de suivi en direct (pause / reprise / suppression). |
+| Fiabilité | Un torrent bloqué n'est purgé (et remplacé par la release suivante) que s'il est vraiment mort : si le tracker annonce des sources, l'app patiente 24 h. Le panneau d'état signale un **port entrant fermé**, cause fréquente des téléchargements qui ne démarrent pas. |
 | Configuration | Tout depuis l'interface (page **Réglages**, en onglets) : trackers, Transmission, profil de qualité, Jellyfin, dossiers, comptes. |
 | Claude | Connecteur **MCP** : depuis l'app Claude (web ou mobile), demande « trouve-moi la meilleure version de… » ; Claude cherche sur tes trackers, compare codec, HDR/Dolby Vision, poids et langue, lance le téléchargement et suit la série. Il ne peut rien supprimer et ne voit aucune clé de tracker. |
 | Maintenance | Sauvegarde de la base en un clic, **journal** des événements (secrets masqués), route `/healthz` utilisée par le `HEALTHCHECK` Docker. |

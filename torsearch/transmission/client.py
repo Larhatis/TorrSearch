@@ -266,6 +266,14 @@ class TransmissionClient:
         except Exception:
             return None
 
+    async def port_open(self) -> bool | None:
+        """Whether peers can reach Transmission's incoming port (None when unknown). Never raises."""
+        try:
+            answer = await self._run(lambda c: c.port_test())
+        except Exception:
+            return None
+        return None if answer is None else bool(answer)
+
     async def pause(self, torrent_id: int) -> None:
         await self._run(lambda c: c.stop_torrent(torrent_id))
 

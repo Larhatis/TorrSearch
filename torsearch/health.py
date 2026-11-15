@@ -98,6 +98,23 @@ async def _disks_check(ctx) -> tuple[bool, str]:
     return True, text
 
 
+async def _port_status(transmission, timeout: float) -> ServiceStatus | None:
+    """Incoming port as Transmission tests it; None when unknown (no line)."""
+    try:
+        is_open = await asyncio.wait_for(transmission.port_open(), timeout)
+    except Exception:
+        return None
+    if is_open is None:
+        return None
+    if is_open:
+        return ServiceStatus(name="Port entrant", state="ok", message="OK · ouvert")
+    return ServiceStatus(
+        name="Port entrant", state="error",
+        message="Ferme : les releases peu partagees demarrent mal. Redirige un port sur le VPN "
+                "et donne-le a Transmission (peer port).",
+    )
+
+
 async def check_all(ctx, timeout: float = 12.0) -> list[ServiceStatus]:
     """Check every external service in parallel; statuses come back in display order."""
     config = ctx.config
@@ -122,6 +139,10 @@ async def check_all(ctx, timeout: float = 12.0) -> list[ServiceStatus]:
         label = f"{n} canal{'aux' if n > 1 else ''} · test manuel dans la section Notifications"
         checks.append(_fixed(ServiceStatus(name="Notifications", state="off", message=label)))
     statuses = list(await asyncio.gather(*checks))
+    if statuses[0].state == "ok" and hasattr(ctx.transmission, "port_open"):
+        port = await _port_status(ctx.transmission, timeout)
+        if port is not None:
+            statuses.insert(1, port)
     if statuses[0].state == "ok" and hasattr(ctx.transmission, "free_space"):
         # Only Transmission sees the disks: measured once it is known to answer.
         disks = await _probe("Disques", _disks_check(ctx), timeout)

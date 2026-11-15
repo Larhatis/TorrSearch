@@ -162,3 +162,33 @@ async def test_disks_line_off_when_space_is_unknown():
                                     _Service(enabled=False)))
     disks = next(s for s in statuses if s.name == "Disques")
     assert disks.state == "off"
+
+
+class _PortService(_Service):
+    def __init__(self, port, **kw):
+        super().__init__(**kw)
+        self._port = port
+
+    async def port_open(self):
+        return self._port
+
+
+async def test_port_line_ok_when_open():
+    statuses = await check_all(_Ctx(Config(), _PortService(True, result=(True, "v4")), _Service(enabled=False),
+                                    _Service(enabled=False)))
+    port = next(s for s in statuses if s.name == "Port entrant")
+    assert port.state == "ok"
+
+
+async def test_port_line_explains_a_closed_port():
+    statuses = await check_all(_Ctx(Config(), _PortService(False, result=(True, "v4")), _Service(enabled=False),
+                                    _Service(enabled=False)))
+    port = next(s for s in statuses if s.name == "Port entrant")
+    assert port.state == "error"
+    assert "ferme" in port.message.lower() and "VPN" in port.message
+
+
+async def test_port_line_absent_when_unknown_or_transmission_down():
+    for tr in (_PortService(None, result=(True, "v4")), _PortService(True, result=(False, "Injoignable"))):
+        statuses = await check_all(_Ctx(Config(), tr, _Service(enabled=False), _Service(enabled=False)))
+        assert "Port entrant" not in [s.name for s in statuses]
