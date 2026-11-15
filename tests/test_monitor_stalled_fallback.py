@@ -517,3 +517,42 @@ async def test_forgotten_by_tracker_is_purged_even_with_sources(tmp_path):
     t = _old(1, percent=40.0, error_code=2, error_string="Unregistered torrent", tracker_seeders=5)
     handled, _ = await _purge(tmp_path, [t])
     assert handled == [t.name]
+
+
+# --- Chantier 14: the purged work is hunted again at once (registry target, not titles) ---
+
+async def test_purge_unmarks_the_movie_of_the_registry_target(tmp_path):
+    # Tracker title and Transmission name differ (seen in production with Primetime): the
+    # registry target tells which movie it was.
+    t = _old(1, name="Primetime.2026.MULTi.CA.1080p.WEB.H264-SUPPLY")
+    movies = MovieLibrary(tmp_path / "movies.json")
+    movies.add(WantedMovie(tmdb_id=42, title="Primetime", year="2026", added_at=NOW))
+    movies.mark_grabbed(42, "Primetime.2026.MULTI.VFQ.1080p.WEB.DDP.5.1.H264-SUPPLY", t.date_added)
+    grabs = GrabRegistry(tmp_path / "grabs.db")
+    grabs.record(t.info_hash, "Primetime.2026.MULTI.VFQ.1080p.WEB.DDP.5.1.H264-SUPPLY", "auto",
+                 target="movie:42", at=t.date_added)
+    handled = await handle_stalled_torrents(FakeTransmission([t]), library=movies, blacklist=Blacklist(tmp_path / "b"),
+                                            config=ON, now=NOW, grabs=grabs)
+    assert handled == [t.name]
+    assert movies.get(42).status == "wanted"
+
+
+async def test_purge_unmarks_the_episodes_on_the_series_of_the_registry_target(tmp_path):
+    t = _old(1, name="La.Serie.Traduite.S01E03.MULTi.1080p.WEB-GRP")  # French release name
+    series = SeriesLibrary(tmp_path / "series.json")
+    series.add(WantedSeries(tmdb_id=7, title="The Show", year="2025", added_at=NOW, grabbed=["S01E02", "S01E03"]))
+    grabs = GrabRegistry(tmp_path / "grabs.db")
+    grabs.record(t.info_hash, t.name, "auto", target="tv:7", at=t.date_added)
+    await handle_stalled_torrents(FakeTransmission([t]), series_library=series, blacklist=Blacklist(tmp_path / "b"),
+                                  config=ON, now=NOW, grabs=grabs)
+    assert series.get(7).grabbed == ["S01E02"]
+
+
+async def test_purge_with_a_target_of_a_removed_work_does_not_fail(tmp_path):
+    t = _old(1)
+    grabs = GrabRegistry(tmp_path / "grabs.db")
+    grabs.record(t.info_hash, t.name, "auto", target="movie:999", at=t.date_added)
+    handled = await handle_stalled_torrents(FakeTransmission([t]), library=MovieLibrary(tmp_path / "m.json"),
+                                            series_library=SeriesLibrary(tmp_path / "s.json"),
+                                            blacklist=Blacklist(tmp_path / "b"), config=ON, now=NOW, grabs=grabs)
+    assert handled == [t.name]

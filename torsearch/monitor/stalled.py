@@ -180,29 +180,9 @@ async def handle_stalled_torrents(
         if blacklist is not None:
             blacklist.add(t.info_hash or None, t.name, reason=f"torrent_{reason}")
 
-        # 3. Reset Movie Library if matching
-        if library is not None:
-            for m in library.list():
-                if m.status == "grabbed" and m.grabbed_title:
-                    if m.grabbed_title.strip().lower() == t.name.strip().lower():
-                        library.unmark_grabbed(m.tmdb_id)
-                        break
-
-        # 4. Reset Series Library if matching
-        if series_library is not None:
-            from torsearch.parser.release import parse_release
-            from torsearch.search.matcher import match_media_title
-
-            parsed_keys = parse_episodes(t.name)
-            seasons = {k for k in parsed_keys if len(k) == 3}  # season pack tags ("S01")
-            for s in series_library.list():
-                rel = parse_release(t.name)
-                if match_media_title(rel, target_title=s.title, target_original_title=s.original_title, is_series=True):
-                    keys_to_unmark = [
-                        k for k in s.grabbed if k in parsed_keys or k[:3] in seasons
-                    ]
-                    if keys_to_unmark:
-                        series_library.unmark_grabbed(s.tmdb_id, keys_to_unmark)
+        # 3-4. Hunt the work again at once: the registry target says which one it was (the
+        # tracker title and the Transmission name usually differ); titles are the fallback.
+        _unmark_purged(t, grabs.get(t.info_hash), library, series_library)
 
         # 5. Forget the grab in the history (no cooldown for a dead download)
         if history is not None and hasattr(history, "remove_where"):
@@ -229,6 +209,49 @@ async def handle_stalled_torrents(
         handled.append(t.name)
 
     return handled
+
+
+def _target(record) -> tuple[str, int] | None:
+    """``("movie", 42)`` from a registry target ``movie:42`` (None when absent or malformed)."""
+    kind, _, ident = (getattr(record, "target", "") or "").partition(":")
+    if kind in ("movie", "tv") and ident.isdigit():
+        return kind, int(ident)
+    return None
+
+
+def _unmark_purged(t, record, library, series_library) -> None:
+    """Put the purged torrent's movie or episodes back to "wanted"."""
+    target = _target(record)
+    if target and target[0] == "movie" and library is not None:
+        if library.get(target[1]) is not None:
+            library.unmark_grabbed(target[1])
+        return
+    if target and target[0] == "tv" and series_library is not None:
+        series = series_library.get(target[1])
+        if series is not None:
+            _unmark_series_episodes(series_library, series, t.name)
+        return
+    if library is not None:
+        for m in library.list():
+            if m.status == "grabbed" and m.grabbed_title and m.grabbed_title.strip().lower() == t.name.strip().lower():
+                library.unmark_grabbed(m.tmdb_id)
+                break
+    if series_library is not None:
+        from torsearch.parser.release import parse_release
+        from torsearch.search.matcher import match_media_title
+
+        rel = parse_release(t.name)
+        for s in series_library.list():
+            if match_media_title(rel, target_title=s.title, target_original_title=s.original_title, is_series=True):
+                _unmark_series_episodes(series_library, s, t.name)
+
+
+def _unmark_series_episodes(series_library, series, torrent_name: str) -> None:
+    parsed_keys = parse_episodes(torrent_name)
+    seasons = {k for k in parsed_keys if len(k) == 3}  # season pack tags ("S01")
+    keys = [k for k in series.grabbed if k in parsed_keys or k[:3] in seasons]
+    if keys:
+        series_library.unmark_grabbed(series.tmdb_id, keys)
 
 
 def _same_release(record: MonitorRecord, torrent) -> bool:
