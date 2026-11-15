@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 # More candidates than this in one cycle points at a network or VPN outage, not at dead
 # releases: nothing is purged then.
 MAX_PURGES_PER_CYCLE = 3
+SOURCES_PATIENCE = timedelta(hours=24)  # grace when the tracker announces sources
 
 # Transmission error code for a local failure (disk full, permissions): another release
 # would fail the same way, so it never justifies a purge.
@@ -91,6 +92,12 @@ def _purge_reason(t, now: datetime, window: timedelta) -> str | None:
     if tracker_forgot_torrent(t.error_code, t.error_string):
         return "error"
     if t.percent == 0.0:
+        # The tracker announces sources: nothing reaching us is our side's problem (closed
+        # port, unreachable peers), not a dead release. Wait longer, but not forever.
+        if t.tracker_seeders and now - _aware(t.date_added) < max(window, SOURCES_PATIENCE):
+            logger.debug("Torrent '%s' a 0 %% mais %d source(s) annoncee(s) : on patiente",
+                         t.name, t.tracker_seeders)
+            return None
         return "stalled"
     return None
 

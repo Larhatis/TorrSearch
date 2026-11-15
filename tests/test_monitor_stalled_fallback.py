@@ -485,3 +485,35 @@ async def test_monitor_runner_keeps_the_purge_suspended_between_cycles(tmp_path)
     tr._torrents = dead[:2]
     await runner.run_once()
     assert tr.removed == []
+
+
+# --- Chantier 14: patience when the tracker announces sources ---
+
+async def test_stalled_torrent_with_announced_sources_is_kept(tmp_path):
+    # The tracker knows 12 sources: nothing reaching us is our problem (closed port), not the release's.
+    handled, tr = await _purge(tmp_path, [_old(1, tracker_seeders=12)])
+    assert handled == [] and tr.removed == []
+
+
+async def test_announced_sources_patience_is_bounded_to_24_hours(tmp_path):
+    t = _old(1, tracker_seeders=12, date_added=NOW - timedelta(hours=25))
+    handled, tr = await _purge(tmp_path, [t])
+    assert handled == [t.name] and tr.removed == [(1, True)]
+
+
+async def test_no_or_unknown_sources_purges_as_before(tmp_path):
+    handled, tr = await _purge(tmp_path, [_old(1, tracker_seeders=0), _old(2, tracker_seeders=None)])
+    assert sorted(handled) == sorted([_old(1).name, _old(2).name])
+
+
+async def test_longer_stalled_hours_still_wins_over_24_hours(tmp_path):
+    cfg = Config(monitor=MonitorConfig(enabled=True, stalled_hours=48))
+    t = _old(1, tracker_seeders=12, date_added=NOW - timedelta(hours=30))
+    handled, _ = await _purge(tmp_path, [t], config=cfg)
+    assert handled == []
+
+
+async def test_forgotten_by_tracker_is_purged_even_with_sources(tmp_path):
+    t = _old(1, percent=40.0, error_code=2, error_string="Unregistered torrent", tracker_seeders=5)
+    handled, _ = await _purge(tmp_path, [t])
+    assert handled == [t.name]

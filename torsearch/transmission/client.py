@@ -53,6 +53,8 @@ class TorrentInfo(BaseModel):
     info_hash: str = ""
     date_added: datetime | None = None
     download_dir: str = ""
+    # Sources the tracker announces (best known count over the trackers); None when unknown.
+    tracker_seeders: int | None = None
 
     @property
     def size_formatted(self) -> str:
@@ -132,6 +134,19 @@ def _field(t, name: str, default=None):
     return default if value is None else value
 
 
+def _tracker_seeders(t) -> int | None:
+    """Best seeder count announced by the torrent's trackers; None when none knows (-1)."""
+    counts = []
+    for stat in _field(t, "tracker_stats", []) or []:
+        try:
+            count = int(stat.seeder_count)
+        except (AttributeError, KeyError, TypeError, ValueError):
+            continue
+        if count >= 0:
+            counts.append(count)
+    return max(counts) if counts else None
+
+
 def _to_info(t) -> TorrentInfo:
     eta_val = _field(t, "eta")
     eta_sec: int | None = None
@@ -165,6 +180,7 @@ def _to_info(t) -> TorrentInfo:
         info_hash=str(_field(t, "hash_string", "") or _field(t, "hashString", "")),
         date_added=date_val,
         download_dir=str(_field(t, "download_dir", "")),
+        tracker_seeders=_tracker_seeders(t),
     )
 
 
