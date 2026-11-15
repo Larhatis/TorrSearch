@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 
 from torsearch.library.episodes import build_movie_download_dir, build_tv_download_dir, parse_episodes
 from torsearch.models import Category, SearchResult
+from torsearch.monitor.diskspace import has_room
 from torsearch.monitor.grabs import AUTO, added_hash
 from torsearch.monitor.history import MonitorRecord
 from torsearch.monitor.schedule import (
@@ -36,6 +37,15 @@ logger = logging.getLogger(__name__)
 def grab_key(result: SearchResult) -> str:
     k = result.infohash or result.download_url
     return k.lower() if k else ""
+
+
+async def _room_for(config, transmission, pick: SearchResult, download_dir: str | None) -> bool:
+    """Whether the disk of ``download_dir`` can take ``pick`` and keep the profile's margin."""
+    if await has_room(transmission, download_dir, pick.size, config.library.min_free_bytes):
+        return True
+    logger.warning("Espace disque insuffisant pour %s (%s) : envoi reporte", pick.title,
+                   download_dir or "dossier par defaut")
+    return False
 
 
 def _remember(grabs, added, pick: SearchResult, target: str) -> None:
@@ -279,6 +289,8 @@ async def run_cycle(
                     )
                 else:
                     download_dir = config.paths.for_category(saved.category)
+                if not await _room_for(config, transmission, pick, download_dir):
+                    continue
                 try:
                     added = await transmission.add(pick.download_url, download_dir=download_dir)
                 except Exception as exc:
@@ -332,6 +344,8 @@ async def _grab_movie(config, movie, pick, transmission, library, history, notif
     download_dir = build_movie_download_dir(
         config.paths.for_category(Category.MOVIES), movie.title, movie.year, movie.tmdb_id,
     )
+    if not await _room_for(config, transmission, pick, download_dir):
+        return
     try:
         added = await transmission.add(pick.download_url, download_dir=download_dir)
     except Exception as exc:
@@ -711,6 +725,8 @@ async def _grab_series_release(config, series, r: SearchResult, covered: set[str
         episodes=covered,
         release_title=r.title,
     )
+    if not await _room_for(config, transmission, r, download_dir):
+        return False
     try:
         added = await transmission.add(r.download_url, download_dir=download_dir)
     except Exception as exc:
