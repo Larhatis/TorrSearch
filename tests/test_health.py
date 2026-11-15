@@ -115,3 +115,40 @@ async def test_folders_check_flags_paths_outside_jellyfin():
 async def test_folders_check_absent_without_jellyfin():
     statuses = await check_all(_Ctx(Config(), _Service(), _Service(enabled=False), _Service(enabled=False)))
     assert all(s.name != "Dossiers" for s in statuses)
+
+
+class _SpaceService(_Service):
+    def __init__(self, free, **kw):
+        super().__init__(**kw)
+        self._free = free
+
+    async def free_space(self, path):
+        return self._free.get(path)
+
+
+async def test_disks_line_shows_free_space():
+    from torsearch.config import PathsConfig
+
+    cfg = Config(paths=PathsConfig(by_category={"movies": "/d/disk1/Films", "tv": "/d/disk2"}))
+    tr = _SpaceService({"/d/disk1/Films": 1_869_000_000_000, "/d/disk2": 638_000_000_000}, result=(True, "v4"))
+    statuses = await check_all(_Ctx(cfg, tr, _Service(enabled=False), _Service(enabled=False)))
+    disks = next(s for s in statuses if s.name == "Disques")
+    assert disks.state == "ok"
+    assert disks.message == "OK · Films 1,9 To · Series 638 Go libres"
+
+
+async def test_disks_line_errors_under_the_threshold():
+    from torsearch.config import PathsConfig
+
+    cfg = Config(paths=PathsConfig(by_category={"movies": "/d/disk1/Films", "tv": "/d/disk2"}))
+    tr = _SpaceService({"/d/disk1/Films": 1_869_000_000_000, "/d/disk2": 40_000_000_000}, result=(True, "v4"))
+    statuses = await check_all(_Ctx(cfg, tr, _Service(enabled=False), _Service(enabled=False)))
+    disks = next(s for s in statuses if s.name == "Disques")
+    assert disks.state == "error"
+    assert "Series 40 Go" in disks.message and "seuil 50 Go" in disks.message
+
+
+async def test_disks_line_absent_when_transmission_is_down():
+    tr = _SpaceService({}, result=(False, "Injoignable"))
+    statuses = await check_all(_Ctx(Config(), tr, _Service(enabled=False), _Service(enabled=False)))
+    assert "Disques" not in [s.name for s in statuses]

@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 
 from torsearch.library.episodes import build_movie_download_dir, build_tv_download_dir, parse_episodes
 from torsearch.models import Category, SearchResult
-from torsearch.monitor.diskspace import has_room
+from torsearch.monitor.diskspace import format_bytes, has_room, low_folders
 from torsearch.monitor.grabs import AUTO, added_hash
 from torsearch.monitor.history import MonitorRecord
 from torsearch.monitor.schedule import (
@@ -815,6 +815,7 @@ class MonitorRunner:
         self._grabs = grabs
         self._purge_notice = DailyNotice()  # "purge suspended" told at most once a day
         self._purge_breaker = PurgeBreaker()  # stays off from one cycle to the next
+        self._disk_notice = DailyNotice()  # "disk nearly full" told at most once a day
         self._completed_seen: set[int] = set()
         self._task: asyncio.Task | None = None
         self._wake_event = asyncio.Event()
@@ -898,9 +899,30 @@ class MonitorRunner:
             await run_request_availability(
                 self._requests, getattr(self._ctx, "jellyfin", None), self._notifier, self._ctx.config,
             )
+            await self._report_low_disks()
             self.last_run_at = datetime.now(UTC)
             self.last_run_count = len(records)
             return records
+
+    async def _report_low_disks(self) -> None:
+        """Tell the channels, once a day, which download disks are under the profile's margin."""
+        config = self._ctx.config
+        try:
+            low = await low_folders(self._ctx.transmission, config)
+        except Exception as exc:
+            logger.debug("Free space check failed: %s", exc)
+            return
+        if not low or not self._disk_notice.allow(datetime.now(UTC).date()):
+            return
+        margin = format_bytes(config.library.min_free_bytes)
+        lines = [f"{label} : {format_bytes(free)} libres" for label, _path, free in low]
+        body = (" · ".join(lines) + f" (seuil {margin}). Les envois automatiques vers ces disques "
+                "sont reportes tant qu'il n'y a pas assez de place.")
+        logger.warning("Disque presque plein : %s", body)
+        try:
+            await self._notifier.notify_message(config.notifications, "Disque presque plein", body)
+        except Exception as exc:
+            logger.warning("Low disk notification failed: %s", exc)
 
     async def start(self) -> None:
         if self._task is None:

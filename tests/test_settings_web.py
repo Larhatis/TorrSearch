@@ -453,3 +453,15 @@ def test_library_update_sets_language_rules(tmp_path):
     assert ctx.config.library.exclude_words == ["stv", "hc sub"]
     html = client.get("/settings").text
     assert 'name="accept_vostfr"' in html and 'name="exclude_words"' in html
+
+
+def test_library_min_free_gb_saved_and_rendered(tmp_path):
+    client, ctx, _ = _client(tmp_path)
+    assert ctx.config.library.min_free_gb == 50
+    client.post("/settings/library", data={"quality": ["1080p"], "min_seeders": "1", "min_free_gb": "100,5"})
+    assert ctx.config.library.min_free_gb == 100.5
+    client.post("/settings/library", data={"quality": ["1080p"], "min_seeders": "1", "min_free_gb": ""})
+    assert ctx.config.library.min_free_gb == 100.5  # blank = unchanged
+    client.post("/settings/library", data={"quality": ["1080p"], "min_seeders": "1", "min_free_gb": "0"})
+    assert ctx.config.library.min_free_gb == 0  # check disabled
+    assert 'name="min_free_gb"' in client.get("/settings").text

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from torsearch.library.linking import plan_manual_grab, record_manual_grab
 from torsearch.models import Category
+from torsearch.monitor.diskspace import format_bytes, free_bytes
 from torsearch.monitor.grabs import MANUAL, added_hash
 from torsearch.redact import redact
 
@@ -49,4 +50,9 @@ async def send_release(state, download_url: str, title: str, category: Category,
             outcome.message += f" · marque acquis dans la surveillance ({grab.watched_title})"
         except Exception as exc:  # the torrent is added: never turn that into an error
             logger.warning("Manual grab bookkeeping for '%s' failed: %s", title, exc)
+    min_free = ctx.config.library.min_free_bytes
+    if min_free:
+        free = await free_bytes(ctx.transmission, grab.download_dir)
+        if free is not None and free < min_free:  # a person chose it: warn, never block
+            outcome.message += f" · attention : il reste {format_bytes(free)} sur ce disque"
     return outcome

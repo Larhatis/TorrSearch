@@ -106,3 +106,47 @@ async def test_free_search_not_sent_when_disk_nearly_full(tmp_path):
     created = await run_cycle(_cfg(), Search([_r("Some.Release.1080p", infohash="X")]), tr, history)
     assert created == [] and tr.added == []
     assert history.seen_keys("s") == set()  # not seen: tried again once there is room
+
+
+class MsgNotifier:
+    def __init__(self):
+        self.messages = []
+
+    async def notify(self, channels, record):
+        pass
+
+    async def notify_message(self, channels, title, body):
+        self.messages.append((title, body))
+
+
+async def test_runner_warns_once_a_day_when_a_disk_is_nearly_full(tmp_path):
+    from torsearch.monitor.runner import MonitorRunner
+
+    class Ctx:
+        config = Config(monitor=MonitorConfig(enabled=False),
+                        paths=PathsConfig(by_category={"movies": "/d/disk1/Films", "tv": "/d/disk2"}))
+        search_service = Search([])
+        transmission = SpaceTransmission(free=40 * GB)
+
+    notifier = MsgNotifier()
+    runner = MonitorRunner(Ctx(), MonitorHistory(tmp_path / "m.json"), notifier=notifier)
+    await runner.run_once()
+    await runner.run_once()
+    assert len(notifier.messages) == 1
+    title, body = notifier.messages[0]
+    assert title == "Disque presque plein"
+    assert "Films : 40 Go libres" in body and "Series : 40 Go libres" in body and "50 Go" in body
+
+
+async def test_runner_silent_when_disks_have_room(tmp_path):
+    from torsearch.monitor.runner import MonitorRunner
+
+    class Ctx:
+        config = Config(monitor=MonitorConfig(enabled=False),
+                        paths=PathsConfig(by_category={"movies": "/d/disk1/Films", "tv": "/d/disk2"}))
+        search_service = Search([])
+        transmission = SpaceTransmission(free=600 * GB)
+
+    notifier = MsgNotifier()
+    await MonitorRunner(Ctx(), MonitorHistory(tmp_path / "m.json"), notifier=notifier).run_once()
+    assert notifier.messages == []

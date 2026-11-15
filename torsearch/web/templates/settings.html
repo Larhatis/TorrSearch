@@ -124,6 +124,8 @@
       <input name="max_movie_gb" value="{{ config.library.max_movie_gb | round(1) }}" class="mt-1 w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="text-xs text-slate-400" title="Par episode ; un pack de saison est juge au poids moyen par episode. 0 = sans limite">Taille max episode (Go)<br>
       <input name="max_episode_gb" value="{{ config.library.max_episode_gb | round(1) }}" class="mt-1 w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
+    <label class="text-xs text-slate-400" title="La surveillance n'envoie rien qui laisserait moins que cet espace libre sur le disque de destination ; une alerte part une fois par jour. 0 = pas de controle">Espace libre minimum (Go)<br>
+      <input name="min_free_gb" value="{{ config.library.min_free_gb | round(1) }}" class="mt-1 w-24 rounded bg-slate-800 border border-slate-700 px-2 py-1"></label>
     <label class="flex items-center gap-1.5 text-xs text-slate-400" title="Decoche pour n'accepter que les versions francaises (MULTI, VFF, VF...)">
       <input type="checkbox" name="accept_vostfr" {% if config.library.accept_vostfr %}checked{% endif %}> Accepter le VOSTFR</label>
     <label class="text-xs text-slate-400 w-full sm:w-auto" title="Mots separes par des virgules : une release contenant l'un d'eux est ignoree">Mots exclus<br>

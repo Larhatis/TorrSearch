@@ -23,7 +23,8 @@ def format_bytes(n: int) -> str:
     return f"{text} Go"
 
 
-async def _free(transmission, path: str | None) -> int | None:
+async def free_bytes(transmission, path: str | None) -> int | None:
+    """Free bytes on the disk of ``path`` (None: unknown, or a transport without the RPC)."""
     measure = getattr(transmission, "free_space", None)
     if measure is None:
         return None
@@ -41,7 +42,7 @@ async def has_room(transmission, download_dir: str | None, size: int, min_free: 
     """
     if min_free <= 0:
         return True
-    free = await _free(transmission, download_dir)
+    free = await free_bytes(transmission, download_dir)
     if free is None:
         logger.debug("Free space of %s unknown: sending anyway", download_dir or "default folder")
         return True
@@ -62,7 +63,7 @@ def _folders(config) -> list[tuple[str, str | None]]:
 
 async def folder_usage(transmission, config) -> list[tuple[str, str | None, int | None]]:
     """(label, path, free bytes or None) of every download folder, for the status panel."""
-    return [(label, path, await _free(transmission, path)) for label, path in _folders(config)]
+    return [(label, path, await free_bytes(transmission, path)) for label, path in _folders(config)]
 
 
 async def low_folders(transmission, config) -> list[tuple[str, str | None, int]]:

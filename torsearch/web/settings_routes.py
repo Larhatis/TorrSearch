@@ -209,6 +209,7 @@ async def update_library(
     upgrades: str | None = Form(None),
     max_movie_gb: str = Form(""),
     max_episode_gb: str = Form(""),
+    min_free_gb: str = Form(""),
     accept_vostfr: str | None = Form(None),
     exclude_words: str = Form(""),
 ):
@@ -221,6 +222,7 @@ async def update_library(
             upgrades=upgrades is not None,
             max_movie_gb=max_movie_gb.strip().replace(",", ".") or current.max_movie_gb,
             max_episode_gb=max_episode_gb.strip().replace(",", ".") or current.max_episode_gb,
+            min_free_gb=min_free_gb.strip().replace(",", ".") or current.min_free_gb,
             accept_vostfr=accept_vostfr is not None,
             exclude_words=[w.strip().lower() for w in exclude_words.split(",") if w.strip()],
         )
