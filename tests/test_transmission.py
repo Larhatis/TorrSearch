@@ -418,3 +418,18 @@ async def test_free_space_negative_answer_is_unknown():
 
     tc, _ = _space_client(MinusOne)
     assert await tc.free_space("/downloads/disk2") is None
+
+
+async def test_port_open_answers_true_false_or_none():
+    class PortRpc(FakeRpc):
+        answer = True
+
+        def port_test(self, timeout=None):
+            if isinstance(self.answer, Exception):
+                raise self.answer
+            return self.answer
+
+    for answer, expected in ((True, True), (False, False), (None, None), (ConnectionError("down"), None)):
+        PortRpc.answer = answer
+        tc = TransmissionClient(TransmissionConfig(), client_factory=lambda **kw: PortRpc(**kw))
+        assert await tc.port_open() is expected

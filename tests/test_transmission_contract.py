@@ -75,3 +75,17 @@ async def test_missing_fields_never_break_the_listing():
 async def test_add_reads_the_hash_of_a_real_torrent():
     added = await _client([]).add("magnet:?xt=urn:btih:ff", "/d")
     assert (added.id, added.info_hash) == (77, "ff")
+
+
+async def test_tracker_seeders_is_the_best_known_count():
+    stats = [{"seederCount": -1, "leecherCount": -1}, {"seederCount": 54, "leecherCount": 3}]
+    [info] = await _client([Torrent(fields={**RPC_FIELDS, "trackerStats": stats})]).list_torrents()
+    assert info.tracker_seeders == 54
+
+
+async def test_tracker_seeders_unknown_when_no_tracker_knows():
+    stats = [{"seederCount": -1, "leecherCount": -1}]
+    [info] = await _client([Torrent(fields={**RPC_FIELDS, "trackerStats": stats})]).list_torrents()
+    assert info.tracker_seeders is None
+    [bare] = await _client([Torrent(fields=RPC_FIELDS)]).list_torrents()  # field not sent
+    assert bare.tracker_seeders is None

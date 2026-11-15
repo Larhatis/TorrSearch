@@ -21,10 +21,25 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.11.0)
+## 2. État actuel (v0.12.0)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Chantier 14 — purge patiente (v0.12.0, spec
+  `docs/superpowers/specs/2026-11-15-chantier14-purge-patiente-design.md`) : constat en
+  production, 6 releases de *Primetime* brûlées en 6 jours (port entrant fermé + purge à 2 h).
+  - `TorrentInfo.tracker_seeders` (max des `seederCount >= 0` des trackers, `None` si inconnu).
+    Un torrent à 0 % dont le tracker annonce des sources n'est purgé qu'après
+    `max(stalled_hours, 24 h)` (`SOURCES_PATIENCE`) : le problème vient alors de chez nous.
+    Le disjoncteur compte ces torrents quand même (« suspects », patience ignorée) : une panne
+    VPN laisse en place les sources du dernier scrape.
+  - Après une purge, l'œuvre est démarquée via la **cible du registre des envois**
+    (`movie:N`, `tv:N`) — le titre du tracker et le nom Transmission diffèrent souvent, et le
+    film restait « acquis » 48 h (`regrab_hours`) puis repartait en double liste noire. Les titres
+    restent en repli. Le film n'est démarqué que s'il est encore acquis par **cette** release
+    (`grabbed_title` = titre du registre) ; la liste noire reçoit aussi le titre du tracker
+    (trackers sans infohash).
+  - Panneau d'état : ligne « Port entrant » (`TransmissionClient.port_open`, RPC `port-test`).
 - Chantier 13 — espace disque (v0.11.0, spec
   `docs/superpowers/specs/2026-11-15-chantier13-espace-disque-design.md`) :
   - `TransmissionClient.free_space(path)` (RPC `free-space`) : dossier de session si `None`,
@@ -241,7 +256,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **869 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **891 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
@@ -339,8 +354,9 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
    une URL brute n'est acceptée que d'un admin (copie de lien comprise).
 9. **La purge automatique supprime des données** : elle ne touche qu'un torrent inscrit `auto`
    dans le registre des envois, surveillance active, mort de façon certaine, et s'arrête
-   au-delà de 3 candidats par cycle — puis reste arrêtée jusqu'à un cycle sans aucun candidat.
-   Jamais un torrent ajouté à la main.
+   au-delà de 3 suspects par cycle — puis reste arrêtée jusqu'à un cycle sans aucun suspect.
+   Un torrent à 0 % dont le tracker annonce des sources attend 24 h avant d'être purgé, mais
+   compte comme suspect pour le disjoncteur. Jamais un torrent ajouté à la main.
 10. **Claude ne supprime rien et ne voit aucune clé** : aucun outil MCP destructif ni de
     réglage ; les fiches ne contiennent jamais `download_url` (id opaque du `ResultCache`).
     Seuls les chemins MCP/OAuth sont publics (`_CLAUDE_PATHS`, préfixe `/.well-known/oauth-`
