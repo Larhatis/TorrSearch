@@ -21,10 +21,30 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.10.2)
+## 2. État actuel (v0.11.0)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Chantier 13 — espace disque (v0.11.0, spec
+  `docs/superpowers/specs/2026-11-15-chantier13-espace-disque-design.md`) :
+  - `TransmissionClient.free_space(path)` (RPC `free-space`) : dossier de session si `None`,
+    remonte au parent existant (dossier de série pas encore créé), `None` si inconnu, jamais
+    d'exception ni d'attente par parent quand Transmission est injoignable. TorrSearch ne monte
+    pas les disques : seul Transmission les mesure.
+  - `monitor/diskspace.py` : `DiskBudget` (un par passage du runner, partagé par les trois
+    cycles : espace libre − envois du passage − reste à écrire des torrents non terminés, par
+    dossier des réglages ; espace inconnu ⇒ on envoie), `folder_usage`, `low_folders`,
+    `format_bytes`. Transmission ne réserve pas la place à l'ajout : ne jamais revenir à une
+    simple mesure avant chaque envoi. Seuil `LibraryConfig.min_free_gb` (**50 Go par défaut**,
+    `0` = désactivé), réglable dans le profil.
+  - Films, épisodes et recherches libres auto : envoi reporté (journal « Espace disque
+    insuffisant… ») si `libre − taille < seuil` ; **rien dans l'historique** (sinon `seen_keys`
+    ne retenterait jamais la release). Ligne « Disques » du panneau d'état, notification
+    « Disque presque plein » une fois par jour (`DailyNotice` du runner), avertissement dans le
+    message d'un envoi manuel (jamais bloqué). Pas de repli sur une release plus petite ; une
+    œuvre refusée attend sa prochaine recherche ciblée (ou « Vérifier maintenant »).
+  - Retrait automatique de l'ancienne copie après PROPER/upgrade : écarté (upgrades désactivés en
+    production, aucun PROPER/REPACK jamais pris).
 - Chantier 12 — mises à jour sûres (v0.10.2, spec
   `docs/superpowers/specs/2026-11-15-chantier12-mises-a-jour-sures-design.md`) : toutes les
   dépendances figées dans `requirements.txt` (`uv pip compile --universal`, contraintes de la CI
@@ -221,7 +241,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **830 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **869 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
@@ -262,6 +282,7 @@ Python 3.12+, **FastAPI + Jinja2 + HTMX**, Tailwind (servi localement), **SQLite
 | `monitor/schedule.py` | `SearchSchedule` : quand relancer une recherche ciblée (par film / série / recherche libre). |
 | `monitor/grabs.py` | `GrabRegistry` : torrents envoyés par l'app (infohash → origine `auto`/`manual`). |
 | `monitor/stalled.py` | Purge des torrents morts envoyés par la surveillance (règles + disjoncteur). |
+| `monitor/diskspace.py` | Espace libre des disques (via Transmission) : garde-fou avant envoi, panneau, alerte. |
 | `claude/` | Connecteur MCP pour Claude : outils (`server.py`), fiches de release (`cards.py`), OAuth (`oauth.py`), plafonds (`limits.py`). |
 | `library/sending.py` | `send_release` : envoi d'une release choisie par une personne (interface ou Claude). |
 | `library/calendar.py` | Construction du calendrier « A venir » (épisodes TMDB + dates de sortie des films). |
@@ -391,5 +412,5 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
 - Prochaines étapes : menu simplifié, favicon local.
 
 **Petits chantiers** : restauration d'une sauvegarde depuis l'UI ; notification personnelle
-du demandeur (canal par utilisateur) ; espace disque avant envoi (`free_space`) ; retrait de
-l'ancienne copie après un upgrade/PROPER terminé.
+du demandeur (canal par utilisateur) ; retrait de l'ancienne copie après un upgrade/PROPER
+terminé (peu utile tant que les upgrades sont désactivés).

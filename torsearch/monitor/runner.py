@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime, timedelta
 
 from torsearch.library.episodes import build_movie_download_dir, build_tv_download_dir, parse_episodes
 from torsearch.models import Category, SearchResult
+from torsearch.monitor.diskspace import DiskBudget, format_bytes, low_folders
 from torsearch.monitor.grabs import AUTO, added_hash
 from torsearch.monitor.history import MonitorRecord
 from torsearch.monitor.schedule import (
@@ -36,6 +37,15 @@ logger = logging.getLogger(__name__)
 def grab_key(result: SearchResult) -> str:
     k = result.infohash or result.download_url
     return k.lower() if k else ""
+
+
+async def _room_for(budget: DiskBudget, pick: SearchResult, download_dir: str | None) -> bool:
+    """Whether the disk of ``download_dir`` can take ``pick`` and keep the profile's margin."""
+    if await budget.has_room(download_dir, pick.size):
+        return True
+    logger.warning("Espace disque insuffisant pour %s (%s) : envoi reporte", pick.title,
+                   download_dir or "dossier par defaut")
+    return False
 
 
 def _remember(grabs, added, pick: SearchResult, target: str) -> None:
@@ -189,10 +199,11 @@ async def run_jellyfin_refresh(transmission, jellyfin, completed_seen: set[int])
 async def run_cycle(
     config, search_service, transmission, history, notifier=None, series_library=None,
     feed: list[SearchResult] | None = None, schedule: SearchSchedule | None = None, force: bool = False,
-    fallback: frozenset[str] = frozenset(), grabs=None,
+    fallback: frozenset[str] = frozenset(), grabs=None, budget: DiskBudget | None = None,
 ) -> list[MonitorRecord]:
     if not config.monitor.enabled:
         return []
+    budget = budget or DiskBudget(transmission, config)
     created: list[MonitorRecord] = []
     now = datetime.now(UTC)
     for saved in config.saved_searches:
@@ -279,11 +290,14 @@ async def run_cycle(
                     )
                 else:
                     download_dir = config.paths.for_category(saved.category)
+                if not await _room_for(budget, pick, download_dir):
+                    continue
                 try:
                     added = await transmission.add(pick.download_url, download_dir=download_dir)
                 except Exception as exc:
                     logger.warning("Monitor grab for '%s' failed: %s", saved.name, exc)
                     continue
+                budget.reserve(download_dir, pick.size)
                 _remember(grabs, added, pick, f"saved:{saved.name}")
                 kind = "grabbed"
                 if is_tv and matching_series is not None and series_library is not None:
@@ -328,15 +342,19 @@ def _movie_needs_grab(movie, jellyfin, owned_map, now, window) -> bool:
 
 
 async def _grab_movie(config, movie, pick, transmission, library, history, notifier, created,
-                      grabs=None) -> None:
+                      grabs=None, budget: DiskBudget | None = None) -> None:
     download_dir = build_movie_download_dir(
         config.paths.for_category(Category.MOVIES), movie.title, movie.year, movie.tmdb_id,
     )
+    budget = budget or DiskBudget(transmission, config)
+    if not await _room_for(budget, pick, download_dir):
+        return
     try:
         added = await transmission.add(pick.download_url, download_dir=download_dir)
     except Exception as exc:
         logger.warning("Movie grab '%s' failed: %s", movie.title, exc)
         return
+    budget.reserve(download_dir, pick.size)
     _remember(grabs, added, pick, f"movie:{movie.tmdb_id}")
     now = datetime.now(UTC)
     library.mark_grabbed(movie.tmdb_id, pick.title, now)
@@ -391,9 +409,10 @@ async def run_movie_cycle(config, library, search_service, transmission, history
                           notifier=None, jellyfin=None, blacklist=None,
                           feed: list[SearchResult] | None = None, schedule: SearchSchedule | None = None,
                           force: bool = False, fallback: frozenset[str] = frozenset(),
-                          grabs=None) -> list[MonitorRecord]:
+                          grabs=None, budget: DiskBudget | None = None) -> list[MonitorRecord]:
     if not config.monitor.enabled or library is None:
         return []
+    budget = budget or DiskBudget(transmission, config)
     profile = config.library
     created: list[MonitorRecord] = []
     owned_map: dict[str, str] = {}
@@ -428,7 +447,8 @@ async def run_movie_cycle(config, library, search_service, transmission, history
             repack = _movie_repack(movie, feed, profile, blacklist, now)
             if repack is not None:
                 logger.info("Remplacement (PROPER/REPACK) : %s", repack.title)
-                await _grab_movie(config, movie, repack, transmission, library, history, notifier, created, grabs)
+                await _grab_movie(config, movie, repack, transmission, library, history, notifier, created, grabs,
+                                  budget)
                 continue
         upgrade = not needs and profile.upgrades and movie.status == "grabbed"
         if not needs and not upgrade:
@@ -468,7 +488,8 @@ async def run_movie_cycle(config, library, search_service, transmission, history
                 rules=ReleaseRules.from_profile(profile),
             )
             if pick is not None:
-                await _grab_movie(config, movie, pick, transmission, library, history, notifier, created, grabs)
+                await _grab_movie(config, movie, pick, transmission, library, history, notifier, created, grabs,
+                                  budget)
             elif searched:
                 cap = profile.max_movie_size
                 too_big = sum(1 for r in all_results if cap and r.size > cap)
@@ -490,7 +511,8 @@ async def run_movie_cycle(config, library, search_service, transmission, history
                 rules=ReleaseRules.from_profile(profile),
             )
             if best is not None:
-                await _grab_movie(config, movie, best, transmission, library, history, notifier, created, grabs)
+                await _grab_movie(config, movie, best, transmission, library, history, notifier, created, grabs,
+                                  budget)
     return created
 
 
@@ -602,9 +624,10 @@ async def run_series_cycle(config, series_library, search_service, transmission,
                            notifier=None, jellyfin=None, tmdb=None, blacklist=None,
                            feed: list[SearchResult] | None = None, schedule: SearchSchedule | None = None,
                            force: bool = False, fallback: frozenset[str] = frozenset(),
-                           grabs=None) -> list[MonitorRecord]:
+                           grabs=None, budget: DiskBudget | None = None) -> list[MonitorRecord]:
     if not config.monitor.enabled or series_library is None:
         return []
+    budget = budget or DiskBudget(transmission, config)
     profile = config.library
     created: list[MonitorRecord] = []
     # Fetched once per cycle (not once per series): Jellyfin ownership map + grab log.
@@ -671,7 +694,7 @@ async def run_series_cycle(config, series_library, search_service, transmission,
                 if remaining is not None and not (covered & remaining):
                     continue
                 if not await _grab_series_release(config, series, r, covered, transmission,
-                                                  history, notifier, created, grabs):
+                                                  history, notifier, created, grabs, budget):
                     continue
                 if remaining is not None:
                     remaining -= covered
@@ -697,25 +720,30 @@ async def run_series_cycle(config, series_library, search_service, transmission,
                 continue
             logger.info("Remplacement (PROPER/REPACK ou upgrade) : %s", r.title)
             await _grab_series_release(config, series, r, covered, transmission, history, notifier, created,
-                                       grabs)
+                                       grabs, budget)
         if newly:
             series_library.mark_grabbed(series.tmdb_id, sorted(set(newly)))
     return created
 
 
 async def _grab_series_release(config, series, r: SearchResult, covered: set[str], transmission,
-                               history, notifier, created: list[MonitorRecord], grabs=None) -> bool:
+                               history, notifier, created: list[MonitorRecord], grabs=None,
+                               budget: DiskBudget | None = None) -> bool:
     download_dir = build_tv_download_dir(
         base_dir=config.paths.for_category(Category.TV),
         series_title=series.title,
         episodes=covered,
         release_title=r.title,
     )
+    budget = budget or DiskBudget(transmission, config)
+    if not await _room_for(budget, r, download_dir):
+        return False
     try:
         added = await transmission.add(r.download_url, download_dir=download_dir)
     except Exception as exc:
         logger.warning("Series grab '%s' failed: %s", series.title, exc)
         return False
+    budget.reserve(download_dir, r.size)
     _remember(grabs, added, r, f"tv:{series.tmdb_id}")
     record = MonitorRecord(
         search=series.title, title=r.title, source=r.source,
@@ -799,6 +827,7 @@ class MonitorRunner:
         self._grabs = grabs
         self._purge_notice = DailyNotice()  # "purge suspended" told at most once a day
         self._purge_breaker = PurgeBreaker()  # stays off from one cycle to the next
+        self._disk_notice = DailyNotice()  # "disk nearly full" told at most once a day
         self._completed_seen: set[int] = set()
         self._task: asyncio.Task | None = None
         self._wake_event = asyncio.Event()
@@ -849,6 +878,8 @@ class MonitorRunner:
                 self._ctx.config, self._ctx.search_service, self._library, self._series_library,
             )
             fallback = rss_less_trackers(self._ctx.search_service, feed)
+            # One disk budget for the whole cycle: sends of one kind count against the others.
+            budget = DiskBudget(self._ctx.transmission, self._ctx.config)
             if fallback:
                 logger.info("Trackers sans flux RSS (recherche ciblee a chaque cycle) : %s",
                             ", ".join(sorted(fallback)))
@@ -857,6 +888,7 @@ class MonitorRunner:
                 self._history, self._notifier,
                 series_library=self._series_library,
                 feed=feed, schedule=self._schedule, force=force, fallback=fallback, grabs=self._grabs,
+                budget=budget,
             ))
             records.extend(await run_movie_cycle(
                 self._ctx.config, self._library, self._ctx.search_service,
@@ -864,6 +896,7 @@ class MonitorRunner:
                 jellyfin=getattr(self._ctx, "jellyfin", None),
                 blacklist=self._blacklist,
                 feed=feed, schedule=self._schedule, force=force, fallback=fallback, grabs=self._grabs,
+                budget=budget,
             ))
             records.extend(await run_series_cycle(
                 self._ctx.config, self._series_library, self._ctx.search_service,
@@ -872,6 +905,7 @@ class MonitorRunner:
                 tmdb=getattr(self._ctx, "tmdb", None),
                 blacklist=self._blacklist,
                 feed=feed, schedule=self._schedule, force=force, fallback=fallback, grabs=self._grabs,
+                budget=budget,
             ))
             for record in records:
                 logger.info("Envoye a Transmission : %s (%s)", record.title, record.search)
@@ -882,9 +916,33 @@ class MonitorRunner:
             await run_request_availability(
                 self._requests, getattr(self._ctx, "jellyfin", None), self._notifier, self._ctx.config,
             )
+            await self._report_low_disks()
             self.last_run_at = datetime.now(UTC)
             self.last_run_count = len(records)
             return records
+
+    async def _report_low_disks(self) -> None:
+        """Tell the channels, once a day, which download disks are under the profile's margin."""
+        config = self._ctx.config
+        today = datetime.now(UTC).date()
+        if not config.monitor.enabled or not self._disk_notice.due(today):
+            return  # no automatic send to hold back, or already told today: no RPC
+        try:
+            low = await low_folders(self._ctx.transmission, config)
+        except Exception as exc:
+            logger.debug("Free space check failed: %s", exc)
+            return
+        if not low or not self._disk_notice.allow(today):
+            return
+        margin = format_bytes(config.library.min_free_bytes)
+        lines = [f"{label} : {format_bytes(free)} libres" for label, _path, free in low]
+        body = (" · ".join(lines) + f" (seuil {margin}). Les envois automatiques vers ces disques "
+                "sont reportes : libere de la place puis clique sur Verifier maintenant.")
+        logger.warning("Disque presque plein : %s", body)
+        try:
+            await self._notifier.notify_message(config.notifications, "TorrSearch - disque presque plein", body)
+        except Exception as exc:
+            logger.warning("Low disk notification failed: %s", exc)
 
     async def start(self) -> None:
         if self._task is None:

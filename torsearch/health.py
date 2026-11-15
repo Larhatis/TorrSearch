@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from torsearch.indexers.torznab import TorznabIndexer
+from torsearch.monitor.diskspace import folder_usage, format_bytes
 from torsearch.redact import redact
 
 
@@ -84,6 +85,19 @@ async def _folders_check(ctx) -> tuple[bool, str]:
     return True, "dans les bibliotheques Jellyfin"
 
 
+async def _disks_check(ctx) -> tuple[bool, str]:
+    """Free space of every download folder; an error under the profile's margin."""
+    usage = [(label, free) for label, _path, free in await folder_usage(ctx.transmission, ctx.config)
+             if free is not None]
+    if not usage:
+        return True, ""  # unknown space never blocks a send: shown as "off" by check_all
+    min_free = ctx.config.library.min_free_bytes
+    text = " · ".join(f"{label} {format_bytes(free)}" for label, free in usage) + " libres"
+    if min_free and any(free < min_free for _label, free in usage):
+        return False, f"Presque plein (seuil {format_bytes(min_free)}) : {text}"
+    return True, text
+
+
 async def check_all(ctx, timeout: float = 12.0) -> list[ServiceStatus]:
     """Check every external service in parallel; statuses come back in display order."""
     config = ctx.config
@@ -107,4 +121,11 @@ async def check_all(ctx, timeout: float = 12.0) -> list[ServiceStatus]:
         n = len(config.notifications)
         label = f"{n} canal{'aux' if n > 1 else ''} · test manuel dans la section Notifications"
         checks.append(_fixed(ServiceStatus(name="Notifications", state="off", message=label)))
-    return list(await asyncio.gather(*checks))
+    statuses = list(await asyncio.gather(*checks))
+    if statuses[0].state == "ok" and hasattr(ctx.transmission, "free_space"):
+        # Only Transmission sees the disks: measured once it is known to answer.
+        disks = await _probe("Disques", _disks_check(ctx), timeout)
+        if disks.state == "ok" and disks.message == "OK":
+            disks = ServiceStatus(name="Disques", state="off", message="Espace libre inconnu (pas de controle)")
+        statuses.insert(1, disks)
+    return statuses

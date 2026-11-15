@@ -339,3 +339,82 @@ async def test_list_torrents_reads_error_code():
     rpc.torrents = [_fake_torrent(id=1, name="A", error=2, error_string="invalid passkey")]
     infos = await _client_with(rpc).list_torrents()
     assert infos[0].error_code == 2
+
+
+class SpaceRpc(FakeRpc):
+    """Answers ``free_space`` like Transmission: only for folders that exist."""
+
+    existing = {"/downloads/disk2": 638_000_000_000, "/downloads/disk1": 1_900_000_000_000}
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.asked = []
+
+    def free_space(self, path, timeout=None):
+        from transmission_rpc import TransmissionError
+
+        self.asked.append(path)
+        if not path.startswith("/"):
+            raise TransmissionError('Query failed with result "directory path is not absolute".')
+        if path not in self.existing:
+            raise TransmissionError('Query failed with result "No such file or directory".')
+        return self.existing[path]
+
+    def get_session(self, timeout=None):
+        return SimpleNamespace(download_dir="/downloads/disk2/")
+
+
+def _space_client(rpc_cls=SpaceRpc):
+    made = {}
+
+    def factory(**kw):
+        made["rpc"] = rpc_cls(**kw)
+        return made["rpc"]
+
+    return TransmissionClient(TransmissionConfig(), client_factory=factory), made
+
+
+async def test_free_space_existing_path():
+    tc, _ = _space_client()
+    assert await tc.free_space("/downloads/disk1") == 1_900_000_000_000
+
+
+async def test_free_space_walks_up_to_existing_parent():
+    # A series/season folder does not exist before its first download.
+    tc, made = _space_client()
+    assert await tc.free_space("/downloads/disk2/Nouvelle Serie/Saison 01") == 638_000_000_000
+    assert made["rpc"].asked == [
+        "/downloads/disk2/Nouvelle Serie/Saison 01", "/downloads/disk2/Nouvelle Serie", "/downloads/disk2",
+    ]
+
+
+async def test_free_space_none_uses_session_dir():
+    tc, _ = _space_client()
+    assert await tc.free_space(None) == 638_000_000_000
+
+
+async def test_free_space_relative_or_failing_returns_none():
+    tc, _ = _space_client()
+    assert await tc.free_space("relatif/dossier") is None
+    assert await tc.free_space("/nulle/part") is None
+
+    class DownRpc(SpaceRpc):
+        def free_space(self, path, timeout=None):
+            from transmission_rpc import TransmissionConnectError
+
+            self.asked.append(path)
+            raise TransmissionConnectError("down")
+
+    tc2, made = _space_client(DownRpc)
+    assert await tc2.free_space("/downloads/disk2/Serie/Saison 01") is None
+    assert len(made["rpc"].asked) == 1  # unreachable: no wait per parent folder
+
+
+async def test_free_space_negative_answer_is_unknown():
+    # Some Transmission versions answer success with size-bytes -1 when they cannot measure.
+    class MinusOne(SpaceRpc):
+        def free_space(self, path, timeout=None):
+            return -1
+
+    tc, _ = _space_client(MinusOne)
+    assert await tc.free_space("/downloads/disk2") is None

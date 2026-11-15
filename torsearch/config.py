@@ -92,6 +92,8 @@ class LibraryConfig(BaseModel):
     # Size caps in GB (0 = no limit); season packs are judged per episode.
     max_movie_gb: float = Field(default=0.0, ge=0, le=10000, allow_inf_nan=False)
     max_episode_gb: float = Field(default=0.0, ge=0, le=10000, allow_inf_nan=False)
+    # Free space (GB) an automatic send must leave on its disk; 0 disables the check.
+    min_free_gb: float = Field(default=50.0, ge=0, le=100000, allow_inf_nan=False)
     accept_vostfr: bool = True
     # Words (or short phrases) that reject a release, e.g. "stv", "hc sub".
     exclude_words: list[str] = Field(default_factory=list)
@@ -103,6 +105,10 @@ class LibraryConfig(BaseModel):
     @property
     def max_episode_size(self) -> int | None:
         return int(self.max_episode_gb * 1e9) if self.max_episode_gb else None
+
+    @property
+    def min_free_bytes(self) -> int:
+        return int(self.min_free_gb * 1e9)
 
 
 class JellyfinConfig(BaseModel):

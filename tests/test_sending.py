@@ -62,3 +62,25 @@ async def test_send_release_transmission_error_is_redacted(tmp_path):
     assert not out.ok and out.torrent_id is None
     assert "SECRET" not in out.message and out.message.startswith("Erreur Transmission")
     assert state.grabs._c.count() == 0
+
+
+class SpaceTransmission(FakeTransmission):
+    def __init__(self, free):
+        super().__init__()
+        self.free = free
+
+    async def free_space(self, path):
+        return self.free
+
+
+async def test_manual_send_warns_on_a_nearly_full_disk(tmp_path):
+    out = await send_release(_state(tmp_path, SpaceTransmission(30_000_000_000)), "magnet:?x",
+                             "Some.Film.2020.1080p", Category.MOVIES)
+    assert out.ok  # never blocked
+    assert "attention : disque presque plein (30 Go libres)" in out.message
+
+
+async def test_manual_send_no_warning_with_room(tmp_path):
+    out = await send_release(_state(tmp_path, SpaceTransmission(600_000_000_000)), "magnet:?x",
+                             "Some.Film.2020.1080p", Category.MOVIES)
+    assert "attention" not in out.message
