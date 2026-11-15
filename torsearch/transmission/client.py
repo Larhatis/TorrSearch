@@ -5,10 +5,17 @@ import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from pathlib import PurePosixPath
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
-from transmission_rpc import Client, TransmissionAuthError, TransmissionConnectError, TransmissionTimeoutError
+from transmission_rpc import (
+    Client,
+    TransmissionAuthError,
+    TransmissionConnectError,
+    TransmissionError,
+    TransmissionTimeoutError,
+)
 
 from torsearch.config import TransmissionConfig
 from torsearch.redact import redact
@@ -211,6 +218,36 @@ class TransmissionClient:
     async def list_torrents(self) -> list[TorrentInfo]:
         torrents = await self._run(lambda c: c.get_torrents())
         return [_to_info(t) for t in torrents]
+
+    async def free_space(self, path: str | None) -> int | None:
+        """Free bytes on the disk holding ``path`` (Transmission's default folder when None).
+
+        A series/season folder does not exist before its first download, so the closest
+        existing parent is measured. Never raises: None when the space is unknown.
+        """
+
+        def measure(c) -> int | None:
+            target = path or str(c.get_session().download_dir or "")
+            candidate = PurePosixPath(target)
+            if not candidate.is_absolute():
+                return None
+            while True:
+                try:
+                    size = c.free_space(str(candidate))
+                except (TransmissionConnectError, TransmissionAuthError):
+                    raise  # unreachable: do not wait once per parent folder
+                except TransmissionError:
+                    size = None  # Transmission answered: this folder does not exist (yet)
+                if size is not None:
+                    return int(size)
+                if candidate.parent == candidate or candidate.parent == PurePosixPath("/"):
+                    return None
+                candidate = candidate.parent
+
+        try:
+            return await self._run(measure)
+        except Exception:
+            return None
 
     async def pause(self, torrent_id: int) -> None:
         await self._run(lambda c: c.stop_torrent(torrent_id))
