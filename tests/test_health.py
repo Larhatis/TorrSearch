@@ -152,3 +152,13 @@ async def test_disks_line_absent_when_transmission_is_down():
     tr = _SpaceService({}, result=(False, "Injoignable"))
     statuses = await check_all(_Ctx(Config(), tr, _Service(enabled=False), _Service(enabled=False)))
     assert "Disques" not in [s.name for s in statuses]
+
+
+async def test_disks_line_off_when_space_is_unknown():
+    from torsearch.config import PathsConfig
+
+    cfg = Config(paths=PathsConfig(by_category={"movies": "/d/disk1/Films", "tv": "/d/disk2"}))
+    statuses = await check_all(_Ctx(cfg, _SpaceService({}, result=(True, "v4")), _Service(enabled=False),
+                                    _Service(enabled=False)))
+    disks = next(s for s in statuses if s.name == "Disques")
+    assert disks.state == "off"

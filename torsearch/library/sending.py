@@ -54,5 +54,5 @@ async def send_release(state, download_url: str, title: str, category: Category,
     if min_free:
         free = await free_bytes(ctx.transmission, grab.download_dir)
         if free is not None and free < min_free:  # a person chose it: warn, never block
-            outcome.message += f" · attention : il reste {format_bytes(free)} sur ce disque"
+            outcome.message += f" · attention : disque presque plein ({format_bytes(free)} libres)"
     return outcome

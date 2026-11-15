@@ -77,7 +77,7 @@ async def test_manual_send_warns_on_a_nearly_full_disk(tmp_path):
     out = await send_release(_state(tmp_path, SpaceTransmission(30_000_000_000)), "magnet:?x",
                              "Some.Film.2020.1080p", Category.MOVIES)
     assert out.ok  # never blocked
-    assert "attention : il reste 30 Go sur ce disque" in out.message
+    assert "attention : disque presque plein (30 Go libres)" in out.message
 
 
 async def test_manual_send_no_warning_with_room(tmp_path):

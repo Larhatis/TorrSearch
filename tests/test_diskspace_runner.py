@@ -123,7 +123,7 @@ async def test_runner_warns_once_a_day_when_a_disk_is_nearly_full(tmp_path):
     from torsearch.monitor.runner import MonitorRunner
 
     class Ctx:
-        config = Config(monitor=MonitorConfig(enabled=False),
+        config = Config(monitor=MonitorConfig(enabled=True),
                         paths=PathsConfig(by_category={"movies": "/d/disk1/Films", "tv": "/d/disk2"}))
         search_service = Search([])
         transmission = SpaceTransmission(free=40 * GB)
@@ -134,15 +134,34 @@ async def test_runner_warns_once_a_day_when_a_disk_is_nearly_full(tmp_path):
     await runner.run_once()
     assert len(notifier.messages) == 1
     title, body = notifier.messages[0]
-    assert title == "Disque presque plein"
+    assert title == "TorrSearch - disque presque plein"
     assert "Films : 40 Go libres" in body and "Series : 40 Go libres" in body and "50 Go" in body
+    assert "Verifier maintenant" in body
+    # Already told today: the next cycles do not even measure the disks again.
+    measured = len(Ctx.transmission.measured)
+    await runner.run_once()
+    assert len(Ctx.transmission.measured) == measured
+
+
+async def test_runner_no_disk_warning_when_surveillance_is_off(tmp_path):
+    from torsearch.monitor.runner import MonitorRunner
+
+    class Ctx:
+        config = Config(monitor=MonitorConfig(enabled=False),
+                        paths=PathsConfig(by_category={"movies": "/d/disk1/Films", "tv": "/d/disk2"}))
+        search_service = Search([])
+        transmission = SpaceTransmission(free=40 * GB)
+
+    notifier = MsgNotifier()
+    await MonitorRunner(Ctx(), MonitorHistory(tmp_path / "m.json"), notifier=notifier).run_once()
+    assert notifier.messages == []
 
 
 async def test_runner_silent_when_disks_have_room(tmp_path):
     from torsearch.monitor.runner import MonitorRunner
 
     class Ctx:
-        config = Config(monitor=MonitorConfig(enabled=False),
+        config = Config(monitor=MonitorConfig(enabled=True),
                         paths=PathsConfig(by_category={"movies": "/d/disk1/Films", "tv": "/d/disk2"}))
         search_service = Search([])
         transmission = SpaceTransmission(free=600 * GB)
@@ -150,3 +169,15 @@ async def test_runner_silent_when_disks_have_room(tmp_path):
     notifier = MsgNotifier()
     await MonitorRunner(Ctx(), MonitorHistory(tmp_path / "m.json"), notifier=notifier).run_once()
     assert notifier.messages == []
+
+
+async def test_series_does_not_send_more_than_the_disk_can_take(tmp_path):
+    # Two 40 GB releases on 120 GB free with a 50 GB margin: only one fits (Transmission does
+    # not reserve space on add, so measuring again before the second one would let it through).
+    lib, history = _series(tmp_path), MonitorHistory(tmp_path / "m.json")
+    tr = SpaceTransmission(free=120 * GB)
+    await run_series_cycle(_cfg(), lib, Search([
+        _r("Show.S01E01.2160p.REMUX", size=40 * GB, infohash="A"),
+        _r("Show.S01E02.2160p.REMUX", size=40 * GB, infohash="B"),
+    ]), tr, history)
+    assert len(tr.added) == 1

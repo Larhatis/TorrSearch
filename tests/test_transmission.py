@@ -408,3 +408,13 @@ async def test_free_space_relative_or_failing_returns_none():
     tc2, made = _space_client(DownRpc)
     assert await tc2.free_space("/downloads/disk2/Serie/Saison 01") is None
     assert len(made["rpc"].asked) == 1  # unreachable: no wait per parent folder
+
+
+async def test_free_space_negative_answer_is_unknown():
+    # Some Transmission versions answer success with size-bytes -1 when they cannot measure.
+    class MinusOne(SpaceRpc):
+        def free_space(self, path, timeout=None):
+            return -1
+
+    tc, _ = _space_client(MinusOne)
+    assert await tc.free_space("/downloads/disk2") is None

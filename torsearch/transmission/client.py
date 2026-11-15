@@ -239,7 +239,8 @@ class TransmissionClient:
                 except TransmissionError:
                     size = None  # Transmission answered: this folder does not exist (yet)
                 if size is not None:
-                    return int(size)
+                    # Some versions answer success with -1 when they cannot measure: unknown.
+                    return int(size) if int(size) >= 0 else None
                 if candidate.parent == candidate or candidate.parent == PurePosixPath("/"):
                     return None
                 candidate = candidate.parent

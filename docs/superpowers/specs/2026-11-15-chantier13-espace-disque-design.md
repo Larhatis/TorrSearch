@@ -25,6 +25,24 @@ manuels).
 4. **Téléchargement manuel** (interface, Claude) : jamais bloqué ; le message de confirmation
    ajoute « attention : il reste N Go sur ce disque » sous le seuil.
 
+## Décisions prises en revue
+
+- **Réserve par cycle** (`DiskBudget`) : Transmission ne réserve pas la place à l'ajout
+  (fichiers creux), donc mesurer avant chaque envoi laisserait partir cinq packs de 40 Go sur
+  120 Go libres. Le budget, partagé par les trois cycles d'un passage, retire de l'espace libre
+  ce que ce passage a déjà envoyé **et** ce qu'il reste à écrire aux torrents non terminés, par
+  dossier des réglages (un dossier = un disque).
+- **Pas de repli sur une version plus petite** : si la meilleure release du profil ne tient pas,
+  rien ne part (on ne dégrade pas la qualité pour remplir le disque) ; baisser le seuil ou
+  libérer de la place débloque.
+- **Une œuvre refusée attend sa prochaine recherche ciblée** (6 h / 24 h) : relancer une recherche
+  tracker à chaque cycle tant que le disque est plein solliciterait trop les trackers. La
+  notification dit « libère de la place puis clique sur Vérifier maintenant ».
+- Une réponse `-1` de `free-space` vaut « inconnu ».
+- Ligne « Disques » en état neutre (`off`) quand l'espace est inconnu ; alerte quotidienne
+  seulement surveillance active, sans mesure une fois la notice du jour envoyée.
+- Le dossier « incomplet » de Transmission (`incomplete-dir`), s'il est activé, n'est pas mesuré.
+
 ## Réglage
 
 `LibraryConfig.min_free_gb` (profil de qualité, à côté des tailles max) : **50 Go par défaut**,

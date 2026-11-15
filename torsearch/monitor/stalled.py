@@ -42,6 +42,10 @@ class DailyNotice:
     def __init__(self) -> None:
         self._last: date | None = None
 
+    def due(self, today: date) -> bool:
+        """Whether a warning would get through today (without using up the day)."""
+        return self._last != today
+
     def allow(self, today: date) -> bool:
         if self._last == today:
             return False

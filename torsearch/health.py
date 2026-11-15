@@ -90,7 +90,7 @@ async def _disks_check(ctx) -> tuple[bool, str]:
     usage = [(label, free) for label, _path, free in await folder_usage(ctx.transmission, ctx.config)
              if free is not None]
     if not usage:
-        return False, "Espace libre inconnu."
+        return True, ""  # unknown space never blocks a send: shown as "off" by check_all
     min_free = ctx.config.library.min_free_bytes
     text = " · ".join(f"{label} {format_bytes(free)}" for label, free in usage) + " libres"
     if min_free and any(free < min_free for _label, free in usage):
@@ -124,5 +124,8 @@ async def check_all(ctx, timeout: float = 12.0) -> list[ServiceStatus]:
     statuses = list(await asyncio.gather(*checks))
     if statuses[0].state == "ok" and hasattr(ctx.transmission, "free_space"):
         # Only Transmission sees the disks: measured once it is known to answer.
-        statuses.insert(1, await _probe("Disques", _disks_check(ctx), timeout))
+        disks = await _probe("Disques", _disks_check(ctx), timeout)
+        if disks.state == "ok" and disks.message == "OK":
+            disks = ServiceStatus(name="Disques", state="off", message="Espace libre inconnu (pas de controle)")
+        statuses.insert(1, disks)
     return statuses

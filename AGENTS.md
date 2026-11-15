@@ -31,14 +31,18 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
     remonte au parent existant (dossier de série pas encore créé), `None` si inconnu, jamais
     d'exception ni d'attente par parent quand Transmission est injoignable. TorrSearch ne monte
     pas les disques : seul Transmission les mesure.
-  - `monitor/diskspace.py` : `has_room` (espace inconnu ⇒ on envoie), `folder_usage`,
-    `low_folders`, `format_bytes`. Seuil `LibraryConfig.min_free_gb` (**50 Go par défaut**,
+  - `monitor/diskspace.py` : `DiskBudget` (un par passage du runner, partagé par les trois
+    cycles : espace libre − envois du passage − reste à écrire des torrents non terminés, par
+    dossier des réglages ; espace inconnu ⇒ on envoie), `folder_usage`, `low_folders`,
+    `format_bytes`. Transmission ne réserve pas la place à l'ajout : ne jamais revenir à une
+    simple mesure avant chaque envoi. Seuil `LibraryConfig.min_free_gb` (**50 Go par défaut**,
     `0` = désactivé), réglable dans le profil.
   - Films, épisodes et recherches libres auto : envoi reporté (journal « Espace disque
     insuffisant… ») si `libre − taille < seuil` ; **rien dans l'historique** (sinon `seen_keys`
     ne retenterait jamais la release). Ligne « Disques » du panneau d'état, notification
     « Disque presque plein » une fois par jour (`DailyNotice` du runner), avertissement dans le
-    message d'un envoi manuel (jamais bloqué).
+    message d'un envoi manuel (jamais bloqué). Pas de repli sur une release plus petite ; une
+    œuvre refusée attend sa prochaine recherche ciblée (ou « Vérifier maintenant »).
   - Retrait automatique de l'ancienne copie après PROPER/upgrade : écarté (upgrades désactivés en
     production, aucun PROPER/REPACK jamais pris).
 - Chantier 12 — mises à jour sûres (v0.10.2, spec
@@ -237,7 +241,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **859 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **869 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
