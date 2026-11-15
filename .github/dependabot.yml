@@ -1,0 +1,30 @@
+# Proposes dependency updates as PRs; the CI (tests + image build/start) checks each one.
+# pip: bumps each exact pin of requirements.txt (Dependabot only reads *.txt / *.in files).
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "build(deps)"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci(deps)"
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+    ignore:
+      # The lock and the tests target Python 3.12: a new Python minor is a manual change
+      # (Dockerfile, setup-python, --python-version), never a silent image bump.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    commit-message:
+      prefix: "build(deps)"
