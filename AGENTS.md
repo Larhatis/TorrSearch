@@ -21,10 +21,13 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.10.0)
+## 2. État actuel (v0.10.1)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- v0.10.1 — la page Activité ne lance plus de scan Jellyfin : elle en déclenchait un par torrent
+  terminé après chaque redémarrage de l'app ou de Transmission (ids gardés en mémoire). Le moteur
+  de surveillance, qui tourne toujours, fait un seul scan par cycle (`run_jellyfin_refresh`).
 - Chantier 11 — Claude branché sur TorrSearch (v0.10.0, spec
   `docs/superpowers/specs/2026-11-02-chantier11-claude-mcp-design.md`) :
   - Serveur MCP distant (`torsearch/claude/`) sur le SDK officiel `mcp` 2.x (`MCPServer`),
@@ -213,7 +216,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **829 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **830 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
