@@ -177,7 +177,7 @@ conteneur arrêté, remplace `torsearch.db` dans le volume par la copie.
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -c requirements.lock -e ".[dev]"   # versions exactes, comme la CI et l'image
 
 ruff check torsearch tests     # style
 mypy                           # typage
@@ -187,7 +187,19 @@ uvicorn torsearch.main:get_app --factory --reload   # http://localhost:8000
 ```
 
 Stack : FastAPI, HTMX, Tailwind, Jinja2, SQLite — sans build front. La CI lance lint,
-typage et la suite de tests à chaque push.
+typage et la suite de tests à chaque push, puis construit l'image Docker et vérifie qu'elle
+démarre.
+
+Les versions de toutes les dépendances sont figées dans `requirements.lock` (utilisé par la CI
+et l'image). Après une modification des dépendances de `pyproject.toml`, régénérer le fichier
+avec [uv](https://docs.astral.sh/uv/) :
+
+```bash
+uv pip compile pyproject.toml --extra dev --universal --python-version 3.12 -o requirements.lock
+```
+
+Dependabot propose les montées de version en PR (pip chaque semaine, actions et image de base
+chaque mois).
 
 ## Avertissement
 

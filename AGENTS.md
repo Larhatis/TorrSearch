@@ -21,10 +21,15 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.10.1)
+## 2. État actuel (v0.10.2)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- Chantier 12 — mises à jour sûres (v0.10.2, spec
+  `docs/superpowers/specs/2026-11-15-chantier12-mises-a-jour-sures-design.md`) : toutes les
+  dépendances figées dans `requirements.lock` (`uv pip compile --universal`, contraintes de la CI
+  et du Dockerfile ; la CI échoue si le lock ne suit plus `pyproject.toml`), job CI `docker` qui
+  construit et démarre l'image (`/healthz`) sur chaque PR, Dependabot (pip, actions, Docker).
 - v0.10.1 — la page Activité ne lance plus de scan Jellyfin : elle en déclenchait un par torrent
   terminé après chaque redémarrage de l'app ou de Transmission (ids gardés en mémoire). Le moteur
   de surveillance, qui tourne toujours, fait un seul scan par cycle (`run_jellyfin_refresh`).
@@ -222,7 +227,7 @@ Qualité : **830 tests**, ruff et mypy propres, CI GitHub Actions sur chaque pus
 
 ```bash
 python3.12 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -c requirements.lock -e ".[dev]"   # versions exactes (CI et image)
 
 ruff check torsearch tests    # lint
 mypy                          # typage
@@ -277,7 +282,13 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
   plus récents pour le style.
 - **TDD** : chaque correctif commence par un test qui échoue ; un commit par correctif.
 - **Commits** : `type(portée): description` en français (`fix(auth): …`, `feat(settings): …`).
-- **PR** fusionnées en **squash**, sujet suffixé `(#N)`. CI verte obligatoire.
+- **PR** fusionnées en **squash**, sujet suffixé `(#N)`. CI verte obligatoire (jobs `test` et
+  `docker`).
+- **Dépendances** : versions exactes dans `requirements.lock`. Toute modification des
+  dépendances de `pyproject.toml` s'accompagne de
+  `uv pip compile pyproject.toml --extra dev --universal --python-version 3.12 -o requirements.lock`.
+  PR Dependabot : lire le changelog des paquets sensibles (`transmission-rpc`, `mcp`, `fastapi`,
+  `starlette`) avant de fusionner — la CI ne couvre pas le comportement réel de Transmission.
 - **Release** : l'image `ghcr.io/larhatis/torrsearch` (amd64 + arm64) n'est reconstruite que
   sur un **tag `v*`** (`gh release create vX.Y.Z --target <sha de main>`). L'utilisateur met à
   jour avec *Pull* puis *Up* dans son plugin Compose.
@@ -339,6 +350,11 @@ partiel renvoyé et injecté par HTMX. La surveillance tourne dans la même bouc
 - **Infohash** : `MonitorRecord.infohash` garde celui **du tracker** ; celui de Transmission va
   dans le registre des envois. Les recopier casserait l'anti-doublon de l'historique
   (`infohash or download_url`, calculé de la même façon sur les résultats du tracker).
+
+- **Lock universel** : ne jamais générer `requirements.lock` sans `--universal` (sinon il ne vaut
+  que pour la machine qui l'a produit, et l'image arm64/amd64 peut ne plus s'installer).
+  uv garde les versions déjà présentes dans le fichier : pour monter une version, passer par
+  Dependabot ou `--upgrade-package <nom>`.
 
 - **SDK `mcp` 2.x** : `FastMCP` s'appelle `MCPServer` (`mcp.server.mcpserver`). Son app
   Starlette (routes OAuth + `/mcp`) est montée sur `/` **après** toutes les routes FastAPI et
