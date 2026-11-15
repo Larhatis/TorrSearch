@@ -78,8 +78,12 @@ def _sent_by_surveillance(grabs, t) -> bool:
     return abs(_aware(t.date_added) - _aware(record.added_at)) <= SAME_ADD_TOLERANCE
 
 
-def _purge_reason(t, now: datetime, window: timedelta) -> str | None:
-    """"stalled" or "error" when ``t`` is certainly dead, else None (never purge on doubt)."""
+def _purge_reason(t, now: datetime, window: timedelta, patience: bool = True) -> str | None:
+    """"stalled" or "error" when ``t`` is certainly dead, else None (never purge on doubt).
+
+    With ``patience=False`` the sources announced by the tracker are ignored: the breaker
+    counts those torrents too (an outage leaves the last scrape's sources in place).
+    """
     # Only an active download is judged: not a finished, paused, queued or checking one.
     if t.percent >= 100.0 or t.status.lower() != "downloading":
         return None
@@ -94,7 +98,7 @@ def _purge_reason(t, now: datetime, window: timedelta) -> str | None:
     if t.percent == 0.0:
         # The tracker announces sources: nothing reaching us is our side's problem (closed
         # port, unreachable peers), not a dead release. Wait longer, but not forever.
-        if t.tracker_seeders and now - _aware(t.date_added) < max(window, SOURCES_PATIENCE):
+        if patience and t.tracker_seeders and now - _aware(t.date_added) < max(window, SOURCES_PATIENCE):
             logger.debug("Torrent '%s' a 0 %% mais %d source(s) annoncee(s) : on patiente",
                          t.name, t.tracker_seeders)
             return None
@@ -130,8 +134,9 @@ async def handle_stalled_torrents(
     Purging deletes data, so it only happens when the surveillance is on, for torrents the
     grab registry records as chosen by the surveillance (never one added by hand), dead for
     sure (0 % without peers past the grace period, or forgotten by the tracker), and when
-    few of them die at once. After a mass die-off, ``breaker`` keeps the purge off until a
-    cycle finds no candidate.
+    few of them die at once. A 0 % torrent whose tracker announces sources gets
+    ``max(stalled_hours, 24 h)`` instead: the problem is then on our side. After a mass
+    die-off, ``breaker`` keeps the purge off until a cycle finds no suspect (patience ignored).
 
     The purged grab is also removed from the monitor history: otherwise it would still
     count as "downloading" during the ``regrab_hours`` cooldown and delay the next try.
@@ -146,16 +151,17 @@ async def handle_stalled_torrents(
 
     window = timedelta(hours=config.monitor.stalled_hours)
     current_time = now or datetime.now(UTC)
-    candidates = [
-        (t, reason) for t in torrents
-        if _sent_by_surveillance(grabs, t) and (reason := _purge_reason(t, current_time, window))
-    ]
-    if breaker is not None and not candidates:
+    ours = [t for t in torrents if _sent_by_surveillance(grabs, t)]
+    # Suspects ignore the patience granted to torrents with announced sources: the breaker
+    # decides on them, so an outage cannot slip through 24 h later, three at a time.
+    suspects = [t for t in ours if _purge_reason(t, current_time, window, patience=False)]
+    candidates = [(t, reason) for t in ours if (reason := _purge_reason(t, current_time, window))]
+    if breaker is not None and not suspects:
         breaker.tripped = False  # nothing left of the outage: the purge is armed again
-    if len(candidates) > MAX_PURGES_PER_CYCLE:
+    if len(suspects) > MAX_PURGES_PER_CYCLE:
         if breaker is not None:
             breaker.tripped = True
-        body = (f"{len(candidates)} torrents semblent bloques en meme temps (panne reseau ou VPN ?). "
+        body = (f"{len(suspects)} torrents semblent bloques en meme temps (panne reseau ou VPN ?). "
                 "Aucun n'a ete supprime.")
         await _report_suspension(notifier, config, notice, current_time.date(), body)
         return []
@@ -176,13 +182,18 @@ async def handle_stalled_torrents(
             logger.warning("Failed to remove stalled torrent %s: %s", t.id, exc)
             continue
 
-        # 2. Blacklist
+        record = grabs.get(t.info_hash)
+
+        # 2. Blacklist, under the tracker title too: a tracker without infohash is checked by
+        # its own title, which usually differs from the Transmission name.
         if blacklist is not None:
             blacklist.add(t.info_hash or None, t.name, reason=f"torrent_{reason}")
+            if record is not None and record.title and record.title.strip().lower() != t.name.strip().lower():
+                blacklist.add(None, record.title, reason=f"torrent_{reason}")
 
         # 3-4. Hunt the work again at once: the registry target says which one it was (the
         # tracker title and the Transmission name usually differ); titles are the fallback.
-        _unmark_purged(t, grabs.get(t.info_hash), library, series_library)
+        _unmark_purged(t, record, library, series_library)
 
         # 5. Forget the grab in the history (no cooldown for a dead download)
         if history is not None and hasattr(history, "remove_where"):
@@ -223,13 +234,16 @@ def _unmark_purged(t, record, library, series_library) -> None:
     """Put the purged torrent's movie or episodes back to "wanted"."""
     target = _target(record)
     if target and target[0] == "movie" and library is not None:
-        if library.get(target[1]) is not None:
+        movie = library.get(target[1])
+        # Only when this torrent still owns the movie: an upgrade, a PROPER or a manual
+        # download may have replaced it meanwhile.
+        if movie is not None and movie.status == "grabbed" and _same_title(movie.grabbed_title, record.title):
             library.unmark_grabbed(target[1])
         return
     if target and target[0] == "tv" and series_library is not None:
         series = series_library.get(target[1])
         if series is not None:
-            _unmark_series_episodes(series_library, series, t.name)
+            _unmark_series_episodes(series_library, series, t.name, record.title)
         return
     if library is not None:
         for m in library.list():
@@ -246,8 +260,15 @@ def _unmark_purged(t, record, library, series_library) -> None:
                 _unmark_series_episodes(series_library, s, t.name)
 
 
-def _unmark_series_episodes(series_library, series, torrent_name: str) -> None:
-    parsed_keys = parse_episodes(torrent_name)
+def _same_title(a: str | None, b: str | None) -> bool:
+    return a is not None and b is not None and a.strip().lower() == b.strip().lower() != ""
+
+
+def _unmark_series_episodes(series_library, series, *names: str) -> None:
+    """Unmark the episodes any of ``names`` covers (Transmission name, tracker title)."""
+    parsed_keys: set[str] = set()
+    for name in names:
+        parsed_keys |= set(parse_episodes(name))
     seasons = {k for k in parsed_keys if len(k) == 3}  # season pack tags ("S01")
     keys = [k for k in series.grabbed if k in parsed_keys or k[:3] in seasons]
     if keys:

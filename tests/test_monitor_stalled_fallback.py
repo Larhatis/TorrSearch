@@ -556,3 +556,80 @@ async def test_purge_with_a_target_of_a_removed_work_does_not_fail(tmp_path):
                                             series_library=SeriesLibrary(tmp_path / "s.json"),
                                             blacklist=Blacklist(tmp_path / "b"), config=ON, now=NOW, grabs=grabs)
     assert handled == [t.name]
+
+
+# --- Chantier 14, review fixes ---
+
+TRACKER_TITLE = "Primetime.2026.MULTI.VFQ.1080p.WEB.DDP.5.1.H264-SUPPLY"
+
+
+async def test_purge_blacklists_the_tracker_title_too(tmp_path):
+    # A tracker without infohash is checked by its own title: the Transmission name alone
+    # would let the same dead release be sent again on the next cycle.
+    t = _old(1, name="Primetime.2026.MULTi.CA.1080p.WEB.H264-SUPPLY")
+    grabs = GrabRegistry(tmp_path / "grabs.db")
+    grabs.record(t.info_hash, TRACKER_TITLE, "auto", target="movie:42", at=t.date_added)
+    bl = Blacklist(tmp_path / "b")
+    await handle_stalled_torrents(FakeTransmission([t]), blacklist=bl, config=ON, now=NOW, grabs=grabs)
+    assert bl.is_blacklisted(None, TRACKER_TITLE)
+    assert bl.is_blacklisted(None, t.name)
+
+
+async def test_purge_keeps_a_movie_grabbed_through_another_release(tmp_path):
+    # Release A stalls; meanwhile B (upgrade, PROPER or by hand) owns the movie: purging A
+    # must not send the movie hunting for a third copy.
+    t = _old(1, name="Primetime.2026.MULTi.CA.1080p.WEB.H264-SUPPLY")
+    movies = MovieLibrary(tmp_path / "movies.json")
+    movies.add(WantedMovie(tmdb_id=42, title="Primetime", year="2026", added_at=NOW))
+    movies.mark_grabbed(42, "Primetime.2026.MULTI.2160p.WEB.H265-OTHER", NOW)
+    grabs = GrabRegistry(tmp_path / "grabs.db")
+    grabs.record(t.info_hash, TRACKER_TITLE, "auto", target="movie:42", at=t.date_added)
+    await handle_stalled_torrents(FakeTransmission([t]), library=movies, blacklist=Blacklist(tmp_path / "b"),
+                                  config=ON, now=NOW, grabs=grabs)
+    assert movies.get(42).status == "grabbed"
+
+
+async def test_patient_torrents_still_trip_the_breaker(tmp_path):
+    # A VPN outage: the trackers still announce sources from their last scrape. Those
+    # torrents must count toward the mass die-off, or they would be purged three at a time later.
+    breaker = PurgeBreaker()
+    torrents = [_old(i, tracker_seeders=8) for i in range(1, 5)] + [_old(5)]
+    handled, tr = await _purge(tmp_path, torrents, breaker=breaker)
+    assert handled == [] and breaker.tripped
+
+
+async def test_breaker_stays_tripped_while_patient_suspects_remain(tmp_path):
+    breaker = PurgeBreaker()
+    await _purge(tmp_path, [_old(i) for i in range(1, 6)], breaker=breaker)
+    await _purge(tmp_path, [_old(1, tracker_seeders=8)], breaker=breaker)
+    assert breaker.tripped
+    later = NOW + timedelta(hours=30)
+    handled, tr = await _purge(tmp_path, [_old(1, tracker_seeders=8)], breaker=breaker, now=later)
+    assert handled == [] and tr.removed == []
+
+
+async def test_season_pack_unmarked_from_the_tracker_title(tmp_path):
+    # The Transmission name of a pack may carry no SxxEyy; the tracker title does.
+    t = _old(1, name="The.Show.Integrale.MULTi.1080p.WEB-GRP")
+    series = SeriesLibrary(tmp_path / "series.json")
+    series.add(WantedSeries(tmdb_id=7, title="The Show", year="2025", added_at=NOW, grabbed=["S01E01", "S02E01"]))
+    grabs = GrabRegistry(tmp_path / "grabs.db")
+    grabs.record(t.info_hash, "The.Show.S01.MULTi.1080p.WEB-GRP", "auto", target="tv:7", at=t.date_added)
+    await handle_stalled_torrents(FakeTransmission([t]), series_library=series, blacklist=Blacklist(tmp_path / "b"),
+                                  config=ON, now=NOW, grabs=grabs)
+    assert series.get(7).grabbed == ["S02E01"]
+
+
+async def test_malformed_or_missing_target_falls_back_to_titles(tmp_path):
+    for target in ("movie:abc", "saved:x", ""):
+        root = tmp_path / (target.replace(":", "_") or "empty")
+        root.mkdir()
+        t = _old(1)
+        movies = MovieLibrary(root / "movies.json")
+        movies.add(WantedMovie(tmdb_id=42, title="Some Movie", year="2024", added_at=NOW))
+        movies.mark_grabbed(42, t.name, NOW)
+        grabs = GrabRegistry(root / "grabs.db")
+        grabs.record(t.info_hash, t.name, "auto", target=target, at=t.date_added)
+        await handle_stalled_torrents(FakeTransmission([t]), library=movies, blacklist=Blacklist(root / "b"),
+                                      config=ON, now=NOW, grabs=grabs)
+        assert movies.get(42).status == "wanted", target
