@@ -8,9 +8,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends gosu \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml ./
+COPY pyproject.toml requirements.lock ./
 COPY torsearch ./torsearch
-RUN pip install --no-cache-dir .
+# Exact versions: the same code always builds the same image (see requirements.lock).
+RUN pip install --no-cache-dir -c requirements.lock .
 
 # Non-root user; the entrypoint fixes /data ownership (bind mounts come up as root)
 # then drops privileges, so the app never runs as root.
