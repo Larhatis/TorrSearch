@@ -34,3 +34,25 @@ jobs:
         run: mypy
       - name: Tests
         run: pytest
+
+  docker:
+    # Builds and starts the real image on every push/PR, so a dependency that breaks the
+    # startup shows up here instead of on the server after a release (amd64 only: arm64
+    # emulation stays in the release workflow).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t torsearch:ci .
+      - name: Start and wait for /healthz
+        run: |
+          docker run -d --name ts -e TORSEARCH_DB=/data/torsearch.db -p 8000:8000 torsearch:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/healthz; then
+              echo; echo "Image demarree"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::l'image ne repond pas sur /healthz apres 60 s"
+          docker logs ts
+          exit 1
