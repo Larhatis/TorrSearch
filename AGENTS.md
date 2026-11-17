@@ -21,10 +21,13 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.12.0)
+## 2. État actuel (v0.12.1)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- v0.12.1 — Découvrir : le menu des genres (rechargé au chargement) héritait du `hx-target`
+  du formulaire et remplaçait la zone des résultats ; tout `hx-get` dans un formulaire htmx doit
+  avoir son propre `hx-target` (test dans `test_discover_more.py`).
 - Chantier 14 — purge patiente (v0.12.0, spec
   `docs/superpowers/specs/2026-11-15-chantier14-purge-patiente-design.md`) : constat en
   production, 6 releases de *Primetime* brûlées en 6 jours (port entrant fermé + purge à 2 h).
@@ -256,7 +259,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **891 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **892 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
