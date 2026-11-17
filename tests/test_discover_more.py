@@ -102,3 +102,31 @@ def test_for_you_skips_known_titles_and_duplicates(tmp_path):
 def test_for_you_without_library(tmp_path):
     client, _ = _client(tmp_path, seeded=False)
     assert "Ajoute des films ou des series" in client.get("/discover/for-you").text
+
+
+def test_every_htmx_request_in_the_filter_form_has_its_own_target(tmp_path):
+    # htmx inherits hx-target: without its own, the genre list loaded with the page
+    # replaced the results area, and every shortcut then had nowhere to show anything.
+    from html.parser import HTMLParser
+
+    class Collector(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.form_depth = 0
+            self.missing: list[str] = []
+
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            if tag == "form" and a.get("hx-get") == "/discover/browse":
+                self.form_depth = 1
+            elif self.form_depth and "hx-get" in a and "hx-target" not in a:
+                self.missing.append(a["hx-get"])
+
+        def handle_endtag(self, tag):
+            if tag == "form":
+                self.form_depth = 0
+
+    client, _ = _client(tmp_path)
+    parser = Collector()
+    parser.feed(client.get("/discover").text)
+    assert parser.missing == []
