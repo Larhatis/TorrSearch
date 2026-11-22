@@ -21,10 +21,18 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.12.1)
+## 2. État actuel (v0.12.2)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- v0.12.2 — dossier des séries (`library/series_folder.py`) : constat en production, la saison 9
+  de *Rick et Morty* rangée dans `Rick et Morty/` (titre TMDB français) à côté de
+  `Rick.and.Morty/` ⇒ deux séries dans Jellyfin (un dossier = une série). Une série suivie va
+  désormais dans le dossier où elle vit déjà : celui que Jellyfin connaît pour son id TMDB
+  (`JellyfinClient.series_paths`, chemin traduit par la fin comme la ligne « Dossiers », le plus
+  fourni s'il y en a deux), sinon celui d'un torrent de la série sous le dossier Séries ; sinon
+  `Titre (Année) [tmdbid-N]`. Choix retenu dans `WantedSeries.folder`. Surveillance et envois
+  manuels rattachés à une série suivie ; pas les recherches libres (pas d'id TMDB).
 - v0.12.1 — Découvrir : le menu des genres (rechargé au chargement) héritait du `hx-target`
   du formulaire et remplaçait la zone des résultats ; tout `hx-get` dans un formulaire htmx doit
   avoir son propre `hx-target` (test dans `test_discover_more.py`).
@@ -259,7 +267,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **892 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **906 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

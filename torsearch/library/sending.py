@@ -3,7 +3,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from torsearch.library.episodes import build_tv_download_dir
 from torsearch.library.linking import plan_manual_grab, record_manual_grab
+from torsearch.library.series_folder import series_folder
 from torsearch.models import Category
 from torsearch.monitor.diskspace import format_bytes, free_bytes
 from torsearch.monitor.grabs import MANUAL, added_hash
@@ -32,6 +34,14 @@ async def send_release(state, download_url: str, title: str, category: Category,
     library = getattr(state, "library", None)
     series_library = getattr(state, "series_library", None)
     grab = plan_manual_grab(title, category, ctx.config.paths, library, series_library)
+    if grab.series is not None:
+        # A followed show goes where it already lives (see library/series_folder.py).
+        base = ctx.config.paths.for_category(Category.TV)
+        folder = await series_folder(grab.series, base, getattr(ctx, "jellyfin", None),
+                                     getattr(ctx, "transmission", None), series_library)
+        if folder:
+            grab.download_dir = build_tv_download_dir(base, grab.series.title, grab.parsed.episodes,
+                                                      release_title=title, series_dir=folder)
     try:
         added = await ctx.transmission.add(download_url, grab.download_dir)
     except Exception as exc:

@@ -76,6 +76,7 @@ class WantedSeries(BaseModel):
     poster_path: str | None = None
     added_at: datetime
     grabbed: list[str] = Field(default_factory=list)
+    folder: str | None = None  # Transmission path of the series folder, chosen once (library/series_folder.py)
 
     @computed_field
     @property

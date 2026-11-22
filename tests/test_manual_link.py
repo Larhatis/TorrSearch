@@ -63,7 +63,9 @@ def test_manual_movie_download_is_filed_and_marked(tmp_path):
 def test_manual_episode_download_is_filed_and_marked(tmp_path):
     client, tx, _, series, _ = _setup(tmp_path)
     _download(client, "MobLand.S02E03.MULTi.2160p.WEB-GRP", category="other")
-    assert tx.dirs == ["/series/MobLand/Saison 02"]
+    # Followed and seen nowhere yet: a folder Jellyfin identifies for sure.
+    assert tx.dirs == [f"/series/{series.get(247718).folder.rsplit('/', 1)[1]}/Saison 02"]
+    assert series.get(247718).folder.startswith("/series/MobLand") and "[tmdbid-247718]" in series.get(247718).folder
     assert series.get(247718).grabbed == ["S02E03"]
 
 

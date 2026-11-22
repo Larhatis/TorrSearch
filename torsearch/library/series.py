@@ -46,6 +46,13 @@ class SeriesLibrary:
         merged = sorted(set(series.grabbed) | set(keys))
         self._c.upsert(str(tmdb_id), series.model_copy(update={"grabbed": merged}).model_dump(mode="json"))
 
+    def set_folder(self, tmdb_id: int, folder: str) -> None:
+        data = self._c.get(str(tmdb_id))
+        if data is None:
+            return
+        series = WantedSeries.model_validate(data)
+        self._c.upsert(str(tmdb_id), series.model_copy(update={"folder": folder}).model_dump(mode="json"))
+
     def unmark_grabbed(self, tmdb_id: int, keys: list[str]) -> None:  # type: ignore[valid-type]
         data = self._c.get(str(tmdb_id))
         if data is None:

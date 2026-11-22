@@ -113,8 +113,12 @@ def build_tv_download_dir(
     episodes: set[str] | list[str] | None = None,
     release_title: str | None = None,
     season_number: int | None = None,
+    series_dir: str | None = None,
 ) -> str | None:
     """Build the structured download path for a TV series episode or season.
+
+    ``series_dir`` is the series folder already chosen (``library/series_folder.py``): the
+    season folder goes inside it instead of a folder named after ``series_title``.
 
     Example:
     base_dir="/downloads/disk2", series_title="Paolo", episodes={"S01E01"}
@@ -131,6 +135,10 @@ def build_tv_download_dir(
         sub_path = f"{clean_series}/Saison {s_num:02d}"
     else:
         sub_path = clean_series
+
+    if series_dir:
+        series_dir = series_dir.rstrip("/\\")
+        return f"{series_dir}/Saison {s_num:02d}" if s_num is not None else series_dir
 
     if not base_dir:
         return None  # Transmission's default folder (relative paths are refused)

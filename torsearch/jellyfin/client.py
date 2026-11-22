@@ -22,6 +22,8 @@ class JellyfinItem:
     year: int | None = None
     tmdb_id: str | None = None
     original_title: str | None = None
+    path: str | None = None
+    episode_count: int = 0
 
 
 class JellyfinClient:
@@ -61,7 +63,7 @@ class JellyfinClient:
                 params={
                     "Recursive": "true",
                     "IncludeItemTypes": "Movie,Series",
-                    "Fields": "ProviderIds,ProductionYear,OriginalTitle",
+                    "Fields": "ProviderIds,ProductionYear,OriginalTitle,Path,RecursiveItemCount",
                     "Limit": "10000",
                 },
                 headers=self._auth(),
@@ -81,6 +83,8 @@ class JellyfinClient:
                         year=int(year) if year else None,
                         tmdb_id=str(tmdb) if tmdb else None,
                         original_title=str(orig) if orig else None,
+                        path=item.get("Path") or None,
+                        episode_count=int(item.get("RecursiveItemCount") or 0),
                     )
                 )
             self._items_cache = (now, items)
@@ -91,6 +95,12 @@ class JellyfinClient:
         finally:
             if owns_client:
                 await client.aclose()
+
+    async def series_paths(self, tmdb_id: int) -> list[tuple[str, int]]:
+        """Folders of the series with this TMDB id, with their episode count."""
+        wanted = str(tmdb_id)
+        return [(i.path, i.episode_count) for i in await self.get_items()
+                if i.media_type == "tv" and i.tmdb_id == wanted and i.path]
 
     async def search_items(self, term: str, limit: int = 50) -> list[JellyfinItem]:
         """Search Jellyfin server directly with searchTerm across the entire library."""
