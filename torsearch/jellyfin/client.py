@@ -31,6 +31,7 @@ class JellyfinClient:
         self._client = client
         self._timeout = timeout
         self._items_cache: tuple[float, list[JellyfinItem]] | None = None
+        self._series_cache: tuple[float, list[tuple[str, str, int]]] | None = None
 
     @property
     def enabled(self) -> bool:
@@ -91,6 +92,40 @@ class JellyfinClient:
         finally:
             if owns_client:
                 await client.aclose()
+
+    async def series_paths(self, tmdb_id: int) -> list[tuple[str, int]] | None:
+        """Folders of the series with this TMDB id and their episode count; None if unreachable.
+
+        A request of its own (not ``get_items``, used on every search): episode counts cost
+        Jellyfin a count per folder. "No folder" ([]) and "Jellyfin did not answer" (None)
+        must stay apart: the caller remembers a new folder only on a real answer.
+        """
+        if not self.enabled:
+            return None
+        now = time.monotonic()
+        if self._series_cache is None or now - self._series_cache[0] >= 30.0:
+            owns_client = self._client is None
+            client = self._client or httpx.AsyncClient(timeout=self._timeout)
+            try:
+                response = await client.get(
+                    f"{self._url}/Items",
+                    params={"Recursive": "true", "IncludeItemTypes": "Series",
+                            "Fields": "ProviderIds,Path,RecursiveItemCount", "Limit": "10000"},
+                    headers=self._auth(),
+                )
+                response.raise_for_status()
+                rows = [(str((it.get("ProviderIds") or {}).get("Tmdb") or ""), it.get("Path") or "",
+                         int(it.get("RecursiveItemCount") or 0))
+                        for it in response.json().get("Items", []) if it.get("Type", "Series") == "Series"]
+                self._series_cache = (now, rows)
+            except Exception as exc:
+                logger.warning("Jellyfin series_paths() failed: %s", redact(str(exc)))
+                return None
+            finally:
+                if owns_client:
+                    await client.aclose()
+        wanted = str(tmdb_id)
+        return [(path, count) for tmdb, path, count in self._series_cache[1] if tmdb == wanted and path]
 
     async def search_items(self, term: str, limit: int = 50) -> list[JellyfinItem]:
         """Search Jellyfin server directly with searchTerm across the entire library."""

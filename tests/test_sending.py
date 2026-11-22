@@ -84,3 +84,16 @@ async def test_manual_send_no_warning_with_room(tmp_path):
     out = await send_release(_state(tmp_path, SpaceTransmission(600_000_000_000)), "magnet:?x",
                              "Some.Film.2020.1080p", Category.MOVIES)
     assert "attention" not in out.message
+
+
+async def test_send_release_of_a_followed_series_uses_its_folder(tmp_path):
+    from torsearch.models import WantedSeries
+
+    tr = FakeTransmission()
+    state = _state(tmp_path, tr)
+    state.ctx.config = Config(paths=PathsConfig(by_category={"tv": "/downloads/disk2"}))
+    state.series_library.add(WantedSeries(tmdb_id=60625, title="Rick et Morty", original_title="Rick and Morty",
+                                          year="2013", added_at=datetime.now(UTC),
+                                          folder="/downloads/disk2/Rick.and.Morty"))
+    await send_release(state, "magnet:?x", "Rick.and.Morty.S09E01.MULTi.1080p.WEB-GRP", Category.TV)
+    assert tr.added == [("magnet:?x", "/downloads/disk2/Rick.and.Morty/Saison 09")]

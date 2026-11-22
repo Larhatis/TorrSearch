@@ -152,3 +152,12 @@ def test_episode_range_and_resolution_still_safe():
     assert parse_episodes("Show.S01E01-E03.1080p") == {"S01E01", "S01E02", "S01E03"}
     assert parse_episodes("Show.S01E05-1080p.WEB") == {"S01E05"}
     assert parse_episodes("Show.S01E01-03.1080p") == {"S01E01", "S01E02", "S01E03"}
+
+
+def test_build_tv_download_dir_into_a_known_series_folder():
+    from torsearch.library.episodes import build_tv_download_dir
+
+    assert build_tv_download_dir("/downloads/disk2", "Rick et Morty", {"S09E01"},
+                                 series_dir="/downloads/disk2/Rick.and.Morty") == "/downloads/disk2/Rick.and.Morty/Saison 09"
+    assert build_tv_download_dir("/downloads/disk2", "Rick et Morty", {"S01", "S02"},
+                                 series_dir="/downloads/disk2/Rick.and.Morty/") == "/downloads/disk2/Rick.and.Morty"

@@ -21,10 +21,22 @@ dépendances lourdes, pas de build front).
 L'utilisateur (propriétaire du dépôt) est francophone : **parler français**, donner une
 recommandation claire plutôt qu'un catalogue d'options.
 
-## 2. État actuel (v0.12.1)
+## 2. État actuel (v0.12.2)
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
+- v0.12.2 — dossier des séries (`library/series_folder.py`) : constat en production, la saison 9
+  de *Rick et Morty* rangée dans `Rick et Morty/` (titre TMDB français) à côté de
+  `Rick.and.Morty/` ⇒ deux séries dans Jellyfin (un dossier = une série). Une série suivie va
+  désormais dans le dossier où elle vit déjà : celui que Jellyfin connaît pour son id TMDB
+  (`JellyfinClient.series_paths`, chemin traduit par la fin comme la ligne « Dossiers », le plus
+  fourni s'il y en a deux ; requête à part `series_paths`, `None` si injoignable), qui prime sur
+  le dossier retenu (`WantedSeries.folder`) ; puis un torrent de la série dont le dossier porte
+  aussi son nom (non retenu) ; sinon `Titre/` pour une série déjà servie (ancien code) ou
+  `Titre (Année) [tmdbid-N]`. Un dossier n'est retenu qu'**après un envoi réussi**, et un dossier
+  inventé seulement si Jellyfin a vraiment répondu : une panne ne doit jamais figer un doublon.
+  Surveillance et envois manuels rattachés à une série suivie ; pas les recherches libres (pas
+  d'id TMDB) ni une bibliothèque Anime à dossier distinct (seul le dossier Séries est consulté).
 - v0.12.1 — Découvrir : le menu des genres (rechargé au chargement) héritait du `hx-target`
   du formulaire et remplaçait la zone des résultats ; tout `hx-get` dans un formulaire htmx doit
   avoir son propre `hx-target` (test dans `test_discover_more.py`).
@@ -259,7 +271,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **892 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **915 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

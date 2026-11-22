@@ -325,7 +325,34 @@ async def test_series_cycle_uses_tv_path(tmp_path):
     tr = FakeTransmission()
     await run_series_cycle(cfg, lib, FakeSearch([_r("Show.S01E01.1080p", infohash="A")]),
                            tr, MonitorHistory(tmp_path / "m.json"))
-    assert tr.dirs == ["/data/series/Show/Saison 01"]
+    # A new show gets a folder Jellyfin identifies for sure, remembered for the next grabs.
+    assert tr.dirs == ["/data/series/Show (2024) [tmdbid-1]/Saison 01"]
+    assert lib.get(1).folder == "/data/series/Show (2024) [tmdbid-1]"
+
+
+async def test_series_cycle_files_into_the_folder_jellyfin_already_has(tmp_path):
+    # Seen in production: season 9 went to "Rick et Morty" (French TMDB title) next to the
+    # existing "Rick.and.Morty" folder, and Jellyfin showed two series.
+    from torsearch.config import PathsConfig
+
+    class Jelly:
+        enabled = True
+
+        async def owned(self):
+            return {}
+
+        async def series_paths(self, tmdb_id):
+            return [("/media/disk2/Show.Original", 40)] if tmdb_id == 1 else []
+
+        async def find_matching(self, query):
+            return None
+
+    lib = _slib(tmp_path)
+    cfg = Config(monitor=MonitorConfig(enabled=True), paths=PathsConfig(by_category={"tv": "/downloads/disk2"}))
+    tr = FakeTransmission()
+    await run_series_cycle(cfg, lib, FakeSearch([_r("Show.S09E01.1080p", infohash="A")]),
+                           tr, MonitorHistory(tmp_path / "m.json"), jellyfin=Jelly())
+    assert tr.dirs == ["/downloads/disk2/Show.Original/Saison 09"]
 
 
 # --- Feature 1: Jellyfin auto-refresh on download completion ---
@@ -790,3 +817,17 @@ async def test_run_soon_during_a_cycle_is_not_lost():
         await asyncio.sleep(0.01)
     await runner.stop()
     assert calls[:2] == [False, True]
+
+
+async def test_series_folder_not_remembered_when_the_send_fails(tmp_path):
+    from torsearch.config import PathsConfig
+
+    class Failing(FakeTransmission):
+        async def add(self, url, download_dir=None):
+            raise RuntimeError("Transmission down")
+
+    lib = _slib(tmp_path)
+    cfg = Config(monitor=MonitorConfig(enabled=True), paths=PathsConfig(by_category={"tv": "/data/series"}))
+    await run_series_cycle(cfg, lib, FakeSearch([_r("Show.S01E01.1080p", infohash="A")]),
+                           Failing(), MonitorHistory(tmp_path / "m.json"))
+    assert lib.get(1).folder is None

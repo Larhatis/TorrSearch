@@ -5,6 +5,7 @@ import logging
 from datetime import UTC, date, datetime, timedelta
 
 from torsearch.library.episodes import build_movie_download_dir, build_tv_download_dir, parse_episodes
+from torsearch.library.series_folder import choose_series_folder, remember_folder
 from torsearch.models import Category, SearchResult
 from torsearch.monitor.diskspace import DiskBudget, format_bytes, low_folders
 from torsearch.monitor.grabs import AUTO, added_hash
@@ -675,6 +676,7 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             if fallback and not complete:
                 all_results += await _search_all(search_service, queries, Category.TV, only=fallback)
 
+        folder = _folder_once(series, base_tv_dir, jellyfin, transmission)
         newly: list[str] = []
         if not complete:
             missing = set(remaining) if remaining is not None else None
@@ -693,9 +695,12 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             for r, covered in picks:
                 if remaining is not None and not (covered & remaining):
                     continue
+                choice = await folder()
                 if not await _grab_series_release(config, series, r, covered, transmission,
-                                                  history, notifier, created, grabs, budget):
+                                                  history, notifier, created, grabs, budget,
+                                                  choice.path if choice else None):
                     continue
+                remember_folder(series_library, series, choice)
                 if remaining is not None:
                     remaining -= covered
                 have |= covered
@@ -719,21 +724,36 @@ async def run_series_cycle(config, series_library, search_service, transmission,
             if covered & set(newly):
                 continue
             logger.info("Remplacement (PROPER/REPACK ou upgrade) : %s", r.title)
-            await _grab_series_release(config, series, r, covered, transmission, history, notifier, created,
-                                       grabs, budget)
+            choice = await folder()
+            if await _grab_series_release(config, series, r, covered, transmission, history, notifier, created,
+                                          grabs, budget, choice.path if choice else None):
+                remember_folder(series_library, series, choice)
         if newly:
             series_library.mark_grabbed(series.tmdb_id, sorted(set(newly)))
     return created
 
 
+def _folder_once(series, base_tv_dir, jellyfin, transmission):
+    """The series folder choice, looked up only when a release is about to be sent (then cached)."""
+    chosen: list = []
+
+    async def folder():
+        if not chosen:
+            chosen.append(await choose_series_folder(series, base_tv_dir, jellyfin, transmission))
+        return chosen[0]
+
+    return folder
+
+
 async def _grab_series_release(config, series, r: SearchResult, covered: set[str], transmission,
                                history, notifier, created: list[MonitorRecord], grabs=None,
-                               budget: DiskBudget | None = None) -> bool:
+                               budget: DiskBudget | None = None, series_dir: str | None = None) -> bool:
     download_dir = build_tv_download_dir(
         base_dir=config.paths.for_category(Category.TV),
         series_title=series.title,
         episodes=covered,
         release_title=r.title,
+        series_dir=series_dir,
     )
     budget = budget or DiskBudget(transmission, config)
     if not await _room_for(budget, r, download_dir):
