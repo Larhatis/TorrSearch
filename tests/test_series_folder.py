@@ -5,11 +5,13 @@ from datetime import UTC, datetime
 
 from torsearch.library.series import SeriesLibrary
 from torsearch.library.series_folder import (
+    FolderChoice,
+    choose_series_folder,
     find_series_folder,
     folder_in_base,
     map_library_path,
     new_series_folder,
-    series_folder,
+    remember_folder,
 )
 from torsearch.models import WantedSeries
 from torsearch.transmission.client import TorrentInfo
@@ -94,31 +96,69 @@ async def test_nothing_found_without_any_trace():
     assert await find_series_folder(RICK, BASE, None, FakeTransmission(error=True)) is None
 
 
-async def test_series_folder_remembers_its_choice(tmp_path):
+async def test_jellyfin_folder_is_chosen_and_worth_remembering(tmp_path):
     lib = SeriesLibrary(tmp_path / "s.json")
     lib.add(RICK)
     jelly = FakeJellyfin({60625: [("/media/disk2/Rick.and.Morty", 81)]})
-    assert await series_folder(lib.get(60625), BASE, jelly, FakeTransmission(), lib) == "/downloads/disk2/Rick.and.Morty"
+    choice = await choose_series_folder(lib.get(60625), BASE, jelly, FakeTransmission())
+    assert choice == FolderChoice("/downloads/disk2/Rick.and.Morty", remember=True)
+    remember_folder(lib, lib.get(60625), choice)
     assert lib.get(60625).folder == "/downloads/disk2/Rick.and.Morty"
-    # Next time the stored folder is used as is, even with Jellyfin down.
-    assert await series_folder(lib.get(60625), BASE, FakeJellyfin(error=True), None, lib) == \
-        "/downloads/disk2/Rick.and.Morty"
+    # Jellyfin down next time: the remembered folder is used.
+    choice = await choose_series_folder(lib.get(60625), BASE, FakeJellyfin(error=True), None)
+    assert choice.path == "/downloads/disk2/Rick.and.Morty"
 
 
-async def test_series_folder_new_show_gets_an_identified_folder(tmp_path):
-    lib = SeriesLibrary(tmp_path / "s.json")
-    lib.add(RICK)
-    folder = await series_folder(lib.get(60625), BASE, FakeJellyfin(), FakeTransmission(), lib)
-    assert folder == "/downloads/disk2/Rick et Morty (2013) [tmdbid-60625]"
-    assert lib.get(60625).folder == folder
+async def test_jellyfin_wins_over_a_remembered_folder_renamed_by_hand():
+    old = RICK.model_copy(update={"folder": "/downloads/disk2/Rick et Morty"})
+    jelly = FakeJellyfin({60625: [("/media/disk2/Rick.and.Morty", 91)]})
+    assert (await choose_series_folder(old, BASE, jelly, None)).path == "/downloads/disk2/Rick.and.Morty"
 
 
-async def test_stored_folder_outside_the_tv_folder_is_found_again(tmp_path):
-    lib = SeriesLibrary(tmp_path / "s.json")
-    lib.add(RICK.model_copy(update={"folder": "/old/disk/Rick.and.Morty"}))
-    jelly = FakeJellyfin({60625: [("/media/disk2/Rick.and.Morty", 81)]})
-    assert await series_folder(lib.get(60625), BASE, jelly, None, lib) == "/downloads/disk2/Rick.and.Morty"
+async def test_an_outage_never_pins_a_new_folder():
+    # Jellyfin unreachable and no torrent left: a fallback folder is used for this send,
+    # but not remembered (it would duplicate the show for good).
+    choice = await choose_series_folder(RICK, BASE, FakeJellyfin(error=True), FakeTransmission(error=True))
+    assert choice == FolderChoice("/downloads/disk2/Rick et Morty (2013) [tmdbid-60625]", remember=False)
+
+
+async def test_new_show_gets_an_identified_folder_remembered_when_jellyfin_answered():
+    choice = await choose_series_folder(RICK, BASE, FakeJellyfin(), FakeTransmission())
+    assert choice == FolderChoice("/downloads/disk2/Rick et Morty (2013) [tmdbid-60625]", remember=True)
+
+
+async def test_show_with_history_keeps_the_old_title_folder():
+    # Followed before v0.12.2: its episodes went to "Title/"; never start a second folder.
+    old = RICK.model_copy(update={"grabbed": ["S09E01"]})
+    choice = await choose_series_folder(old, BASE, FakeJellyfin(), FakeTransmission())
+    assert choice.path == "/downloads/disk2/Rick et Morty"
+
+
+async def test_transmission_folder_is_not_remembered():
+    torrents = [_torrent("Rick.and.Morty.S06.MULTI.1080p-Amen", "/downloads/disk2/Rick.and.Morty/")]
+    choice = await choose_series_folder(RICK, BASE, FakeJellyfin(), FakeTransmission(torrents))
+    assert choice == FolderChoice("/downloads/disk2/Rick.and.Morty", remember=False)
+
+
+async def test_transmission_ignores_a_folder_named_after_another_show():
+    office = WantedSeries(tmdb_id=2316, title="The Office", year="2005", added_at=NOW)
+    torrents = [_torrent("The.Office.S01E01.1080p-GRP", "/downloads/disk2/Le Bureau/Saison 01")]
+    assert await find_series_folder(office, BASE, None, FakeTransmission(torrents)) is None
+
+
+async def test_remembered_folder_outside_the_tv_folder_is_ignored():
+    old = RICK.model_copy(update={"folder": "/old/disk/Rick.and.Morty"})
+    assert (await choose_series_folder(old, BASE, FakeJellyfin(), None)).path.endswith("[tmdbid-60625]")
 
 
 async def test_no_tv_folder_means_transmission_default():
-    assert await series_folder(RICK, None, FakeJellyfin(), FakeTransmission(), None) is None
+    assert await choose_series_folder(RICK, None, FakeJellyfin(), FakeTransmission()) is None
+
+
+def test_dot_dot_never_escapes_the_tv_folder():
+    assert map_library_path("/media/disk2/..", BASE) is None
+    assert folder_in_base("/downloads/disk2/../etc/x", BASE) is None
+
+
+def test_same_mount_in_both_containers():
+    assert map_library_path("/tv/Show", "/tv") == "/tv/Show"

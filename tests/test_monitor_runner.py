@@ -817,3 +817,17 @@ async def test_run_soon_during_a_cycle_is_not_lost():
         await asyncio.sleep(0.01)
     await runner.stop()
     assert calls[:2] == [False, True]
+
+
+async def test_series_folder_not_remembered_when_the_send_fails(tmp_path):
+    from torsearch.config import PathsConfig
+
+    class Failing(FakeTransmission):
+        async def add(self, url, download_dir=None):
+            raise RuntimeError("Transmission down")
+
+    lib = _slib(tmp_path)
+    cfg = Config(monitor=MonitorConfig(enabled=True), paths=PathsConfig(by_category={"tv": "/data/series"}))
+    await run_series_cycle(cfg, lib, FakeSearch([_r("Show.S01E01.1080p", infohash="A")]),
+                           Failing(), MonitorHistory(tmp_path / "m.json"))
+    assert lib.get(1).folder is None

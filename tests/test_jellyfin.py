@@ -261,7 +261,6 @@ async def test_series_paths_of_a_tmdb_id():
          "Path": "/media/disk2/Rick.and.Morty", "RecursiveItemCount": 81},
         {"Id": "b", "Type": "Series", "Name": "Rick et Morty", "ProviderIds": {"Tmdb": "60625"},
          "Path": "/media/disk2/Rick et Morty", "RecursiveItemCount": 10},
-        {"Id": "c", "Type": "Movie", "Name": "Rick", "ProviderIds": {"Tmdb": "60625"}, "Path": "/media/disk1/x.mkv"},
         {"Id": "d", "Type": "Series", "Name": "Other", "ProviderIds": {"Tmdb": "1"}, "Path": "/media/disk2/Other"},
     ]}
     c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
@@ -269,4 +268,15 @@ async def test_series_paths_of_a_tmdb_id():
         route = respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json=sample))
         paths = await c.series_paths(60625)
     assert paths == [("/media/disk2/Rick.and.Morty", 81), ("/media/disk2/Rick et Morty", 10)]
-    assert "Path" in route.calls[0].request.url.params["Fields"]
+    assert route.calls[0].request.url.params["IncludeItemTypes"] == "Series"
+
+
+async def test_series_paths_tells_an_outage_from_no_folder():
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        respx.get("http://jelly/Items").mock(return_value=httpx.Response(500))
+        assert await c.series_paths(60625) is None
+    with respx.mock:
+        respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json={"Items": []}))
+        assert await c.series_paths(60625) == []
+    assert await JellyfinClient(JellyfinConfig()).series_paths(1) is None
