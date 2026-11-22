@@ -32,6 +32,7 @@ class JellyfinClient:
         self._timeout = timeout
         self._items_cache: tuple[float, list[JellyfinItem]] | None = None
         self._series_cache: tuple[float, list[tuple[str, str, int]]] | None = None
+        self._user_id: str | None = None  # "" = no user found
 
     @property
     def enabled(self) -> bool:
@@ -93,6 +94,20 @@ class JellyfinClient:
             if owns_client:
                 await client.aclose()
 
+    async def _counting_user(self, client: httpx.AsyncClient) -> str | None:
+        """A Jellyfin user whose view carries episode counts (an admin first); None if unknown."""
+        if self._user_id is None:
+            try:
+                response = await client.get(f"{self._url}/Users", headers=self._auth())
+                response.raise_for_status()
+                users = [u for u in response.json() if isinstance(u, dict) and u.get("Id")]
+            except Exception as exc:
+                logger.info("Jellyfin users unavailable, episode counts unknown: %s", redact(str(exc)))
+                return None
+            users.sort(key=lambda u: not (u.get("Policy") or {}).get("IsAdministrator", False))
+            self._user_id = str(users[0]["Id"]) if users else ""
+        return self._user_id or None
+
     async def series_paths(self, tmdb_id: int) -> list[tuple[str, int]] | None:
         """Folders of the series with this TMDB id and their episode count; None if unreachable.
 
@@ -107,8 +122,11 @@ class JellyfinClient:
             owns_client = self._client is None
             client = self._client or httpx.AsyncClient(timeout=self._timeout)
             try:
+                # Jellyfin fills RecursiveItemCount only in a user's view: without one every
+                # folder counts 0 and the fuller copy of a duplicated show cannot be told.
+                user_id = await self._counting_user(client)
                 response = await client.get(
-                    f"{self._url}/Items",
+                    f"{self._url}/Users/{user_id}/Items" if user_id else f"{self._url}/Items",
                     params={"Recursive": "true", "IncludeItemTypes": "Series",
                             "Fields": "ProviderIds,Path,RecursiveItemCount", "Limit": "10000"},
                     headers=self._auth(),
