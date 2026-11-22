@@ -28,9 +28,12 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - v0.12.4 — dossier d'une série **non suivie** (envoi manuel, recherche libre auto) :
   `series_folder.find_release_folder` cherche la série par nom dans Jellyfin
   (`JellyfinClient.series_list` : nom, titre original, année, dossier, épisodes ; `_series_matches`),
-  copie la plus fournie, puis Transmission ; deux séries homonymes ⇒ l'année de la release
+  copie la plus fournie, puis Transmission (listé une fois par recherche) ; une release datée
+  n'entre jamais dans une série d'une autre année (±1 an) ; deux homonymes ⇒ l'année exacte
   tranche, sinon dossier par défaut (Transmission compris, jamais de pari). Rien n'est retenu.
-  Vérifié sur la production : aucun mauvais dossier sur toute la bibliothèque.
+  Une recherche libre d'une série **suivie** passe par `choose_series_folder`. Limites : release
+  sans année d'un remake absent de Jellyfin (rejoint l'original), intégrales sans SxxEyy.
+  Vérifié sur la production : 314/314 releases simulées dans le bon dossier.
 - v0.12.3 — `JellyfinClient.series_paths` interroge `/Users/{id}/Items` d'un utilisateur actif
   qui voit **toutes** les bibliothèques (un admin d'abord ; sinon une série invisible lirait
   « aucun dossier » et un dossier inventé serait retenu), id oublié sur erreur, repli sur
@@ -282,7 +285,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **933 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **938 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 

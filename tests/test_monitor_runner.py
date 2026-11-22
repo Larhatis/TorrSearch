@@ -854,3 +854,22 @@ async def test_free_search_files_an_episode_in_the_folder_jellyfin_knows(tmp_pat
     await run_cycle(cfg, FakeSearch([_r("Squid.Game.S03E01.1080p", infohash="E01")]), tr,
                     MonitorHistory(tmp_path / "m.json"), jellyfin=Jelly())
     assert tr.dirs == ["/downloads/disk2/Squid.Game.S02.MULTi.1080p.WEB.H265-FW/Saison 03"]
+
+
+async def test_free_search_of_a_followed_show_uses_its_remembered_folder(tmp_path):
+    from torsearch.config import PathsConfig
+    from torsearch.library.series import SeriesLibrary
+    from torsearch.models import WantedSeries
+
+    lib = SeriesLibrary(tmp_path / "s.json")
+    lib.add(WantedSeries(tmdb_id=60625, title="Rick et Morty", original_title="Rick and Morty", year="2013",
+                         added_at=datetime.now(UTC), folder="/downloads/disk2/Rick.and.Morty"))
+    cfg = Config(
+        monitor=MonitorConfig(enabled=True), paths=PathsConfig(by_category={"tv": "/downloads/disk2"}),
+        saved_searches=[SavedSearch(name="Rick and Morty", query="Rick and Morty", category=Category.TV,
+                                    mode="auto")],
+    )
+    tr = FakeTransmission()
+    await run_cycle(cfg, FakeSearch([_r("Rick.and.Morty.S09E02.1080p", infohash="E02")]), tr,
+                    MonitorHistory(tmp_path / "m.json"), series_library=lib)
+    assert tr.dirs == ["/downloads/disk2/Rick.and.Morty/Saison 09"]

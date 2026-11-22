@@ -251,3 +251,34 @@ async def test_jellyfin_folder_outside_the_tv_folder_is_ignored():
     shows = [_show("Squid Game", "/media/disk1/Anime/Squid.Game", "93405", 2021)]
     rel = parse_release("Squid.Game.S03E01.MULTi.1080p-GRP")
     assert await find_release_folder(rel, BASE, FakeJellyfinShows(shows), None) is None
+
+
+async def test_a_dated_release_never_joins_an_older_show_of_the_same_name():
+    # Review: the remake missing from Jellyfin went into the original's folder.
+    shows = [_show("Shogun", "/media/disk2/Shogun.1980", "100", 1980)]
+    rel = parse_release("Shogun.2024.S01E01.MULTi.1080p-GRP")
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(shows), None) is None
+    shows = [_show("Doctor Who", "/media/disk2/Doctor.Who.1963", "121", 1963)]
+    rel = parse_release("Doctor.Who.2005.S01E01.MULTi.1080p-GRP")
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(shows), None) is None
+
+
+async def test_one_year_apart_is_still_the_same_show():
+    shows = [_show("Shogun", "/media/disk2/Shogun", "126308", 2023)]
+    rel = parse_release("Shogun.2024.S02E01.MULTi.1080p-GRP")
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(shows), None) == "/downloads/disk2/Shogun"
+
+
+async def test_homonyms_the_year_cannot_settle_never_reach_transmission():
+    shows = [_show("Shogun", "/media/disk2/Shogun (2023)", "100", 2023),
+             _show("Shogun", "/media/disk2/Shogun (2025)", "126308", 2025)]
+    torrents = [_torrent("Shogun.S01E01.1080p-GRP", "/downloads/disk2/Shogun (2023)/Saison 01")]
+    rel = parse_release("Shogun.2024.S02E01.MULTi.1080p-GRP")
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(shows), FakeTransmission(torrents)) is None
+
+
+async def test_transmission_never_guesses_between_two_folders():
+    torrents = [_torrent("Shogun.S01E01.1080p-GRP", "/downloads/disk2/Shogun (1980)/Saison 01"),
+                _torrent("Shogun.S01E02.1080p-GRP", "/downloads/disk2/Shogun (2024)/Saison 01", 2)]
+    rel = parse_release("Shogun.S02E01.MULTi.1080p-GRP")
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(), FakeTransmission(torrents)) is None

@@ -114,14 +114,17 @@ def _from_jellyfin(paths: list[tuple[str, int]], base_dir: str) -> str | None:
     return None
 
 
-async def _from_transmission(series: WantedSeries, base_dir: str, transmission) -> str | None:
-    if transmission is None or not hasattr(transmission, "list_torrents"):
-        return None
-    try:
-        torrents = await transmission.list_torrents()
-    except Exception as exc:
-        logger.warning("Transmission list for series folder failed: %s", exc)
-        return None
+async def _from_transmission(series: WantedSeries, base_dir: str, transmission, torrents=None,
+                             strict: bool = False) -> str | None:
+    """The folder a torrent of the show sits in; with ``strict``, None when two folders match."""
+    if torrents is None:
+        if transmission is None or not hasattr(transmission, "list_torrents"):
+            return None
+        try:
+            torrents = await transmission.list_torrents()
+        except Exception as exc:
+            logger.warning("Transmission list for series folder failed: %s", exc)
+            return None
     from torsearch.library.linking import _series_matches  # linking imports episodes; avoid a cycle
     from torsearch.parser.release import parse_release
 
@@ -133,6 +136,8 @@ async def _from_transmission(series: WantedSeries, base_dir: str, transmission) 
         if (folder and parse_episodes(t.name) and _series_matches(parse_release(t.name), series)
                 and _series_matches(parse_release(folder.rsplit("/", 1)[1]), series)):
             folders[folder] += 1
+    if strict and len(folders) > 1:
+        return None  # two folders for a show without TMDB id (Shogun 1980 / 2024): never guess
     return folders.most_common(1)[0][0] if folders else None
 
 
@@ -202,11 +207,16 @@ def _match_jellyfin(rel, shows: list, base_dir: str) -> tuple[str | None, bool]:
         candidate = WantedSeries(tmdb_id=0, title=show.name or folder.rsplit("/", 1)[1],
                                  original_title=show.original_title,
                                  year=str(show.year) if show.year else None, added_at=datetime.now(UTC))
+        # A dated release is never another show of the same name (Shogun 2024 is not the
+        # 1980 one, even when only the latter is in Jellyfin); one year apart is allowed.
+        if rel.year and show.year and abs(rel.year - show.year) > 1:
+            continue
         if _series_matches(rel, candidate):
             groups.setdefault(show.tmdb_id or show.path, []).append((show, folder))
     if len(groups) > 1 and rel.year:
-        # The release year settles two shows of the same name (Shogun 1980 / 2024).
-        groups = {k: v for k, v in groups.items() if any(s.year == rel.year for s, _ in v)}
+        # The exact release year settles two shows of the same name.
+        exact = {k: v for k, v in groups.items() if any(s.year == rel.year for s, _ in v)}
+        groups = exact if len(exact) == 1 else groups
     if len(groups) > 1:
         logger.info("Release %s matches several Jellyfin shows: default folder", rel.clean_title)
         return None, True
@@ -216,8 +226,13 @@ def _match_jellyfin(rel, shows: list, base_dir: str) -> tuple[str | None, bool]:
     return max(copies, key=lambda c: c[0].episodes)[1], False
 
 
-async def find_release_folder(rel, base_dir: str | None, jellyfin=None, transmission=None) -> str | None:
-    """The folder an episode release of a show nobody follows already lives in (None: unknown)."""
+async def find_release_folder(rel, base_dir: str | None, jellyfin=None, transmission=None,
+                              torrents=None) -> str | None:
+    """The folder an episode release of a show nobody follows already lives in (None: unknown).
+
+    ``torrents`` is Transmission's list when the caller already has it (one RPC per cycle).
+    Known limit: an undated release of a remake missing from Jellyfin joins the original.
+    """
     if not base_dir or not rel.episodes or not rel.clean_title:
         return None
     shows = await _jellyfin_shows(jellyfin)
@@ -227,4 +242,4 @@ async def find_release_folder(rel, base_dir: str | None, jellyfin=None, transmis
             return folder
     pseudo = WantedSeries(tmdb_id=0, title=rel.clean_title, year=str(rel.year) if rel.year else None,
                           added_at=datetime.now(UTC))
-    return await _from_transmission(pseudo, base_dir, transmission)
+    return await _from_transmission(pseudo, base_dir, transmission, torrents=torrents, strict=True)
