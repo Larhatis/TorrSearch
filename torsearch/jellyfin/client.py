@@ -24,6 +24,17 @@ class JellyfinItem:
     original_title: str | None = None
 
 
+@dataclass(frozen=True)
+class JellyfinSeries:
+    """A series folder of a Jellyfin TV library (one folder = one series for Jellyfin)."""
+    tmdb_id: str  # "" when unknown
+    name: str
+    original_title: str | None
+    year: int | None
+    path: str
+    episodes: int  # 0 when unknown
+
+
 class JellyfinClient:
     def __init__(self, config: JellyfinConfig, client: httpx.AsyncClient | None = None, timeout: float = 10.0):
         self._url = config.url.rstrip("/")
@@ -31,7 +42,7 @@ class JellyfinClient:
         self._client = client
         self._timeout = timeout
         self._items_cache: tuple[float, list[JellyfinItem]] | None = None
-        self._series_cache: tuple[float, list[tuple[str, str, int]]] | None = None
+        self._series_cache: tuple[float, list[JellyfinSeries]] | None = None
         self._user_id: str | None = None  # "" = no user found
 
     @property
@@ -117,12 +128,12 @@ class JellyfinClient:
                 logger.warning("No Jellyfin user sees every library: episode counts unknown")
         return self._user_id or None
 
-    async def series_paths(self, tmdb_id: int) -> list[tuple[str, int]] | None:
-        """Folders of the series with this TMDB id and their episode count; None if unreachable.
+    async def series_list(self) -> list[JellyfinSeries] | None:
+        """Every series folder with its name, year and episode count; None if unreachable.
 
         A request of its own (not ``get_items``, used on every search): episode counts cost
         Jellyfin a count per folder. "No folder" ([]) and "Jellyfin did not answer" (None)
-        must stay apart: the caller remembers a new folder only on a real answer.
+        must stay apart: callers remember a new folder only on a real answer.
         Counts come from the view of a user who sees every library; without one, ``/Items``
         is used and every count is 0.
         """
@@ -138,24 +149,39 @@ class JellyfinClient:
                 user_id = await self._counting_user(client)
                 response = await client.get(
                     f"{self._url}/Users/{user_id}/Items" if user_id else f"{self._url}/Items",
-                    params={"Recursive": "true", "IncludeItemTypes": "Series",
-                            "Fields": "ProviderIds,Path,RecursiveItemCount", "Limit": "10000"},
+                    params={"Recursive": "true", "IncludeItemTypes": "Series", "Limit": "10000",
+                            "Fields": "ProviderIds,Path,RecursiveItemCount,OriginalTitle,ProductionYear"},
                     headers=self._auth(),
                 )
                 response.raise_for_status()
-                rows = [(str((it.get("ProviderIds") or {}).get("Tmdb") or ""), it.get("Path") or "",
-                         int(it.get("RecursiveItemCount") or 0))
-                        for it in response.json().get("Items", []) if it.get("Type", "Series") == "Series"]
+                rows = [
+                    JellyfinSeries(
+                        tmdb_id=str((it.get("ProviderIds") or {}).get("Tmdb") or ""),
+                        name=str(it.get("Name") or ""),
+                        original_title=it.get("OriginalTitle") or None,
+                        year=it.get("ProductionYear") if isinstance(it.get("ProductionYear"), int) else None,
+                        path=it.get("Path") or "",
+                        episodes=int(it.get("RecursiveItemCount") or 0),
+                    )
+                    for it in response.json().get("Items", []) if it.get("Type", "Series") == "Series"
+                ]
                 self._series_cache = (now, rows)
             except Exception as exc:
-                logger.warning("Jellyfin series_paths() failed: %s", redact(str(exc)))
+                logger.warning("Jellyfin series_list() failed: %s", redact(str(exc)))
                 self._user_id = None  # deleted or recreated user: read /Users again next time
                 return None
             finally:
                 if owns_client:
                     await client.aclose()
+        return list(self._series_cache[1])
+
+    async def series_paths(self, tmdb_id: int) -> list[tuple[str, int]] | None:
+        """Folders of the series with this TMDB id and their episode count; None if unreachable."""
+        shows = await self.series_list()
+        if shows is None:
+            return None
         wanted = str(tmdb_id)
-        return [(path, count) for tmdb, path, count in self._series_cache[1] if tmdb == wanted and path]
+        return [(s.path, s.episodes) for s in shows if s.tmdb_id == wanted and s.path]
 
     async def search_items(self, term: str, limit: int = 50) -> list[JellyfinItem]:
         """Search Jellyfin server directly with searchTerm across the entire library."""

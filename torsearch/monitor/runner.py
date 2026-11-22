@@ -5,7 +5,7 @@ import logging
 from datetime import UTC, date, datetime, timedelta
 
 from torsearch.library.episodes import build_movie_download_dir, build_tv_download_dir, parse_episodes
-from torsearch.library.series_folder import choose_series_folder, remember_folder
+from torsearch.library.series_folder import choose_series_folder, find_release_folder, remember_folder
 from torsearch.models import Category, SearchResult
 from torsearch.monitor.diskspace import DiskBudget, format_bytes, low_folders
 from torsearch.monitor.grabs import AUTO, added_hash
@@ -201,6 +201,7 @@ async def run_cycle(
     config, search_service, transmission, history, notifier=None, series_library=None,
     feed: list[SearchResult] | None = None, schedule: SearchSchedule | None = None, force: bool = False,
     fallback: frozenset[str] = frozenset(), grabs=None, budget: DiskBudget | None = None,
+    jellyfin=None,
 ) -> list[MonitorRecord]:
     if not config.monitor.enabled:
         return []
@@ -275,19 +276,33 @@ async def run_cycle(
         if not picks:
             continue
 
+        torrents_once: list | None = None  # Transmission listed once per search, not per pick
         for pick in picks:
             if saved.mode == "auto":
                 from torsearch.parser.release import parse_release
 
                 rel = parse_release(pick.title)
                 is_tv = saved.category == Category.TV or (saved.category == Category.ALL and bool(rel.episodes))
+                folder_choice = None
                 if is_tv and rel.clean_title:
                     base_tv_dir = config.paths.for_category(Category.TV)
+                    if matching_series is not None:
+                        # A followed show: same folder as its own cycle (TMDB id, remembered folder).
+                        folder_choice = await choose_series_folder(matching_series, base_tv_dir, jellyfin,
+                                                                   transmission)
+                        existing = folder_choice.path if folder_choice else None
+                    else:
+                        # Join the folder Jellyfin (or Transmission) already has for the show.
+                        if torrents_once is None:
+                            torrents_once = await _list_torrents_or_empty(transmission)
+                        existing = await find_release_folder(rel, base_tv_dir, jellyfin, transmission,
+                                                             torrents=torrents_once)
                     download_dir = build_tv_download_dir(
                         base_dir=base_tv_dir,
                         series_title=rel.clean_title or saved.name,
                         episodes=rel.episodes,
                         release_title=pick.title,
+                        series_dir=existing,
                     )
                 else:
                     download_dir = config.paths.for_category(saved.category)
@@ -300,6 +315,8 @@ async def run_cycle(
                     continue
                 budget.reserve(download_dir, pick.size)
                 _remember(grabs, added, pick, f"saved:{saved.name}")
+                if matching_series is not None:
+                    remember_folder(series_library, matching_series, folder_choice)
                 kind = "grabbed"
                 if is_tv and matching_series is not None and series_library is not None:
                     rel_eps = parse_episodes(pick.title)
@@ -320,6 +337,16 @@ async def run_cycle(
                 except Exception as exc:
                     logger.warning("Notification for '%s' failed: %s", saved.name, exc)
     return created
+
+
+async def _list_torrents_or_empty(transmission) -> list:
+    if transmission is None or not hasattr(transmission, "list_torrents"):
+        return []
+    try:
+        return list(await transmission.list_torrents())
+    except Exception as exc:
+        logger.warning("Transmission list for series folder failed: %s", exc)
+        return []
 
 
 def _movie_needs_grab(movie, jellyfin, owned_map, now, window) -> bool:
@@ -908,7 +935,7 @@ class MonitorRunner:
                 self._history, self._notifier,
                 series_library=self._series_library,
                 feed=feed, schedule=self._schedule, force=force, fallback=fallback, grabs=self._grabs,
-                budget=budget,
+                budget=budget, jellyfin=getattr(self._ctx, "jellyfin", None),
             ))
             records.extend(await run_movie_cycle(
                 self._ctx.config, self._library, self._ctx.search_service,

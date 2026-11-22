@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from torsearch.library.episodes import build_tv_download_dir
 from torsearch.library.linking import plan_manual_grab, record_manual_grab
-from torsearch.library.series_folder import choose_series_folder, remember_folder
+from torsearch.library.series_folder import choose_series_folder, find_release_folder, remember_folder
 from torsearch.models import Category
 from torsearch.monitor.diskspace import format_bytes, free_bytes
 from torsearch.monitor.grabs import MANUAL, added_hash
@@ -43,6 +43,14 @@ async def send_release(state, download_url: str, title: str, category: Category,
         if choice:
             grab.download_dir = build_tv_download_dir(base, grab.series.title, grab.parsed.episodes,
                                                       release_title=title, series_dir=choice.path)
+    elif grab.parsed.episodes and grab.movie is None:
+        # A show nobody follows: join the folder Jellyfin (or Transmission) already has for it.
+        base = ctx.config.paths.for_category(Category.TV)
+        folder = await find_release_folder(grab.parsed, base, getattr(ctx, "jellyfin", None),
+                                           getattr(ctx, "transmission", None))
+        if folder:
+            grab.download_dir = build_tv_download_dir(base, grab.parsed.clean_title, grab.parsed.episodes,
+                                                      release_title=title, series_dir=folder)
     try:
         added = await ctx.transmission.add(download_url, grab.download_dir)
     except Exception as exc:
