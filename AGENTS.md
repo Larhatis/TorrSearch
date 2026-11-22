@@ -25,8 +25,10 @@ recommandation claire plutôt qu'un catalogue d'options.
 
 Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 
-- v0.12.3 — `JellyfinClient.series_paths` interroge `/Users/{id}/Items` (un admin d'abord,
-  repli sur `/Items`) : sans utilisateur, Jellyfin omet `RecursiveItemCount`, les deux dossiers
+- v0.12.3 — `JellyfinClient.series_paths` interroge `/Users/{id}/Items` d'un utilisateur actif
+  qui voit **toutes** les bibliothèques (un admin d'abord ; sinon une série invisible lirait
+  « aucun dossier » et un dossier inventé serait retenu), id oublié sur erreur, repli sur
+  `/Items` (comptes à 0) : sans utilisateur, Jellyfin omet `RecursiveItemCount`, les deux dossiers
   de *Tulsa King* comptaient 0 et le plus petit (premier par nom) était choisi.
 - v0.12.2 — dossier des séries (`library/series_folder.py`) : constat en production, la saison 9
   de *Rick et Morty* rangée dans `Rick et Morty/` (titre TMDB français) à côté de
@@ -274,7 +276,7 @@ Fonctionnel et en production chez l'utilisateur (OpenMediaVault, Docker) :
 - Réglages entièrement dans l'UI, dont un **panneau « État des connexions »**.
 - Durcissement sécurité (chantier 1, voir §7).
 
-Qualité : **917 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
+Qualité : **922 tests**, ruff et mypy propres, CI GitHub Actions sur chaque push/PR.
 
 ## 3. Démarrer
 
