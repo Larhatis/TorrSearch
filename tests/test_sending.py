@@ -97,3 +97,31 @@ async def test_send_release_of_a_followed_series_uses_its_folder(tmp_path):
                                           folder="/downloads/disk2/Rick.and.Morty"))
     await send_release(state, "magnet:?x", "Rick.and.Morty.S09E01.MULTi.1080p.WEB-GRP", Category.TV)
     assert tr.added == [("magnet:?x", "/downloads/disk2/Rick.and.Morty/Saison 09")]
+
+
+async def test_send_release_of_an_unfollowed_series_reuses_its_jellyfin_folder(tmp_path):
+    # Nobody follows Squid Game: season 3 must join the folder Jellyfin already shows,
+    # not start "Squid Game/" (a second series in Jellyfin).
+    from torsearch.jellyfin.client import JellyfinSeries
+
+    class Jelly:
+        enabled = True
+
+        async def series_list(self):
+            return [JellyfinSeries("93405", "Squid Game", None, 2021,
+                                   "/media/disk2/Squid.Game.S02.MULTi.1080p.WEB.H265-FW", 7)]
+
+    tr = FakeTransmission()
+    state = _state(tmp_path, tr)
+    state.ctx.config = Config(paths=PathsConfig(by_category={"tv": "/downloads/disk2"}))
+    state.ctx.jellyfin = Jelly()
+    await send_release(state, "magnet:?x", "Squid.Game.S03E01.MULTi.1080p.WEB-GRP", Category.TV)
+    assert tr.added == [("magnet:?x", "/downloads/disk2/Squid.Game.S02.MULTi.1080p.WEB.H265-FW/Saison 03")]
+
+
+async def test_send_release_of_an_unknown_series_keeps_the_title_folder(tmp_path):
+    tr = FakeTransmission()
+    state = _state(tmp_path, tr)
+    state.ctx.config = Config(paths=PathsConfig(by_category={"tv": "/downloads/disk2"}))
+    await send_release(state, "magnet:?x", "Brand.New.Show.S01E01.MULTi.1080p.WEB-GRP", Category.TV)
+    assert tr.added == [("magnet:?x", "/downloads/disk2/Brand New Show/Saison 01")]

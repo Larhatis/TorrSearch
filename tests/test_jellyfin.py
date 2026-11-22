@@ -2,7 +2,7 @@ import httpx
 import respx
 
 from torsearch.config import JellyfinConfig
-from torsearch.jellyfin.client import JellyfinClient
+from torsearch.jellyfin.client import JellyfinClient, JellyfinSeries
 
 SAMPLE = {"Items": [
     {"Id": "aaa", "Type": "Movie", "Name": "Dune", "ProviderIds": {"Tmdb": "438631"}},
@@ -375,3 +375,22 @@ async def test_series_paths_odd_users_answer_is_retried():
         respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json=sample))
         assert await c.series_paths(1) == []
     assert c._user_id is None  # not cached: the next refresh asks again
+
+
+async def test_series_list_carries_names_years_and_folders():
+    sample = {"Items": [
+        {"Id": "a", "Type": "Series", "Name": "Ça : Bienvenue à Derry", "OriginalTitle": "IT: Welcome to Derry",
+         "ProductionYear": 2025, "ProviderIds": {"Tmdb": "200875"},
+         "Path": "/media/disk2/IT.Welcome.to.Derry.S01", "RecursiveItemCount": 8},
+    ]}
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        respx.get("http://jelly/Users").mock(return_value=httpx.Response(200, json=[{"Id": "u1"}]))
+        route = respx.get("http://jelly/Users/u1/Items").mock(return_value=httpx.Response(200, json=sample))
+        shows = await c.series_list()
+    assert shows == [JellyfinSeries(tmdb_id="200875", name="Ça : Bienvenue à Derry",
+                                    original_title="IT: Welcome to Derry", year=2025,
+                                    path="/media/disk2/IT.Welcome.to.Derry.S01", episodes=8)]
+    assert "OriginalTitle" in route.calls[0].request.url.params["Fields"]
+    assert "ProductionYear" in route.calls[0].request.url.params["Fields"]
+    assert await JellyfinClient(JellyfinConfig()).series_list() is None

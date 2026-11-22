@@ -831,3 +831,26 @@ async def test_series_folder_not_remembered_when_the_send_fails(tmp_path):
     await run_series_cycle(cfg, lib, FakeSearch([_r("Show.S01E01.1080p", infohash="A")]),
                            Failing(), MonitorHistory(tmp_path / "m.json"))
     assert lib.get(1).folder is None
+
+
+async def test_free_search_files_an_episode_in_the_folder_jellyfin_knows(tmp_path):
+    # A free search for a show nobody follows: S03 joins the existing folder, it must not
+    # start "Squid Game/" (a second series in Jellyfin).
+    from torsearch.config import PathsConfig
+    from torsearch.jellyfin.client import JellyfinSeries
+
+    class Jelly:
+        enabled = True
+
+        async def series_list(self):
+            return [JellyfinSeries("93405", "Squid Game", None, 2021,
+                                   "/media/disk2/Squid.Game.S02.MULTi.1080p.WEB.H265-FW", 7)]
+
+    cfg = Config(
+        monitor=MonitorConfig(enabled=True), paths=PathsConfig(by_category={"tv": "/downloads/disk2"}),
+        saved_searches=[SavedSearch(name="Squid", query="Squid Game", category=Category.TV, mode="auto")],
+    )
+    tr = FakeTransmission()
+    await run_cycle(cfg, FakeSearch([_r("Squid.Game.S03E01.1080p", infohash="E01")]), tr,
+                    MonitorHistory(tmp_path / "m.json"), jellyfin=Jelly())
+    assert tr.dirs == ["/downloads/disk2/Squid.Game.S02.MULTi.1080p.WEB.H265-FW/Saison 03"]

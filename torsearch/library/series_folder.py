@@ -14,6 +14,10 @@ second series. So the existing folder is reused, in this order:
 
 A folder is remembered only after a successful send, and a made-up one only when
 Jellyfin really answered: an outage must never pin a duplicate folder for good.
+
+A release of a show nobody follows (manual send, free search) has no TMDB id: its folder
+is found by name in Jellyfin (title, original title, year), then in Transmission
+(``find_release_folder``); two shows of the same name are never guessed between.
 """
 from __future__ import annotations
 
@@ -21,6 +25,7 @@ import logging
 import re
 from collections import Counter
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import PurePosixPath
 
 from torsearch.library.episodes import parse_episodes, sanitize_folder_name
@@ -172,3 +177,54 @@ def remember_folder(series_library, series: WantedSeries, choice: FolderChoice |
     if (series.folder or "").rstrip("/") != choice.path:
         series_library.set_folder(series.tmdb_id, choice.path)
         logger.info("Dossier de la serie %s : %s", series.title, choice.path)
+
+
+async def _jellyfin_shows(jellyfin) -> list | None:
+    if jellyfin is None or not getattr(jellyfin, "enabled", False) or not hasattr(jellyfin, "series_list"):
+        return None
+    try:
+        return await jellyfin.series_list()
+    except Exception as exc:
+        logger.warning("Jellyfin series_list() failed: %s", exc)
+        return None
+
+
+def _match_jellyfin(rel, shows: list, base_dir: str) -> tuple[str | None, bool]:
+    """The folder of the only Jellyfin show the release belongs to (fullest copy), and
+    whether several shows matched (then nobody guesses, Transmission included)."""
+    from torsearch.library.linking import _series_matches  # linking imports episodes; avoid a cycle
+
+    groups: dict[str, list] = {}
+    for show in shows:
+        folder = map_library_path(show.path, base_dir) if show.path else None
+        if not folder:
+            continue
+        candidate = WantedSeries(tmdb_id=0, title=show.name or folder.rsplit("/", 1)[1],
+                                 original_title=show.original_title,
+                                 year=str(show.year) if show.year else None, added_at=datetime.now(UTC))
+        if _series_matches(rel, candidate):
+            groups.setdefault(show.tmdb_id or show.path, []).append((show, folder))
+    if len(groups) > 1 and rel.year:
+        # The release year settles two shows of the same name (Shogun 1980 / 2024).
+        groups = {k: v for k, v in groups.items() if any(s.year == rel.year for s, _ in v)}
+    if len(groups) > 1:
+        logger.info("Release %s matches several Jellyfin shows: default folder", rel.clean_title)
+        return None, True
+    if not groups:
+        return None, False
+    copies = next(iter(groups.values()))
+    return max(copies, key=lambda c: c[0].episodes)[1], False
+
+
+async def find_release_folder(rel, base_dir: str | None, jellyfin=None, transmission=None) -> str | None:
+    """The folder an episode release of a show nobody follows already lives in (None: unknown)."""
+    if not base_dir or not rel.episodes or not rel.clean_title:
+        return None
+    shows = await _jellyfin_shows(jellyfin)
+    if shows:
+        folder, ambiguous = _match_jellyfin(rel, shows, base_dir)
+        if folder or ambiguous:
+            return folder
+    pseudo = WantedSeries(tmdb_id=0, title=rel.clean_title, year=str(rel.year) if rel.year else None,
+                          added_at=datetime.now(UTC))
+    return await _from_transmission(pseudo, base_dir, transmission)

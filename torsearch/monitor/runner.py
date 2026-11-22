@@ -5,7 +5,7 @@ import logging
 from datetime import UTC, date, datetime, timedelta
 
 from torsearch.library.episodes import build_movie_download_dir, build_tv_download_dir, parse_episodes
-from torsearch.library.series_folder import choose_series_folder, remember_folder
+from torsearch.library.series_folder import choose_series_folder, find_release_folder, remember_folder
 from torsearch.models import Category, SearchResult
 from torsearch.monitor.diskspace import DiskBudget, format_bytes, low_folders
 from torsearch.monitor.grabs import AUTO, added_hash
@@ -201,6 +201,7 @@ async def run_cycle(
     config, search_service, transmission, history, notifier=None, series_library=None,
     feed: list[SearchResult] | None = None, schedule: SearchSchedule | None = None, force: bool = False,
     fallback: frozenset[str] = frozenset(), grabs=None, budget: DiskBudget | None = None,
+    jellyfin=None,
 ) -> list[MonitorRecord]:
     if not config.monitor.enabled:
         return []
@@ -283,11 +284,14 @@ async def run_cycle(
                 is_tv = saved.category == Category.TV or (saved.category == Category.ALL and bool(rel.episodes))
                 if is_tv and rel.clean_title:
                     base_tv_dir = config.paths.for_category(Category.TV)
+                    # Join the folder Jellyfin (or Transmission) already has for the show.
+                    existing = await find_release_folder(rel, base_tv_dir, jellyfin, transmission)
                     download_dir = build_tv_download_dir(
                         base_dir=base_tv_dir,
                         series_title=rel.clean_title or saved.name,
                         episodes=rel.episodes,
                         release_title=pick.title,
+                        series_dir=existing,
                     )
                 else:
                     download_dir = config.paths.for_category(saved.category)
@@ -908,7 +912,7 @@ class MonitorRunner:
                 self._history, self._notifier,
                 series_library=self._series_library,
                 feed=feed, schedule=self._schedule, force=force, fallback=fallback, grabs=self._grabs,
-                budget=budget,
+                budget=budget, jellyfin=getattr(self._ctx, "jellyfin", None),
             ))
             records.extend(await run_movie_cycle(
                 self._ctx.config, self._library, self._ctx.search_service,

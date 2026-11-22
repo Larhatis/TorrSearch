@@ -3,10 +3,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from torsearch.jellyfin.client import JellyfinSeries
 from torsearch.library.series import SeriesLibrary
 from torsearch.library.series_folder import (
     FolderChoice,
     choose_series_folder,
+    find_release_folder,
     find_series_folder,
     folder_in_base,
     map_library_path,
@@ -14,6 +16,7 @@ from torsearch.library.series_folder import (
     remember_folder,
 )
 from torsearch.models import WantedSeries
+from torsearch.parser.release import parse_release
 from torsearch.transmission.client import TorrentInfo
 
 BASE = "/downloads/disk2"
@@ -162,3 +165,89 @@ def test_dot_dot_never_escapes_the_tv_folder():
 
 def test_same_mount_in_both_containers():
     assert map_library_path("/tv/Show", "/tv") == "/tv/Show"
+
+
+# --- Releases of shows that are not followed (manual sends, free searches) ---------------
+
+class FakeJellyfinShows:
+    enabled = True
+
+    def __init__(self, shows=None, error=False):
+        self._shows = shows or []
+        self._error = error
+
+    async def series_list(self):
+        if self._error:
+            raise RuntimeError("down")
+        return list(self._shows)
+
+
+def _show(name, path, tmdb="1", year=None, original=None, episodes=0):
+    return JellyfinSeries(tmdb_id=tmdb, name=name, original_title=original, year=year, path=path, episodes=episodes)
+
+
+LIBRARY = [
+    _show("Squid Game", "/media/disk2/Squid.Game.S02.MULTi.1080p.WEB.H265-FW", "93405", 2021, episodes=7),
+    _show("Dexter", "/media/disk2/Dexter.COMPLETE.MULTi.1080p", "1405", 2006, episodes=96),
+    _show("Dexter: Original Sin", "/media/disk2/Dexter.Original.Sin.S01E01.MULTi", "219937", 2024, episodes=1),
+    _show("Ça : Bienvenue à Derry", "/media/disk2/IT.Welcome.to.Derry.S01", "200875", 2025,
+          original="IT: Welcome to Derry", episodes=8),
+    _show("Tulsa King", "/media/disk2/Tulsa King", "153312", 2022, episodes=6),
+    _show("Tulsa King", "/media/disk2/Tulsa.King", "153312", 2022, episodes=29),
+]
+
+
+async def test_unfollowed_show_goes_to_the_folder_jellyfin_knows():
+    # The bug of Rick and Morty for a show nobody follows: S03 would start "Squid Game/".
+    rel = parse_release("Squid.Game.S03E01.MULTi.1080p.WEB.H265-FW")
+    folder = await find_release_folder(rel, BASE, FakeJellyfinShows(LIBRARY), None)
+    assert folder == "/downloads/disk2/Squid.Game.S02.MULTi.1080p.WEB.H265-FW"
+
+
+async def test_unfollowed_show_matches_the_original_title_and_the_fuller_copy():
+    rel = parse_release("IT.Welcome.to.Derry.S02E01.MULTi.1080p-GRP")
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(LIBRARY), None) == \
+        "/downloads/disk2/IT.Welcome.to.Derry.S01"
+    rel = parse_release("Tulsa.King.S04E07.MULTi.1080p-GRP")
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(LIBRARY), None) == "/downloads/disk2/Tulsa.King"
+
+
+async def test_unfollowed_show_never_lands_in_a_neighbouring_show():
+    rel = parse_release("Dexter.Original.Sin.S02E01.MULTi.1080p-GRP")
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(LIBRARY), None) == \
+        "/downloads/disk2/Dexter.Original.Sin.S01E01.MULTi"
+    rel = parse_release("Dexter.S09E01.MULTi.1080p-GRP")
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(LIBRARY), None) == \
+        "/downloads/disk2/Dexter.COMPLETE.MULTi.1080p"
+
+
+async def test_two_shows_of_the_same_name_are_never_guessed():
+    shows = [_show("Shogun", "/media/disk2/Shogun.1980", "100", 1980),
+             _show("Shogun", "/media/disk2/Shogun", "126308", 2024)]
+    rel = parse_release("Shogun.S02E01.MULTi.1080p-GRP")
+    torrents = [_torrent("Shogun.S01E01.1080p-GRP", "/downloads/disk2/Shogun.1980/Saison 01")]
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(shows), FakeTransmission(torrents)) is None
+    # The release year settles it.
+    rel = parse_release("Shogun.2024.S02E01.MULTi.1080p-GRP")
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(shows), None) == "/downloads/disk2/Shogun"
+
+
+async def test_unfollowed_show_falls_back_to_transmission():
+    torrents = [_torrent("Paolo.S01E01.FRENCH.1080p.WEB.H265-GL0P.mkv", "/downloads/disk2/Paolo/Saison 01")]
+    rel = parse_release("Paolo.S01E02.FRENCH.1080p.WEB.H265-GL0P")
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(error=True), FakeTransmission(torrents)) == \
+        "/downloads/disk2/Paolo"
+
+
+async def test_unknown_unfollowed_show_keeps_the_default_folder():
+    rel = parse_release("Brand.New.Show.S01E01.MULTi.1080p-GRP")
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(LIBRARY), FakeTransmission()) is None
+    assert await find_release_folder(rel, None, FakeJellyfinShows(LIBRARY), None) is None
+    assert await find_release_folder(parse_release("Squid.Game.2021.1080p"), BASE,  # no episode
+                                     FakeJellyfinShows(LIBRARY), None) is None
+
+
+async def test_jellyfin_folder_outside_the_tv_folder_is_ignored():
+    shows = [_show("Squid Game", "/media/disk1/Anime/Squid.Game", "93405", 2021)]
+    rel = parse_release("Squid.Game.S03E01.MULTi.1080p-GRP")
+    assert await find_release_folder(rel, BASE, FakeJellyfinShows(shows), None) is None
