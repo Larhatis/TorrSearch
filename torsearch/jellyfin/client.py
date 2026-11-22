@@ -32,6 +32,7 @@ class JellyfinClient:
         self._timeout = timeout
         self._items_cache: tuple[float, list[JellyfinItem]] | None = None
         self._series_cache: tuple[float, list[tuple[str, str, int]]] | None = None
+        self._user_id: str | None = None  # "" = no user found
 
     @property
     def enabled(self) -> bool:
@@ -93,12 +94,37 @@ class JellyfinClient:
             if owns_client:
                 await client.aclose()
 
+    async def _counting_user(self, client: httpx.AsyncClient) -> str | None:
+        """A Jellyfin user whose view carries episode counts (an admin first); None if unknown."""
+        if self._user_id is None:
+            try:
+                response = await client.get(f"{self._url}/Users", headers=self._auth())
+                response.raise_for_status()
+                data = response.json()
+                if not isinstance(data, list):
+                    raise ValueError("unexpected /Users answer")
+            except Exception as exc:
+                logger.warning("Jellyfin users unavailable, episode counts unknown: %s", redact(str(exc)))
+                return None
+            # Only a user who sees every library: a show missing from their view would read
+            # as "no folder" and a made-up folder would be remembered (a duplicate for good).
+            users = [u for u in data if isinstance(u, dict) and u.get("Id")
+                     and (u.get("Policy") or {}).get("EnableAllFolders", True)
+                     and not (u.get("Policy") or {}).get("IsDisabled", False)]
+            users.sort(key=lambda u: not (u.get("Policy") or {}).get("IsAdministrator", False))
+            self._user_id = str(users[0]["Id"]) if users else ""
+            if not users:
+                logger.warning("No Jellyfin user sees every library: episode counts unknown")
+        return self._user_id or None
+
     async def series_paths(self, tmdb_id: int) -> list[tuple[str, int]] | None:
         """Folders of the series with this TMDB id and their episode count; None if unreachable.
 
         A request of its own (not ``get_items``, used on every search): episode counts cost
         Jellyfin a count per folder. "No folder" ([]) and "Jellyfin did not answer" (None)
         must stay apart: the caller remembers a new folder only on a real answer.
+        Counts come from the view of a user who sees every library; without one, ``/Items``
+        is used and every count is 0.
         """
         if not self.enabled:
             return None
@@ -107,8 +133,11 @@ class JellyfinClient:
             owns_client = self._client is None
             client = self._client or httpx.AsyncClient(timeout=self._timeout)
             try:
+                # Jellyfin fills RecursiveItemCount only in a user's view: without one every
+                # folder counts 0 and the fuller copy of a duplicated show cannot be told.
+                user_id = await self._counting_user(client)
                 response = await client.get(
-                    f"{self._url}/Items",
+                    f"{self._url}/Users/{user_id}/Items" if user_id else f"{self._url}/Items",
                     params={"Recursive": "true", "IncludeItemTypes": "Series",
                             "Fields": "ProviderIds,Path,RecursiveItemCount", "Limit": "10000"},
                     headers=self._auth(),
@@ -120,6 +149,7 @@ class JellyfinClient:
                 self._series_cache = (now, rows)
             except Exception as exc:
                 logger.warning("Jellyfin series_paths() failed: %s", redact(str(exc)))
+                self._user_id = None  # deleted or recreated user: read /Users again next time
                 return None
             finally:
                 if owns_client:

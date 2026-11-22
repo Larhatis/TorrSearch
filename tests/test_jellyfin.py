@@ -263,20 +263,115 @@ async def test_series_paths_of_a_tmdb_id():
          "Path": "/media/disk2/Rick et Morty", "RecursiveItemCount": 10},
         {"Id": "d", "Type": "Series", "Name": "Other", "ProviderIds": {"Tmdb": "1"}, "Path": "/media/disk2/Other"},
     ]}
+    users = [{"Id": "u1", "Policy": {"IsAdministrator": False}}, {"Id": "u2", "Policy": {"IsAdministrator": True}}]
     c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
     with respx.mock:
-        route = respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json=sample))
+        respx.get("http://jelly/Users").mock(return_value=httpx.Response(200, json=users))
+        route = respx.get("http://jelly/Users/u2/Items").mock(return_value=httpx.Response(200, json=sample))
         paths = await c.series_paths(60625)
     assert paths == [("/media/disk2/Rick.and.Morty", 81), ("/media/disk2/Rick et Morty", 10)]
     assert route.calls[0].request.url.params["IncludeItemTypes"] == "Series"
 
 
+async def test_series_paths_counts_episodes_through_a_user():
+    # Seen in production: /Items without a user leaves RecursiveItemCount out, so both
+    # folders of Tulsa King counted 0 and the smaller one (first by name) was chosen.
+    no_counts = {"Items": [
+        {"Id": "a", "Type": "Series", "ProviderIds": {"Tmdb": "153312"}, "Path": "/media/disk2/Tulsa King"},
+        {"Id": "b", "Type": "Series", "ProviderIds": {"Tmdb": "153312"}, "Path": "/media/disk2/Tulsa.King"},
+    ]}
+    counted = {"Items": [
+        {"Id": "a", "Type": "Series", "ProviderIds": {"Tmdb": "153312"}, "Path": "/media/disk2/Tulsa King",
+         "RecursiveItemCount": 6},
+        {"Id": "b", "Type": "Series", "ProviderIds": {"Tmdb": "153312"}, "Path": "/media/disk2/Tulsa.King",
+         "RecursiveItemCount": 29},
+    ]}
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        items_route = respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json=no_counts))
+        respx.get("http://jelly/Users").mock(return_value=httpx.Response(200, json=[{"Id": "u1"}]))
+        respx.get("http://jelly/Users/u1/Items").mock(return_value=httpx.Response(200, json=counted))
+        paths = await c.series_paths(153312)
+    assert sorted(paths, key=lambda p: -p[1])[0] == ("/media/disk2/Tulsa.King", 29)
+    assert not items_route.called
+
+
+async def test_series_paths_without_users_falls_back_to_items():
+    sample = {"Items": [{"Id": "a", "Type": "Series", "ProviderIds": {"Tmdb": "1"}, "Path": "/tv/Show"}]}
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        respx.get("http://jelly/Users").mock(return_value=httpx.Response(403))
+        respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json=sample))
+        assert await c.series_paths(1) == [("/tv/Show", 0)]
+
+
 async def test_series_paths_tells_an_outage_from_no_folder():
     c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
     with respx.mock:
+        respx.get("http://jelly/Users").mock(return_value=httpx.Response(500))
         respx.get("http://jelly/Items").mock(return_value=httpx.Response(500))
         assert await c.series_paths(60625) is None
     with respx.mock:
-        respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json={"Items": []}))
+        respx.get("http://jelly/Users").mock(return_value=httpx.Response(200, json=[{"Id": "u1"}]))
+        respx.get("http://jelly/Users/u1/Items").mock(return_value=httpx.Response(200, json={"Items": []}))
         assert await c.series_paths(60625) == []
     assert await JellyfinClient(JellyfinConfig()).series_paths(1) is None
+
+
+async def test_series_paths_skips_users_who_do_not_see_every_library():
+    # A user without every library would answer "no folder" ([]) for a show they cannot see:
+    # series_folder would then remember a made-up folder, duplicating the show for good.
+    users = [{"Id": "admin", "Policy": {"IsAdministrator": True, "EnableAllFolders": False}},
+             {"Id": "off", "Policy": {"EnableAllFolders": True, "IsDisabled": True}},
+             {"Id": "all", "Policy": {"EnableAllFolders": True}}]
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        respx.get("http://jelly/Users").mock(return_value=httpx.Response(200, json=users))
+        route = respx.get("http://jelly/Users/all/Items").mock(return_value=httpx.Response(200, json={"Items": []}))
+        assert await c.series_paths(1) == []
+    assert route.called
+
+
+async def test_series_paths_without_a_suitable_user_uses_items():
+    users = [{"Id": "u", "Policy": {"EnableAllFolders": False}}]
+    sample = {"Items": [{"Id": "a", "Type": "Series", "ProviderIds": {"Tmdb": "1"}, "Path": "/tv/Show"}]}
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        respx.get("http://jelly/Users").mock(return_value=httpx.Response(200, json=users))
+        respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json=sample))
+        assert await c.series_paths(1) == [("/tv/Show", 0)]
+
+
+async def test_series_paths_forgets_a_user_who_is_gone():
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        respx.get("http://jelly/Users").mock(return_value=httpx.Response(200, json=[{"Id": "u1"}]))
+        respx.get("http://jelly/Users/u1/Items").mock(return_value=httpx.Response(404))
+        assert await c.series_paths(1) is None  # an outage, never "no folder"
+    c._series_cache = None  # 30 s later
+    with respx.mock:
+        users = respx.get("http://jelly/Users").mock(return_value=httpx.Response(200, json=[{"Id": "u2"}]))
+        respx.get("http://jelly/Users/u2/Items").mock(return_value=httpx.Response(200, json={"Items": []}))
+        assert await c.series_paths(1) == []
+    assert users.called
+
+
+async def test_series_paths_reads_the_users_once():
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    with respx.mock:
+        users = respx.get("http://jelly/Users").mock(return_value=httpx.Response(200, json=[{"Id": "u1"}]))
+        respx.get("http://jelly/Users/u1/Items").mock(return_value=httpx.Response(200, json={"Items": []}))
+        await c.series_paths(1)
+        c._series_cache = None  # 30 s later
+        await c.series_paths(1)
+    assert users.call_count == 1
+
+
+async def test_series_paths_odd_users_answer_is_retried():
+    c = JellyfinClient(JellyfinConfig(url="http://jelly", api_key="K"))
+    sample = {"Items": []}
+    with respx.mock:
+        respx.get("http://jelly/Users").mock(return_value=httpx.Response(200, json={"oops": 1}))
+        respx.get("http://jelly/Items").mock(return_value=httpx.Response(200, json=sample))
+        assert await c.series_paths(1) == []
+    assert c._user_id is None  # not cached: the next refresh asks again
