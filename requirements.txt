@@ -84,7 +84,9 @@ mcp-types==2.3.0
 mypy==2.4.1
     # via torsearch (pyproject.toml)
 mypy-extensions==1.2.0
-    # via mypy
+    # via
+    #   librt
+    #   mypy
 opentelemetry-api==1.45.2
     # via
     #   fastapi
