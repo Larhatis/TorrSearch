@@ -15,7 +15,7 @@ jobs:
           python-version: "3.12"
       - name: Install (exact versions from requirements.txt)
         run: pip install -c requirements.txt -e ".[dev]"
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           version: "0.11.8"
       - name: Lock up to date with pyproject.toml
